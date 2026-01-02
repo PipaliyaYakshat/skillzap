@@ -351,6 +351,11 @@ export class AuthService {
 
       if (!user) throw new BadRequestException('User not found.');
 
+      // Check if user is blocked
+      if (user.isBlocked === true) {
+        throw new UnauthorizedException('Your account is blocked');
+      }
+
       const isMatch = await bcrypt.compare(password, user.password);
       if (!isMatch) throw new BadRequestException('Password does not match.');
 

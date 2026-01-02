@@ -132,6 +132,19 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
   }
 
+  // Helper method to check if user is blocked
+  private async checkUserIsBlocked(userId: string): Promise<{ isBlocked: boolean; user?: any }> {
+    try {
+      const user = await this.userModel.findById(userId).exec();
+      if (!user) {
+        return { isBlocked: false, user: null };
+      }
+      return { isBlocked: user.isBlocked === true, user };
+    } catch (error) {
+      return { isBlocked: false, user: null };
+    }
+  }
+
   // -------------------------------------------------------------
   // CONNECTION / DISCONNECT
   // -------------------------------------------------------------
@@ -181,6 +194,27 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           decoded,
         });
         client.emit('error_response', { message: 'Invalid token: userId not found' });
+        client.disconnect();
+        return;
+      }
+
+      // Check if user is blocked
+      const user = await this.userModel.findById(userId).exec();
+      if (!user) {
+        console.log('[handleConnection] Error: User not found:', {
+          socketId: client.id,
+          userId,
+        });
+        client.emit('error_response', { message: 'User not found' });
+        client.disconnect();
+        return;
+      }
+      if (user.isBlocked === true) {
+        console.log('[handleConnection] Error: User account is blocked:', {
+          socketId: client.id,
+          userId,
+        });
+        client.emit('error_response', { message: 'Your account is blocked' });
         client.disconnect();
         return;
       }
@@ -531,6 +565,13 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     if (!userId) {
       console.log('[teamMemberCreateGame] Error: Unauthorized - no userId');
       return client.emit('errorMessage', { message: 'Unauthorized' });
+    }
+
+    // Check if user is blocked
+    const { isBlocked } = await this.checkUserIsBlocked(userId);
+    if (isBlocked) {
+      console.log('[teamMemberCreateGame] Error: User account is blocked:', { userId });
+      return client.emit('errorMessage', { message: 'Your account is blocked' });
     }
 
     // Check if user is online
@@ -971,6 +1012,13 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     if (!inviterId) {
       console.log('[inviteTeamUser] Error: Unauthorized - no inviterId');
       return client.emit('errorMessage', { message: 'Unauthorized' });
+    }
+
+    // Check if user is blocked
+    const { isBlocked } = await this.checkUserIsBlocked(inviterId);
+    if (isBlocked) {
+      console.log('[inviteTeamUser] Error: User account is blocked:', { inviterId });
+      return client.emit('errorMessage', { message: 'Your account is blocked' });
     }
 
     const { teamId, mode } = data;

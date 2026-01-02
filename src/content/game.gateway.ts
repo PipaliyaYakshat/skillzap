@@ -156,6 +156,19 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  // Helper method to check if user is blocked
+  private async checkUserIsBlocked(userId: string): Promise<{ isBlocked: boolean; user?: any }> {
+    try {
+      const user = await this.usersService.findById(userId);
+      if (!user) {
+        return { isBlocked: false, user: null };
+      }
+      return { isBlocked: user.isBlocked === true, user };
+    } catch (error) {
+      return { isBlocked: false, user: null };
+    }
+  }
+
   // -------------------------------------------------------------
   // CONNECTION / DISCONNECT
   // -------------------------------------------------------------
@@ -205,6 +218,27 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
           decoded,
         });
         client.emit('error_response', { message: 'Invalid token: userId not found' });
+        client.disconnect();
+        return;
+      }
+
+      // Check if user is blocked
+      const user = await this.usersService.findById(userId);
+      if (!user) {
+        console.log('[handleConnection] Error: User not found:', {
+          socketId: client.id,
+          userId,
+        });
+        client.emit('error_response', { message: 'User not found' });
+        client.disconnect();
+        return;
+      }
+      if (user.isBlocked === true) {
+        console.log('[handleConnection] Error: User account is blocked:', {
+          socketId: client.id,
+          userId,
+        });
+        client.emit('error_response', { message: 'Your account is blocked' });
         client.disconnect();
         return;
       }
@@ -493,6 +527,13 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return client.emit('errorMessage', { message: 'Unauthorized' });
     }
 
+    // Check if user is blocked
+    const { isBlocked } = await this.checkUserIsBlocked(userId);
+    if (isBlocked) {
+      console.log('[singlePlayCreateGame] Error: User account is blocked:', { userId });
+      return client.emit('errorMessage', { message: 'Your account is blocked' });
+    }
+
     // Check if user is online
     const isOnline = await this.checkUserIsOnline(userId);
     console.log('[singlePlayCreateGame] User online status:', { userId, isOnline });
@@ -642,6 +683,13 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!userId) {
       console.log('[createGame] Error: Unauthorized - no userId');
       return client.emit('errorMessage', { message: 'Unauthorized' });
+    }
+
+    // Check if user is blocked
+    const { isBlocked } = await this.checkUserIsBlocked(userId);
+    if (isBlocked) {
+      console.log('[createGame] Error: User account is blocked:', { userId });
+      return client.emit('errorMessage', { message: 'Your account is blocked' });
     }
 
     // Check if user is online
@@ -1995,6 +2043,13 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return client.emit('errorMessage', { message: 'Unauthorized' });
     }
 
+    // Check if user is blocked
+    const { isBlocked } = await this.checkUserIsBlocked(userId);
+    if (isBlocked) {
+      console.log('[submitanswer] Error: User account is blocked:', { userId });
+      return client.emit('errorMessage', { message: 'Your account is blocked' });
+    }
+
     // Check if user is online
     const isOnline = await this.checkUserIsOnline(userId);
     console.log('[submitanswer] User online status:', { userId, isOnline });
@@ -3083,6 +3138,13 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!inviterId) {
       console.log('[inviteUser] Error: Unauthorized - no inviterId');
       return client.emit('errorMessage', { message: 'Unauthorized' });
+    }
+
+    // Check if user is blocked
+    const { isBlocked } = await this.checkUserIsBlocked(inviterId);
+    if (isBlocked) {
+      console.log('[inviteUser] Error: User account is blocked:', { inviterId });
+      return client.emit('errorMessage', { message: 'Your account is blocked' });
     }
 
     // Check if user is online
