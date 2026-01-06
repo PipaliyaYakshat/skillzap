@@ -337,7 +337,7 @@ export class ContentController {
   @ApiOperation({
     summary: 'Get topic by ID with all subtopics',
     description:
-      'Returns complete topic data including all subtopics populated.',
+      'Returns complete topic data including all subtopics populated. If user is authenticated, only shows userPercentages for the authenticated user in both topic and subtopics.',
   })
   @ApiParam({
     name: 'topicId',
@@ -378,8 +378,13 @@ export class ContentController {
     status: 404,
     description: 'Topic not found',
   })
-  async getTopicById(@Param('topicId') topicId: string) {
-    return this.contentService.getTopicById(topicId);
+  @UseGuards(FlexibleAuthGuard)
+  async getTopicById(
+    @Param('topicId') topicId: string,
+    @Req() req: Request & { user?: Record<string, any> },
+  ) {
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    return this.contentService.getTopicById(topicId, userId);
   }
 
   @Get('subtopic/:subTopicId')

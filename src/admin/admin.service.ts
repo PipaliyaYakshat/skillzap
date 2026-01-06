@@ -80,7 +80,7 @@ export class AdminService {
       const limit = query.limit || 10;
       const skip = (page - 1) * limit;
 
-      const filterQuery: any = { isActive: true };
+      const filterQuery: Record<string, unknown> = { isActive: true };
 
       // Search by name or email (case-insensitive, partial)
       if (query.search && query.search.trim().length > 0) {
@@ -122,7 +122,7 @@ export class AdminService {
           };
         }
 
-        const planIds = matchingPlans.map((p: any) => p._id);
+        const planIds = matchingPlans.map((p: { _id: Types.ObjectId }) => p._id);
         filterQuery.purchasePlanId = { $in: planIds };
       }
 
@@ -176,7 +176,7 @@ export class AdminService {
       const limit = query.limit || 10;
       const skip = (page - 1) * limit;
 
-      const filterQuery: any = { purchasePlanId: { $ne: null }, isActive: true };
+      const filterQuery: Record<string, unknown> = { purchasePlanId: { $ne: null }, isActive: true };
 
       // If a subscriptionType filter is provided, find plans with that subscriptionType and filter users by those plan IDs
       if (query.subscriptionType && query.subscriptionType.trim().length > 0) {
@@ -204,7 +204,7 @@ export class AdminService {
           };
         }
 
-        const planIds = matchingPlans.map((p: any) => p._id);
+        const planIds = matchingPlans.map((p: { _id: Types.ObjectId }) => p._id);
         filterQuery.purchasePlanId = { $in: planIds };
       }
 
@@ -219,8 +219,8 @@ export class AdminService {
         .exec();
 
       const sanitized = users.map((u) => {
-        const base = this.sanitizeUser(u as any);
-        const plan = (u.purchasePlanId as unknown) as any | null;
+        const base = this.sanitizeUser(u);
+        const plan = (u.purchasePlanId as unknown) as SubscriptionPlanDocument | null;
         const isExpired = !!(u.expirePlanDate && u.expirePlanDate.getTime() < Date.now());
 
         return {
@@ -313,7 +313,23 @@ export class AdminService {
         const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
         // Prepare user data
-        const userData: any = {
+        const userData: {
+          name: string;
+          email: string;
+          contactNumber: string;
+          countryCode: string;
+          password: string;
+          role: string;
+          userType: string;
+          teamPlan: string;
+          isActive: boolean;
+          isRegister: boolean;
+          isPayment?: boolean;
+          purchasePlanType?: SubscriptionType;
+          purchasePlanId?: Types.ObjectId;
+          startPlanDate?: Date;
+          expirePlanDate?: Date;
+        } = {
           name: `${registration.firstName} ${registration.lastName}`,
           email: registration.email,
           contactNumber: registration.contactNumber,
@@ -349,7 +365,7 @@ export class AdminService {
 
         userData.isPayment = true;
         userData.purchasePlanType = plan.subscriptionType;
-        userData.purchasePlanId = plan._id as any;
+        userData.purchasePlanId = plan._id as Types.ObjectId;
         userData.startPlanDate = startDate;
         userData.expirePlanDate = expireDate;
 
@@ -459,7 +475,7 @@ export class AdminService {
     }
 
     // Update based on status
-    const updateData: any = { status };
+    const updateData: Record<string, unknown> = { status };
     if (status === 'approve') {
       updateData.isPublic = true;
     } else if (status === 'reject') {
@@ -541,7 +557,7 @@ export class AdminService {
       const limit = query.limit || 10;
       const skip = (page - 1) * limit;
 
-      const filterQuery: any = {};
+      const filterQuery: Record<string, unknown> = {};
 
       // Filter by status if provided
       if (query.status && (query.status === 'approved' || query.status === 'pending')) {
@@ -586,7 +602,7 @@ export class AdminService {
       const limit = query.limit || 10;
       const skip = (page - 1) * limit;
 
-      const filterQuery: any = {
+      const filterQuery: Record<string, unknown> = {
         isPublic: true,
         status: 'approve',
       };
@@ -887,7 +903,7 @@ export class AdminService {
         topics.map(async (topic) => {
           const subTopicIds = (topic.subTopics || []).filter((id) => isValidObjectId(id));
 
-          let subtopics: any[] = [];
+          let subtopics: Array<Record<string, unknown>> = [];
           if (subTopicIds.length > 0) {
             subtopics = await this.subTopicModel
               .find({ _id: { $in: subTopicIds } })
@@ -1215,7 +1231,7 @@ export class AdminService {
   }
 
   // Helper methods for authentication
-  private generateJwtToken(user: any): string {
+  private generateJwtToken(user: UserDocument): string {
     return jwt.sign({ id: user._id, role: user.role }, 'TOKEN');
   }
 

@@ -13,9 +13,10 @@ export function Match(property: string, validationOptions?: ValidationOptions) {
       constraints: [property],
       options: validationOptions,
       validator: {
-        validate(value: any, args: ValidationArguments) {
+        validate(value: unknown, args: ValidationArguments) {
           const [relatedPropertyName] = args.constraints;
-          const relatedValue = (args.object as any)[relatedPropertyName];
+          const object = args.object as Record<string, unknown>;
+          const relatedValue = object[relatedPropertyName];
           return value === relatedValue;
         },
         defaultMessage(args: ValidationArguments) {

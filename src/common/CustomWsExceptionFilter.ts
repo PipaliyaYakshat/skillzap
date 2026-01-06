@@ -1,18 +1,35 @@
 import { ArgumentsHost, Catch, WsExceptionFilter } from '@nestjs/common';
 
+interface ExceptionResponse {
+  message?: string;
+  error?: string;
+}
+
+interface ExceptionLike {
+  response?: ExceptionResponse;
+  status?: number;
+}
+
 @Catch()
 export class CustomWsExceptionFilter implements WsExceptionFilter {
-  catch(exception: any, host: ArgumentsHost) {
+  catch(exception: unknown, host: ArgumentsHost) {
     const client = host.switchToWs().getClient();
 
     // Log the exception for debugging
     console.error('WebSocket Exception:', exception);
 
+    // Safely extract exception properties
+    const exceptionObj = exception as ExceptionLike;
+    const response = exceptionObj?.response;
+    const statusCode = typeof exceptionObj?.status === 'number' ? exceptionObj.status : 500;
+    const message = typeof response?.message === 'string' ? response.message : 'An unexpected error occurred.';
+    const error = typeof response?.error === 'string' ? response.error : 'Unknown error';
+
     // Emit a structured error response to the client
     client.emit('error', {
-      message: exception?.response?.message || 'An unexpected error occurred.',
-      error: exception?.response?.error || 'Unknown error',
-      statusCode: exception?.status || 500,
+      message,
+      error,
+      statusCode,
     });
   }
 }

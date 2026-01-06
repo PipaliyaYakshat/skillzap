@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { User, UserDocument } from './entities/user.entity';
-import { Model, isValidObjectId } from 'mongoose';
+import { Model, isValidObjectId, Types } from 'mongoose';
 import type { UpdateUserDto } from './dto/update-user.dto';
 import * as fs from 'fs';
 import * as bcrypt from 'bcrypt';
@@ -91,14 +91,23 @@ export class UsersService {
       // Get organization info if user belongs to one
       let organizerName = userDoc.organizerName || null;
       let organizerLogo = userDoc.organizerLogo || null;
-      let organizationId = userDoc.organization ? (userDoc.organization as any)?.toString() || userDoc.organization : null;
+      let organizationId: string | null = null;
 
       if (userDoc.organization) {
-        const organization = userDoc.organization as unknown as OrganizationDocument;
-        if (organization) {
-          organizerName = organization.name || null;
-          organizerLogo = organization.logo || null;
-          organizationId = (organization as any)._id?.toString() || organizationId;
+        // Check if organization is populated (has name/logo properties) or just an ObjectId
+        const organization = userDoc.organization as unknown as OrganizationDocument | Types.ObjectId;
+        if (organization && typeof organization === 'object' && 'name' in organization) {
+          // It's populated - it's an OrganizationDocument
+          const orgDoc = organization as OrganizationDocument;
+          organizerName = orgDoc.name || null;
+          organizerLogo = orgDoc.logo || null;
+          organizationId = orgDoc._id?.toString() || null;
+        } else if (organization instanceof Types.ObjectId) {
+          // It's just an ObjectId
+          organizationId = organization.toString();
+        } else if (organization) {
+          // Fallback: try to convert to string
+          organizationId = String(organization);
         }
       } else {
         // If user's organization field is null, check if user is a creator of an organization
@@ -176,10 +185,10 @@ export class UsersService {
         user.profileImage = updateUserDto.profileImage;
       }
       if (updateUserDto.avatarId !== undefined) {
-        const existingAvatarIds = Array.isArray(user.avatarId)
+        const existingAvatarIds: string[] = Array.isArray(user.avatarId)
           ? user.avatarId
           : user.avatarId !== undefined && user.avatarId !== null
-            ? [user.avatarId as any]
+            ? [String(user.avatarId)]
             : [];
 
         const incomingAvatarIds = Array.isArray(updateUserDto.avatarId)
@@ -191,7 +200,7 @@ export class UsersService {
           ...incomingAvatarIds,
         ].filter((id) => id !== '' && id !== undefined && id !== null);
 
-        user.avatarId = Array.from(new Set(mergedAvatarIds)) as any;
+        user.avatarId = Array.from(new Set(mergedAvatarIds)) as string[];
         
         // Update profileImage to avatarId value when avatarId is set
         // Use the newly added avatarId (last one from incoming) for profileImage
@@ -207,10 +216,10 @@ export class UsersService {
         }
       }
       if (updateUserDto.purchasedAvatars !== undefined) {
-        const existingPurchasedAvatars = Array.isArray(user.purchasedAvatars)
+        const existingPurchasedAvatars: string[] = Array.isArray(user.purchasedAvatars)
           ? user.purchasedAvatars
           : user.purchasedAvatars !== undefined && user.purchasedAvatars !== null
-            ? [user.purchasedAvatars as any]
+            ? [String(user.purchasedAvatars)]
             : [];
 
         const incomingPurchasedAvatars = Array.isArray(updateUserDto.purchasedAvatars)
@@ -222,7 +231,7 @@ export class UsersService {
           ...incomingPurchasedAvatars,
         ].filter((id) => id !== '' && id !== undefined && id !== null);
 
-        user.purchasedAvatars = Array.from(new Set(mergedPurchasedAvatars)) as any;
+        user.purchasedAvatars = Array.from(new Set(mergedPurchasedAvatars)) as string[];
       }
 
       if (profileImage) {
@@ -304,7 +313,11 @@ export class UsersService {
     return this.refreshLivesIfNeeded(user);
   }
 
-  async updateUserSocketInfo(userId: string, update: Record<string, any>) {
+  async updateUserSocketInfo(
+    userId: string,
+    // MongoDB update query that can include direct field updates and operators ($set, $inc, etc.)
+    update: Record<string, unknown>,
+  ) {
     if (!isValidObjectId(userId)) {
       throw new BadRequestException('Invalid user id.');
     }
@@ -645,7 +658,7 @@ export class UsersService {
 
       user.isPayment = true;
       user.purchasePlanType = plan.subscriptionType;
-      user.purchasePlanId = plan._id as any;
+      user.purchasePlanId = plan._id as Types.ObjectId;
       user.startPlanDate = startDate;
       user.expirePlanDate = expireDate;
       user.cardNumber = cardNumber;

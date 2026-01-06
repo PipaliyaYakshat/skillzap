@@ -10,7 +10,7 @@ import { UpdateContentDto } from './dto/update-content.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Game } from './schemas/game.schema';
 import { FilterQuery, Model, Types } from 'mongoose';
-import { SubTopic } from './schemas/subtopic.schema';
+import { SubTopic, SubTopicDocument } from './schemas/subtopic.schema';
 import { Topic, TopicDocument } from './schemas/topic.schema';
 import { DeckAIService } from './deck-ai.service';
 import { Socket } from 'socket.io';
@@ -30,6 +30,21 @@ import { getUploadBasePath } from '../common/multer.service';
 import { extname } from 'path';
 import { Deck, DeckDocument } from './schemas/deck.schema';
 import { User, UserDocument } from '../users/entities/user.entity';
+import { UpdateQuery } from 'mongoose';
+
+// Type for authenticated user object
+type AuthUser = {
+  id?: string;
+  _id?: string | Types.ObjectId;
+  userId?: string;
+} | undefined;
+
+// Helper type for lean document results (when using .lean())
+// Maps become Record<string, number> when using .lean()
+type LeanTopic = Omit<Topic, keyof Document | 'userPercentages'> & { _id: Types.ObjectId; userPercentages?: Record<string, number> };
+type LeanSubTopic = Omit<SubTopic, keyof Document | 'userPercentages'> & { _id: Types.ObjectId; userPercentages?: Record<string, number> };
+type LeanDeck = Omit<Deck, keyof Document> & { _id: Types.ObjectId };
+type LeanGameProgress = Omit<GameProgress, keyof Document> & { _id: Types.ObjectId };
 
 type ContentFilters = {
   userId?: string;
@@ -178,13 +193,15 @@ export class ContentService {
     return null;
   }
 
-  private normalizeId<T = any>(value: T): string | null {
+  private normalizeId<T = unknown>(value: T): string | null {
     if (value === undefined || value === null) {
       return null;
     }
-    return value && typeof value === 'object' && 'toString' in value
-      ? (value as any).toString()
-      : String(value);
+    if (value && typeof value === 'object' && 'toString' in value) {
+      const objWithToString = value as { toString(): string };
+      return objWithToString.toString();
+    }
+    return String(value);
   }
 
   /**
@@ -237,6 +254,14 @@ export class ContentService {
 
   getGameModel() {
     return this.gameModel;
+  }
+
+  getUserModel() {
+    return this.userModel;
+  }
+
+  getGameProgressModel() {
+    return this.gameProgressModel;
   }
 
   getAiService() {
@@ -305,6 +330,102 @@ export class ContentService {
         ? subTopicProgress // all completed, show all
         : subTopicProgress.slice(0, firstPendingIndex + 1);
 
+    // Get all subtopic IDs that need to be fetched
+    const visibleSubTopicIds = visibleSubTopicProgress.map((st) => st.subTopicId);
+
+    // Fetch all subtopics in one query
+    const subtopics = await this.subTopicModel
+      .find({ _id: { $in: visibleSubTopicIds } })
+      .lean()
+      .exec();
+
+    // Create a map of subtopic ID to subtopic document for quick lookup
+    const subtopicMap = new Map<string, LeanSubTopic>();
+    subtopics.forEach((subtopic) => {
+      const subtopicId = this.normalizeId(subtopic._id);
+      if (subtopicId) {
+        subtopicMap.set(subtopicId, subtopic as unknown as LeanSubTopic);
+      }
+    });
+
+    // Build subtopic progress with full subtopic data
+    const enrichedSubTopicProgress = visibleSubTopicProgress.map((st) => {
+      const subtopic = subtopicMap.get(st.subTopicId);
+      if (!subtopic) {
+        // If subtopic not found, return minimal data
+        return {
+          _id: st.subTopicId,
+          isCompleted: st.isCompleted,
+        };
+      }
+
+      // Filter userPercentages if userId is provided (similar to getTopicById)
+      let filteredUserPercentages: Record<string, number> = {};
+      if (subtopic.userPercentages && normalizedUserId) {
+        // Handle Map case (Mongoose document)
+        if (subtopic.userPercentages instanceof Map) {
+          const userPercentage = subtopic.userPercentages.get(normalizedUserId);
+          if (userPercentage !== undefined && userPercentage !== null) {
+            filteredUserPercentages[normalizedUserId] = userPercentage;
+          }
+        } else if (
+          subtopic.userPercentages &&
+          typeof subtopic.userPercentages === 'object' &&
+          !Array.isArray(subtopic.userPercentages)
+        ) {
+          // Handle plain object case (when using .lean(), Maps become objects)
+          const userPercentagesObj = subtopic.userPercentages as Record<string, number>;
+          const userPercentage = userPercentagesObj[normalizedUserId];
+          if (userPercentage !== undefined && userPercentage !== null) {
+            filteredUserPercentages[normalizedUserId] = userPercentage;
+          }
+        }
+      }
+
+      // Filter questionsAsked - only show questions asked by current user
+      const filteredQuestionsAsked = (subtopic.questionsAsked || []).filter(
+        (qa) => {
+          const qaUserId = qa.userId ? this.normalizeId(qa.userId) : null;
+          return qaUserId === normalizedUserId;
+        },
+      );
+
+      // Filter flashcardAccuracies - only show accuracies for current user
+      const filteredFlashcardAccuracies = (subtopic.flashcardAccuracies || []).filter(
+        (fa) => {
+          const faUserId = fa.userId ? this.normalizeId(fa.userId) : null;
+          return faUserId === normalizedUserId;
+        },
+      );
+
+      // Filter battleAccuracies - only show accuracies for current user
+      const filteredBattleAccuracies = (subtopic.battleAccuracies || []).filter(
+        (ba) => {
+          const baUserId = ba.userId ? this.normalizeId(ba.userId) : null;
+          return baUserId === normalizedUserId;
+        },
+      );
+
+      // Filter moreDetailsRequests - only show requests made by current user
+      const filteredMoreDetailsRequests = (subtopic.moreDetailsRequests || []).filter(
+        (mdr) => {
+          const mdrUserId = mdr.userId ? this.normalizeId(mdr.userId) : null;
+          return mdrUserId === normalizedUserId;
+        },
+      );
+
+      // Return full subtopic data with isCompleted flag and filtered user-specific data
+      return {
+        ...subtopic,
+        userPercentages: normalizedUserId ? filteredUserPercentages : subtopic.userPercentages,
+        questionsAsked: normalizedUserId ? filteredQuestionsAsked : subtopic.questionsAsked,
+        flashcardAccuracies: normalizedUserId ? filteredFlashcardAccuracies : subtopic.flashcardAccuracies,
+        battleAccuracies: normalizedUserId ? filteredBattleAccuracies : subtopic.battleAccuracies,
+        moreDetailsRequests: normalizedUserId ? filteredMoreDetailsRequests : subtopic.moreDetailsRequests,
+        isCompleted: st.isCompleted,
+      };
+    });
+
     // Convert to plain object to access timestamps (Mongoose adds createdAt/updatedAt automatically)
     const progressObj = progress.toObject();
 
@@ -318,7 +439,7 @@ export class ContentService {
       lastCycleCompletedAt: progressObj.lastCycleCompletedAt || null,
       createdAt: progressObj.createdAt || null,
       updatedAt: progressObj.updatedAt || null,
-      subTopicProgress: visibleSubTopicProgress,
+      subTopicProgress: enrichedSubTopicProgress,
     };
   }
 
@@ -521,7 +642,7 @@ export class ContentService {
   }
 
   async uploadFile(
-    authUser: Record<string, any> | undefined,
+    authUser: AuthUser,
     file?: Express.Multer.File,
   ) {
     if (!file) {
@@ -571,11 +692,16 @@ export class ContentService {
     return content.toObject();
   }
 
-  private extractUserId(user: Record<string, any> | undefined): string | null {
+  private extractUserId(user: AuthUser): string | null {
     if (!user) {
       return null;
     }
-    return user.id || user._id || user.userId || null;
+    if (user.id) return user.id;
+    if (user._id) {
+      return typeof user._id === 'string' ? user._id : user._id.toString();
+    }
+    if (user.userId) return user.userId;
+    return null;
   }
 
   private inferContentType(file: Express.Multer.File): string {
@@ -920,7 +1046,7 @@ export class ContentService {
       100,
     );
 
-    const updateData: any = {
+    const updateData: UpdateQuery<GameProgressDocument> = {
       $set: {
         lastGamePlayDate: new Date(),
         currentDailyStreak,
@@ -1210,42 +1336,6 @@ export class ContentService {
     };
   }
 
-  // async useHint(userId?: string, deviceId?: string) {
-  //   // Require at least one identifier
-  //   if (!userId && !deviceId) {
-  //     return {
-  //       success: false,
-  //       message: 'Either userId or deviceId is required',
-  //     };
-  //   }
-
-  //   let progress: GameProgressDocument | null = null;
-  //   if (userId) {
-  //     const normalizedUserId = this.normalizeId(userId);
-  //     if (normalizedUserId) {
-  //       progress = await this.gameProgressModel.findOne({
-  //         userId: normalizedUserId,
-  //       });
-  //     }
-  //   } else if (deviceId) {
-  //     progress = await this.gameProgressModel.findOne({ deviceId });
-  //   }
-
-  //   if (!progress) {
-  //     return { success: false, message: 'No game progress found' };
-  //   }
-
-  //   const hintCost = 5; // Cost of using a hint in coins
-  //   if (progress.coins < hintCost) {
-  //     return { success: false, message: 'Not enough coins' };
-  //   }
-
-  //   progress.coins -= hintCost;
-  //   await progress.save();
-
-  //   return { success: true, coins: progress.coins };
-  // }
-
   async updateSubTopicUserAccuracy(
     subTopicId: string,
     userId: string,
@@ -1303,102 +1393,127 @@ export class ContentService {
   }
 
   async getMyDecks(userId: string) {
-    // await this.assertIndividualUser(userId);
-    
-    if (!userId) {
-      throw new BadRequestException('User ID is required');
+  // 1️⃣ Validate userId
+  if (!userId) {
+    throw new BadRequestException('User ID is required');
+  }
+
+  const normalizedUserId = this.normalizeId(userId);
+
+  // 2️⃣ Fetch all decks of user
+  const decks = await this.deckModel
+    .find({ userId: normalizedUserId })
+    .sort({ createdAt: -1 })
+    .lean()
+    .exec();
+
+  // 3️⃣ Collect all unique topicIds from all decks
+  const allTopicIds: string[] = Array.from(
+    new Set(
+      decks.flatMap(deck =>
+        (deck.contentIds || [])
+          .map(id => this.normalizeId(id))
+          .filter((id): id is string => !!id),
+      ),
+    ),
+  );
+
+  // 4️⃣ Fetch topics in one query
+  const allTopics = await this.topicModel
+    .find({ _id: { $in: allTopicIds } })
+    .lean()
+    .exec();
+
+  // 5️⃣ Fetch topic progress records in one query
+  const allTopicProgressRecords = await this.topicProgressModel
+    .find({
+      userId: normalizedUserId,
+      topicId: { $in: allTopicIds },
+    })
+    .lean()
+    .exec();
+
+  // 6️⃣ Create lookup maps
+  const topicsMap = new Map<string, any>(
+    allTopics.map(topic => [
+      this.normalizeId(topic._id) as string,
+      topic,
+    ]),
+  );
+
+  const progressMap = new Map<string, any>(
+    allTopicProgressRecords.map(progress => [
+      this.normalizeId(progress.topicId) as string,
+      progress,
+    ]),
+  );
+
+  // 7️⃣ Process each deck
+  const decksWithPercentage = decks.map(deck => {
+    const totalCard = (deck.contentIds || []).length;
+
+    const topicIds = (deck.contentIds || [])
+      .map(id => this.normalizeId(id))
+      .filter((id): id is string => !!id);
+
+    if (topicIds.length === 0) {
+      return { ...deck, percentage: 0, totalCard };
     }
 
-    const normalizedUserId = this.normalizeId(userId);
-    const decks = await this.deckModel
-      .find({ 
-        userId: normalizedUserId,
-      })
-      .sort({ createdAt: -1 })
-      .lean()
-      .exec();
+    // 8️⃣ Get topics from map
+    const topics = topicIds
+      .map(id => topicsMap.get(id))
+      .filter(Boolean);
 
-    // Calculate percentage for each deck
-    const decksWithPercentage = await Promise.all(
-      decks.map(async (deck) => {
-        // Calculate totalCard (count of contentIds)
-        const totalCard = (deck.contentIds || []).length;
+    // 9️⃣ Count total subtopics
+    let totalSubTopics = 0;
+    const allSubTopicIds: string[] = [];
 
-        // Get all topic IDs from deck
-        const topicIds = (deck.contentIds || [])
-          .map((id) => this.normalizeId(id))
-          .filter((id): id is string => !!id);
+    for (const topic of topics) {
+      const subTopicIds = (topic.subTopics || [])
+        .map(id => this.normalizeId(id))
+        .filter((id): id is string => !!id);
 
-        if (topicIds.length === 0) {
-          return {
-            ...deck,
-            percentage: 0,
-            totalCard,
-          };
-        }
+      totalSubTopics += subTopicIds.length;
+      allSubTopicIds.push(...subTopicIds);
+    }
 
-        // Get all topics from deck
-        const topics = await this.topicModel
-          .find({ _id: { $in: topicIds } })
-          .lean()
-          .exec();
+    if (totalSubTopics === 0) {
+      return { ...deck, percentage: 0, totalCard };
+    }
 
-        // Count total subtopics across all topics
-        let totalSubTopics = 0;
-        const allSubTopicIds: string[] = [];
+    // 🔟 Collect completed subtopics
+    const completedSubTopicIdsSet = new Set<string>();
 
-        for (const topic of topics) {
-          const subTopicIds = (topic.subTopics || [])
-            .map((id) => this.normalizeId(id))
-            .filter((id): id is string => !!id);
-          allSubTopicIds.push(...subTopicIds);
-          totalSubTopics += subTopicIds.length;
-        }
+    topicIds
+      .map(id => progressMap.get(id))
+      .filter(Boolean)
+      .forEach(progress => {
+        (progress.completedSubTopicIds || [])
+          .map(id => this.normalizeId(id))
+          .filter((id): id is string => !!id)
+          .forEach(id => completedSubTopicIdsSet.add(id));
+      });
 
-        if (totalSubTopics === 0) {
-          return {
-            ...deck,
-            percentage: 0,
-            totalCard,
-          };
-        }
-
-        // Get all topic progress records for this user and these topics
-        const topicProgressRecords = await this.topicProgressModel
-          .find({
-            userId: normalizedUserId,
-            topicId: { $in: topicIds },
-          })
-          .lean()
-          .exec();
-
-        // Collect all completed subtopic IDs from all topic progress records
-        const completedSubTopicIdsSet = new Set<string>();
-        for (const progress of topicProgressRecords) {
-          const completedIds = (progress.completedSubTopicIds || [])
-            .map((id) => this.normalizeId(id))
-            .filter((id): id is string => !!id);
-          completedIds.forEach((id) => completedSubTopicIdsSet.add(id));
-        }
-
-        // Only count subtopics that are actually in the deck's topics
-        const completedInDeck = Array.from(completedSubTopicIdsSet).filter((id) =>
-          allSubTopicIds.includes(id),
-        );
-
-        // Calculate percentage
-        const percentage = Math.round((completedInDeck.length / totalSubTopics) * 100);
-
-        return {
-          ...deck,
-          percentage,
-          totalCard,
-        };
-      }),
+    // 1️⃣1️⃣ Count completed subtopics only from deck
+    const completedInDeck = Array.from(completedSubTopicIdsSet).filter(
+      id => allSubTopicIds.includes(id),
     );
 
-    return decksWithPercentage;
-  }
+    const percentage = Math.round(
+      (completedInDeck.length / totalSubTopics) * 100,
+    );
+
+    return {
+      ...deck,
+      percentage,
+      totalCard,
+    };
+  });
+
+  return decksWithPercentage;
+}
+
 
   /**
    * Update a deck's name. Only the deck owner can perform this action.
@@ -1503,11 +1618,12 @@ export class ContentService {
       .exec();
 
     // Create user map for quick lookup
-    const userMap = new Map<string, any>();
+    type LeanUserLibrary = { _id: Types.ObjectId; name?: string | null; profileImage?: string; avatarId?: string[]; purchasedAvatars?: string[] };
+    const userMap = new Map<string, LeanUserLibrary>();
     users.forEach((user) => {
       const userId = this.normalizeId(user._id);
       if (userId) {
-        userMap.set(userId, user);
+        userMap.set(userId, user as unknown as LeanUserLibrary);
       }
     });
 
@@ -1528,11 +1644,11 @@ export class ContentService {
       .exec();
 
     // Create topic map for quick lookup
-    const topicMap = new Map<string, any>();
+    const topicMap = new Map<string, LeanTopic>();
     topics.forEach((topic) => {
       const topicId = this.normalizeId(topic._id);
       if (topicId) {
-        topicMap.set(topicId, topic);
+        topicMap.set(topicId, topic as unknown as LeanTopic);
       }
     });
 
@@ -1553,11 +1669,11 @@ export class ContentService {
       .exec();
 
     // Create subtopic map for quick lookup
-    const subtopicMap = new Map<string, any>();
+    const subtopicMap = new Map<string, LeanSubTopic>();
     subtopics.forEach((subtopic) => {
       const subtopicId = this.normalizeId(subtopic._id);
       if (subtopicId) {
-        subtopicMap.set(subtopicId, subtopic);
+        subtopicMap.set(subtopicId, subtopic as unknown as LeanSubTopic);
       }
     });
 
@@ -1582,14 +1698,14 @@ export class ContentService {
               if (!normalizedSubTopicId) return null;
               return subtopicMap.get(normalizedSubTopicId) || null;
             })
-            .filter((st): st is any => st !== null);
+            .filter((st): st is LeanSubTopic => st !== null);
 
           return {
             ...topic,
             subTopics: populatedSubTopics,
           };
         })
-        .filter((topic): topic is any => topic !== null);
+        .filter((topic): topic is LeanTopic & { subTopics: LeanSubTopic[] } => topic !== null);
 
       return {
         ...deck,
@@ -2426,7 +2542,7 @@ export class ContentService {
       topicType = 'random';
     }
 
-    let deck: any = null;
+    let deck: LeanDeck | null = null;
 
     // Get deck based on topicType
     if (topicType === 'selected' && deckId) {
@@ -2435,7 +2551,8 @@ export class ContentService {
         throw new BadRequestException('Invalid deckId');
       }
 
-      deck = await this.deckModel.findById(normalizedDeckId).lean().exec();
+      const deckResult = await this.deckModel.findById(normalizedDeckId).lean().exec();
+      deck = deckResult as unknown as LeanDeck | null;
       if (!deck) {
         throw new NotFoundException('Deck not found');
       }
@@ -2459,7 +2576,8 @@ export class ContentService {
       }
     } else {
       // Get random deck
-      deck = await this.getRandomDeck();
+      const deckResult = await this.getRandomDeck();
+      deck = deckResult as unknown as LeanDeck;
     }
 
     if (!deck) {
@@ -2935,7 +3053,7 @@ export class ContentService {
 
     // Group progress by userId to handle duplicates (use the one with highest points)
     // This ensures each user appears only once with their best progress
-    const progressMap = new Map<string, any>();
+    const progressMap = new Map<string, LeanGameProgress>();
     allProgress.forEach((progress) => {
       const progressUserId = this.normalizeId(progress.userId);
       if (!progressUserId) return;
@@ -2945,7 +3063,7 @@ export class ContentService {
       
       // If no existing record or current has more points, use current
       if (!existing || currentPoints > (Number(existing.points) || 0)) {
-        progressMap.set(progressUserId, progress);
+        progressMap.set(progressUserId, progress as unknown as LeanGameProgress);
       }
     });
 
@@ -2979,11 +3097,12 @@ export class ContentService {
 
     // Create a map of userId to user details (only Individual users)
     // Since we filtered by userType = 'individual' in the query, all users here are Individual
-    const userMap = new Map<string, any>();
+    type LeanUserLeaderboard = { _id: Types.ObjectId; name?: string | null; email: string; profileImage?: string; isOnline?: boolean; userType?: string; createdAt?: Date | string };
+    const userMap = new Map<string, LeanUserLeaderboard>();
     users.forEach((user) => {
       const progressUserId = this.normalizeId(user._id);
       if (progressUserId) {
-        userMap.set(progressUserId, user);
+        userMap.set(progressUserId, user as LeanUserLeaderboard);
       }
     });
 
@@ -3030,8 +3149,8 @@ export class ContentService {
       if (b.points !== a.points) {
         return b.points - a.points;
       }
-      const aCreatedAt = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const bCreatedAt = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      const aCreatedAt = a.createdAt && (a.createdAt instanceof Date || typeof a.createdAt === 'string' || typeof a.createdAt === 'number') ? new Date(a.createdAt).getTime() : 0;
+      const bCreatedAt = b.createdAt && (b.createdAt instanceof Date || typeof b.createdAt === 'string' || typeof b.createdAt === 'number') ? new Date(b.createdAt).getTime() : 0;
       if (aCreatedAt !== bCreatedAt) {
         return aCreatedAt - bCreatedAt; // earlier date wins
       }
@@ -3042,8 +3161,8 @@ export class ContentService {
     });
 
     // Attach globalRank to entries
-    let allLeaderboardEntries = baseLeaderboardEntries
-      .map((entry) => ({
+    let allLeaderboardEntries: BaseLeaderboardEntry[] = baseLeaderboardEntries
+      .map((entry): BaseLeaderboardEntry => ({
         ...entry,
         globalRank: globalRankMap.get(entry.userId) || null,
       }))
@@ -3082,8 +3201,8 @@ export class ContentService {
           return b.points - a.points;
         }
         // If points are equal, earlier created user gets better rank
-        const aCreatedAt = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const bCreatedAt = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        const aCreatedAt = a.createdAt && (a.createdAt instanceof Date || typeof a.createdAt === 'string' || typeof a.createdAt === 'number') ? new Date(a.createdAt).getTime() : 0;
+        const bCreatedAt = b.createdAt && (b.createdAt instanceof Date || typeof b.createdAt === 'string' || typeof b.createdAt === 'number') ? new Date(b.createdAt).getTime() : 0;
         if (aCreatedAt !== bCreatedAt) {
           return aCreatedAt - bCreatedAt; // Ascending: earlier date = smaller number = better rank
         }
@@ -3103,6 +3222,19 @@ export class ContentService {
       createdAt?: Date | string;
       rank?: number;
       globalRank?: number | null;
+    };
+    
+    type BaseLeaderboardEntry = {
+      userId: string;
+      name: string;
+      email: string;
+      level: number;
+      levelName: string;
+      points: number;
+      profileImage: string | null;
+      isOnline: boolean;
+      createdAt?: Date | string;
+      globalRank: number | null;
     };
     
     const entriesByLevel = new Map<number, LeaderboardEntry[]>();
@@ -3164,8 +3296,8 @@ export class ContentService {
           return b.points - a.points;
         }
         // If points are equal, earlier created user gets better rank
-        const aCreatedAt = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const bCreatedAt = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        const aCreatedAt = a.createdAt && (a.createdAt instanceof Date || typeof a.createdAt === 'string' || typeof a.createdAt === 'number') ? new Date(a.createdAt).getTime() : 0;
+        const bCreatedAt = b.createdAt && (b.createdAt instanceof Date || typeof b.createdAt === 'string' || typeof b.createdAt === 'number') ? new Date(b.createdAt).getTime() : 0;
         if (aCreatedAt !== bCreatedAt) {
           return aCreatedAt - bCreatedAt; // Ascending: earlier date = smaller number = better rank
         }
@@ -3182,7 +3314,7 @@ export class ContentService {
     });
     
     // Update allLeaderboardEntries with ranked entries
-    allLeaderboardEntries = rankedEntries as any;
+    allLeaderboardEntries = rankedEntries as BaseLeaderboardEntry[];
 
     // Apply pagination
     const total = allLeaderboardEntries.length;
@@ -3266,18 +3398,18 @@ export class ContentService {
       .exec();
 
     // Remove topic IDs from old decks' contentIds
-    for (const oldDeck of decksWithTopics) {
-      // Skip if it's the destination deck (topics are already there)
-      if (this.normalizeId(oldDeck._id) === normalizedDeckId) {
-        continue;
-      }
+    const decksToUpdate = decksWithTopics
+      .filter(d => this.normalizeId(d._id) !== normalizedDeckId)
+      .map(oldDeck => {
+        const updatedContentIds = oldDeck.contentIds.filter(
+          (id) => !normalizedTopicIds.includes(this.normalizeId(id) || ''),
+        );
+        oldDeck.contentIds = updatedContentIds;
+        return oldDeck;
+      });
 
-      const updatedContentIds = oldDeck.contentIds.filter(
-        (id) => !normalizedTopicIds.includes(this.normalizeId(id) || ''),
-      );
-      oldDeck.contentIds = updatedContentIds;
-      await oldDeck.save();
-    }
+    // Bulk update all decks at once
+    await Promise.all(decksToUpdate.map(deck => deck.save()));
 
     // Add topic IDs to destination deck's contentIds (avoid duplicates)
     const existingContentIds = (destinationDeck.contentIds || []).map((id) =>
@@ -3573,8 +3705,9 @@ export class ContentService {
   /**
    * Get topic by ID with all subtopics populated
    * Returns complete topic data including all subtopics
+   * If userId is provided, filters userPercentages to show only the current user's percentage
    */
-  async getTopicById(topicId: string) {
+  async getTopicById(topicId: string, userId?: string) {
     if (!topicId) {
       throw new BadRequestException('topicId is required');
     }
@@ -3596,9 +3729,32 @@ export class ContentService {
       .filter((id): id is string => !!id);
 
     if (subTopicIds.length === 0) {
+      // Filter topic's userPercentages if userId is provided
+      let filteredTopicUserPercentages: Record<string, number> = {};
+      if (userId) {
+        const normalizedUserId = this.normalizeId(userId);
+        if (normalizedUserId && topic.userPercentages) {
+          // Handle Map case (Mongoose document)
+          if (topic.userPercentages instanceof Map) {
+            const userPercentage = topic.userPercentages.get(normalizedUserId);
+            if (userPercentage !== undefined && userPercentage !== null) {
+              filteredTopicUserPercentages[normalizedUserId] = userPercentage;
+            }
+          } else if (topic.userPercentages && typeof topic.userPercentages === 'object' && !Array.isArray(topic.userPercentages)) {
+            // Handle plain object case (when using .lean(), Maps become objects)
+            const userPercentagesObj = topic.userPercentages as Record<string, number>;
+            const userPercentage = userPercentagesObj[normalizedUserId];
+            if (userPercentage !== undefined && userPercentage !== null) {
+              filteredTopicUserPercentages[normalizedUserId] = userPercentage;
+            }
+          }
+        }
+      }
+
       return {
         ...topic,
         subTopics: [],
+        userPercentages: userId ? filteredTopicUserPercentages : topic.userPercentages,
       };
     }
 
@@ -3608,9 +3764,64 @@ export class ContentService {
       .lean()
       .exec();
 
+    // Filter userPercentages in each subtopic if userId is provided
+    let filteredSubtopics = subtopics;
+    if (userId) {
+      const normalizedUserId = this.normalizeId(userId);
+      filteredSubtopics = subtopics.map((subtopic) => {
+        const filteredUserPercentages: Record<string, number> = {};
+        
+        if (normalizedUserId && subtopic.userPercentages) {
+          // Handle Map case (Mongoose document)
+          if (subtopic.userPercentages instanceof Map) {
+            const userPercentage = subtopic.userPercentages.get(normalizedUserId);
+            if (userPercentage !== undefined && userPercentage !== null) {
+              filteredUserPercentages[normalizedUserId] = userPercentage;
+            }
+          } else if (subtopic.userPercentages && typeof subtopic.userPercentages === 'object' && !Array.isArray(subtopic.userPercentages)) {
+            // Handle plain object case (when using .lean(), Maps become objects)
+            const userPercentagesObj = subtopic.userPercentages as Record<string, number>;
+            const userPercentage = userPercentagesObj[normalizedUserId];
+            if (userPercentage !== undefined && userPercentage !== null) {
+              filteredUserPercentages[normalizedUserId] = userPercentage;
+            }
+          }
+        }
+
+        return {
+          ...subtopic,
+          userPercentages: filteredUserPercentages,
+        };
+      });
+    }
+
+    // Filter topic's userPercentages if userId is provided
+    let filteredTopicUserPercentages: Record<string, number> | undefined = undefined;
+    if (userId) {
+      const normalizedUserId = this.normalizeId(userId);
+      filteredTopicUserPercentages = {};
+      if (normalizedUserId && topic.userPercentages) {
+        // Handle Map case (Mongoose document)
+        if (topic.userPercentages instanceof Map) {
+          const userPercentage = topic.userPercentages.get(normalizedUserId);
+          if (userPercentage !== undefined && userPercentage !== null) {
+            filteredTopicUserPercentages[normalizedUserId] = userPercentage;
+          }
+        } else if (topic.userPercentages && typeof topic.userPercentages === 'object' && !Array.isArray(topic.userPercentages)) {
+          // Handle plain object case (when using .lean(), Maps become objects)
+          const userPercentagesObj = topic.userPercentages as Record<string, number>;
+          const userPercentage = userPercentagesObj[normalizedUserId];
+          if (userPercentage !== undefined && userPercentage !== null) {
+            filteredTopicUserPercentages[normalizedUserId] = userPercentage;
+          }
+        }
+      }
+    }
+
     return {
       ...topic,
-      subTopics: subtopics,
+      subTopics: filteredSubtopics,
+      userPercentages: userId ? filteredTopicUserPercentages : topic.userPercentages,
     };
   }
 
@@ -3650,15 +3861,16 @@ export class ContentService {
       // Filter userPercentages - only show current user's percentage
       const filteredUserPercentages: Record<string, number> = {};
       if (subtopic.userPercentages && normalizedUserId) {
-        const userPercentagesMap = subtopic.userPercentages as any;
-        if (userPercentagesMap instanceof Map) {
-          const userPercentage = userPercentagesMap.get(normalizedUserId);
+        // Handle Map case (Mongoose document)
+        if (subtopic.userPercentages instanceof Map) {
+          const userPercentage = subtopic.userPercentages.get(normalizedUserId);
           if (userPercentage !== undefined && userPercentage !== null) {
             filteredUserPercentages[normalizedUserId] = userPercentage;
           }
-        } else if (userPercentagesMap && typeof userPercentagesMap === 'object' && !Array.isArray(userPercentagesMap)) {
+        } else if (subtopic.userPercentages && typeof subtopic.userPercentages === 'object' && !Array.isArray(subtopic.userPercentages)) {
           // Handle plain object case (when using .lean(), Maps become objects)
-          const userPercentage = userPercentagesMap[normalizedUserId];
+          const userPercentagesObj = subtopic.userPercentages as Record<string, number>;
+          const userPercentage = userPercentagesObj[normalizedUserId];
           if (userPercentage !== undefined && userPercentage !== null) {
             filteredUserPercentages[normalizedUserId] = userPercentage;
           }
@@ -3696,12 +3908,13 @@ export class ContentService {
   /**
    * Get GameProgress for a user by userId
    */
-  async getGameProgress(userId: string): Promise<any | null> {
+  async getGameProgress(userId: string): Promise<LeanGameProgress | null> {
     const normalizedUserId = this.normalizeId(userId);
     if (!normalizedUserId) {
       return null;
     }
-    return await this.gameProgressModel.findOne({ userId: normalizedUserId }).lean().exec();
+    const result = await this.gameProgressModel.findOne({ userId: normalizedUserId }).lean().exec();
+    return result as LeanGameProgress | null;
   }
 
   /**

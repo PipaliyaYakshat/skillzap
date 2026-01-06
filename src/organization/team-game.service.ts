@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, FilterQuery, isValidObjectId } from 'mongoose';
+import { Model, FilterQuery, isValidObjectId, Types, UpdateQuery, Document } from 'mongoose';
 import { User, UserDocument } from '../users/entities/user.entity';
 import { TeamMember, TeamMemberDocument } from './entities/team-member.entity';
 import { Team, TeamDocument } from './entities/team.entity';
@@ -31,6 +31,35 @@ import {
   TeamGameChatDocument,
 } from './entities/teamgame-chat.entity';
 
+// Helper types for lean document results
+type LeanDeck = Omit<Deck, keyof Document> & { _id: Types.ObjectId; flashcardAccuracies?: Array<{ userId: string; accuracy: number; gamesPlayed: number }>; battleAccuracies?: Array<{ userId: string; accuracy: number; gamesPlayed: number }> };
+type LeanSubTopic = Omit<SubTopic, keyof Document> & { _id: Types.ObjectId; flashcardAccuracies?: Array<{ userId: string; accuracy: number; gamesPlayed: number }>; battleAccuracies?: Array<{ userId: string; accuracy: number; gamesPlayed: number }> };
+type LeanTopic = Omit<Topic, keyof Document> & { _id: Types.ObjectId; flashcardAccuracies?: Array<{ userId: string; accuracy: number; gamesPlayed: number }>; battleAccuracies?: Array<{ userId: string; accuracy: number; gamesPlayed: number }> };
+type LeanGame = Pick<GameDocument, 'accuracy' | 'playerAnswers' | 'type' | 'gameMode'>;
+type LeanTeam = Pick<TeamDocument, '_id' | 'teamName'>;
+type LeanUser = Pick<UserDocument, '_id' | 'name' | 'email' | 'profileImage' | 'isOnline' | 'lastSeen' | 'organization' | 'isActive'>;
+type AccuracyEntry = { userId: string; accuracy: number; gamesPlayed: number };
+type TeamMemberWithUser = {
+  _id: Types.ObjectId;
+  name: string | null;
+  email: string;
+  profileImage?: string;
+  isOnline: boolean;
+  lastSeen?: Date;
+  teamMemberId: Types.ObjectId | string;
+  teamId: string;
+  organizationId: string;
+  isAdmin: boolean;
+  status: string;
+  joinedAt: Date;
+};
+type DeckSearchResult = {
+  _id: Types.ObjectId;
+  name: string;
+  description?: string;
+  category?: string;
+};
+
 @Injectable()
 export class TeamGameService {
   constructor(
@@ -55,13 +84,15 @@ export class TeamGameService {
     private readonly contentService: ContentService,
   ) {}
 
-  private normalizeId<T = any>(value: T): string | null {
+  private normalizeId<T = unknown>(value: T): string | null {
     if (value === undefined || value === null) {
       return null;
     }
-    return value && typeof value === 'object' && 'toString' in value
-      ? (value as any).toString()
-      : String(value);
+    if (value && typeof value === 'object' && 'toString' in value) {
+      const objWithToString = value as { toString(): string };
+      return objWithToString.toString();
+    }
+    return String(value);
   }
 
   /**
@@ -69,18 +100,23 @@ export class TeamGameService {
    * Returns the deckId or null if no deck contains the subTopic.
    */
   async findDeckIdBySubTopicId(subTopicId: string | undefined | null) {
-    const normalizedSubTopicId = this.normalizeId(subTopicId);
-    if (!normalizedSubTopicId) {
-      return null;
+    try {
+      const normalizedSubTopicId = this.normalizeId(subTopicId);
+      if (!normalizedSubTopicId) {
+        return null;
+      }
+
+      const deck = await this.deckModel
+        .findOne({ contentIds: normalizedSubTopicId })
+        .select('_id')
+        .lean()
+        .exec();
+
+      return this.normalizeId(deck?._id);
+    } catch (error) {
+      console.error('Error in findDeckIdBySubTopicId:', error);
+      throw error;
     }
-
-    const deck = await this.deckModel
-      .findOne({ contentIds: normalizedSubTopicId })
-      .select('_id')
-      .lean()
-      .exec();
-
-    return this.normalizeId(deck?._id);
   }
 
   /**
@@ -89,18 +125,23 @@ export class TeamGameService {
    * Decks store topicIds in their contentIds array.
    */
   async findDeckIdByTopicId(topicId: string | undefined | null) {
-    const normalizedTopicId = this.normalizeId(topicId);
-    if (!normalizedTopicId) {
-      return null;
+    try {
+      const normalizedTopicId = this.normalizeId(topicId);
+      if (!normalizedTopicId) {
+        return null;
+      }
+
+      const deck = await this.deckModel
+        .findOne({ contentIds: normalizedTopicId })
+        .select('_id')
+        .lean()
+        .exec();
+
+      return this.normalizeId(deck?._id);
+    } catch (error) {
+      console.error('Error in findDeckIdByTopicId:', error);
+      throw error;
     }
-
-    const deck = await this.deckModel
-      .findOne({ contentIds: normalizedTopicId })
-      .select('_id')
-      .lean()
-      .exec();
-
-    return this.normalizeId(deck?._id);
   }
 
   private calculateAverage(values: number[]): number {
@@ -120,59 +161,68 @@ export class TeamGameService {
     accuracy: number,
     type: 'flashcard' | 'battle',
   ): Promise<void> {
-    const normalizedDeckId = this.normalizeId(deckId);
-    const normalizedUserId = this.normalizeId(userId);
+    try {
+      const normalizedDeckId = this.normalizeId(deckId);
+      const normalizedUserId = this.normalizeId(userId);
 
-    if (!normalizedDeckId || !normalizedUserId || Number.isNaN(accuracy)) {
-      return;
-    }
+      if (!normalizedDeckId || !normalizedUserId || Number.isNaN(accuracy)) {
+        return;
+      }
 
-    const arrayField =
-      type === 'flashcard' ? 'flashcardAccuracies' : 'battleAccuracies';
+      const arrayField =
+        type === 'flashcard' ? 'flashcardAccuracies' : 'battleAccuracies';
 
-    // Fetch current entry to compute rolling average
-    const deckDoc = await this.deckModel
-      .findById(normalizedDeckId)
-      .select(arrayField)
-      .lean();
+      // Fetch current entry to compute rolling average
+      const deckDoc = await this.deckModel
+        .findById(normalizedDeckId)
+        .select(arrayField)
+        .lean();
 
-    const existingEntry = (deckDoc as any)?.[arrayField]?.find(
-      (entry: any) => this.normalizeId(entry.userId) === normalizedUserId,
-    );
-
-    const prevGames = existingEntry?.gamesPlayed ?? 0;
-    const prevAccuracy = existingEntry?.accuracy ?? 0;
-    const newGamesPlayed = prevGames + 1;
-    const newAverage =
-      Math.round(((prevAccuracy * prevGames + accuracy) / newGamesPlayed) * 100) /
-      100;
-
-    if (existingEntry) {
-      await this.deckModel.updateOne(
-        {
-          _id: normalizedDeckId,
-          [`${arrayField}.userId`]: normalizedUserId,
-        },
-        {
-          $set: {
-            [`${arrayField}.$.accuracy`]: newAverage,
-            [`${arrayField}.$.gamesPlayed`]: newGamesPlayed,
-          },
-        },
+      const deckDocTyped = deckDoc as LeanDeck;
+      const accuracyArray = arrayField === 'flashcardAccuracies' 
+        ? deckDocTyped?.flashcardAccuracies 
+        : deckDocTyped?.battleAccuracies;
+      const existingEntry = accuracyArray?.find(
+        (entry: AccuracyEntry) => this.normalizeId(entry.userId) === normalizedUserId,
       );
-    } else {
-      await this.deckModel.updateOne(
-        { _id: normalizedDeckId },
-        {
-          $push: {
-            [arrayField]: {
-              userId: normalizedUserId,
-              accuracy,
-              gamesPlayed: 1,
+
+      const prevGames = existingEntry?.gamesPlayed ?? 0;
+      const prevAccuracy = existingEntry?.accuracy ?? 0;
+      const newGamesPlayed = prevGames + 1;
+      const newAverage =
+        Math.round(((prevAccuracy * prevGames + accuracy) / newGamesPlayed) * 100) /
+        100;
+
+      if (existingEntry) {
+        await this.deckModel.updateOne(
+          {
+            _id: normalizedDeckId,
+            [`${arrayField}.userId`]: normalizedUserId,
+          },
+          {
+            $set: {
+              [`${arrayField}.$.accuracy`]: newAverage,
+              [`${arrayField}.$.gamesPlayed`]: newGamesPlayed,
             },
           },
-        },
-      );
+        );
+      } else {
+        await this.deckModel.updateOne(
+          { _id: normalizedDeckId },
+          {
+            $push: {
+              [arrayField]: {
+                userId: normalizedUserId,
+                accuracy,
+                gamesPlayed: 1,
+              },
+            },
+          },
+        );
+      }
+    } catch (error) {
+      console.error('Error in upsertDeckAccuracy:', error);
+      throw error;
     }
   }
 
@@ -185,7 +235,12 @@ export class TeamGameService {
     accuracy: number,
     type: 'flashcard' | 'battle',
   ): Promise<void> {
-    return this.upsertDeckAccuracy(deckId, userId, accuracy, type);
+    try {
+      return await this.upsertDeckAccuracy(deckId, userId, accuracy, type);
+    } catch (error) {
+      console.error('Error in recordDeckAccuracy:', error);
+      throw error;
+    }
   }
 
   /**
@@ -198,63 +253,72 @@ export class TeamGameService {
     accuracy: number,
     type: 'flashcard' | 'battle',
   ): Promise<void> {
-    const normalizedSubTopicId = this.normalizeId(subTopicId);
-    const normalizedUserId = this.normalizeId(userId);
+    try {
+      const normalizedSubTopicId = this.normalizeId(subTopicId);
+      const normalizedUserId = this.normalizeId(userId);
 
-    if (!normalizedSubTopicId || !normalizedUserId || Number.isNaN(accuracy)) {
-      return;
-    }
+      if (!normalizedSubTopicId || !normalizedUserId || Number.isNaN(accuracy)) {
+        return;
+      }
 
-    const arrayField =
-      type === 'flashcard' ? 'flashcardAccuracies' : 'battleAccuracies';
+      const arrayField =
+        type === 'flashcard' ? 'flashcardAccuracies' : 'battleAccuracies';
 
-    // Fetch current entry to compute rolling average
-    const subTopicDoc = await this.subTopicModel
-      .findById(normalizedSubTopicId)
-      .select(arrayField)
-      .lean();
+      // Fetch current entry to compute rolling average
+      const subTopicDoc = await this.subTopicModel
+        .findById(normalizedSubTopicId)
+        .select(arrayField)
+        .lean();
 
-    const existingEntry = (subTopicDoc as any)?.[arrayField]?.find(
-      (entry: any) => this.normalizeId(entry.userId) === normalizedUserId,
-    );
-
-    const prevGames = existingEntry?.gamesPlayed ?? 0;
-    const prevAccuracy = existingEntry?.accuracy ?? 0;
-    const newGamesPlayed = prevGames + 1;
-    const newAverage =
-      Math.round(((prevAccuracy * prevGames + accuracy) / newGamesPlayed) * 100) /
-      100;
-
-    if (existingEntry) {
-      await this.subTopicModel.updateOne(
-        {
-          _id: normalizedSubTopicId,
-          [`${arrayField}.userId`]: normalizedUserId,
-        },
-        {
-          $set: {
-            [`${arrayField}.$.accuracy`]: newAverage,
-            [`${arrayField}.$.gamesPlayed`]: newGamesPlayed,
-          },
-        },
+      const subTopicDocTyped = subTopicDoc as unknown as LeanSubTopic;
+      const accuracyArray = arrayField === 'flashcardAccuracies' 
+        ? subTopicDocTyped?.flashcardAccuracies 
+        : subTopicDocTyped?.battleAccuracies;
+      const existingEntry = accuracyArray?.find(
+        (entry: AccuracyEntry) => this.normalizeId(entry.userId) === normalizedUserId,
       );
-    } else {
-      await this.subTopicModel.updateOne(
-        { _id: normalizedSubTopicId },
-        {
-          $push: {
-            [arrayField]: {
-              userId: normalizedUserId,
-              accuracy,
-              gamesPlayed: 1,
+
+      const prevGames = existingEntry?.gamesPlayed ?? 0;
+      const prevAccuracy = existingEntry?.accuracy ?? 0;
+      const newGamesPlayed = prevGames + 1;
+      const newAverage =
+        Math.round(((prevAccuracy * prevGames + accuracy) / newGamesPlayed) * 100) /
+        100;
+
+      if (existingEntry) {
+        await this.subTopicModel.updateOne(
+          {
+            _id: normalizedSubTopicId,
+            [`${arrayField}.userId`]: normalizedUserId,
+          },
+          {
+            $set: {
+              [`${arrayField}.$.accuracy`]: newAverage,
+              [`${arrayField}.$.gamesPlayed`]: newGamesPlayed,
             },
           },
-        },
-      );
-    }
+        );
+      } else {
+        await this.subTopicModel.updateOne(
+          { _id: normalizedSubTopicId },
+          {
+            $push: {
+              [arrayField]: {
+                userId: normalizedUserId,
+                accuracy,
+                gamesPlayed: 1,
+              },
+            },
+          },
+        );
+      }
 
-    // After updating subtopic, store the subtopic accuracy entry in the parent topic
-    await this.updateTopicAccuracyFromSubTopic(normalizedSubTopicId, normalizedUserId, newAverage, newGamesPlayed, type);
+      // After updating subtopic, store the subtopic accuracy entry in the parent topic
+      await this.updateTopicAccuracyFromSubTopic(normalizedSubTopicId, normalizedUserId, newAverage, newGamesPlayed, type);
+    } catch (error) {
+      console.error('Error in recordSubTopicAccuracy:', error);
+      throw error;
+    }
   }
 
   /**
@@ -297,10 +361,10 @@ export class TeamGameService {
 
       if (type === 'flashcard') {
         // Flashcard: Aggregate all subtopic accuracies (acc1 + acc2 + ... + accN) / N
-        // Get the topic to find all its subtopics
+        // OPTIMIZED: Fetch topic with both subTopics and accuracy array in single query
         const topic = await this.topicModel
           .findById(topicId)
-          .select('subTopics')
+          .select(`subTopics ${arrayField}`)
           .lean();
 
         if (!topic || !topic.subTopics || topic.subTopics.length === 0) {
@@ -318,9 +382,10 @@ export class TeamGameService {
 
         // Collect all accuracies for this user from all subtopics
         const accuracies: number[] = [];
-        subTopics.forEach((subTopic: any) => {
-          const entry = subTopic.flashcardAccuracies?.find(
-            (entry: any) => this.normalizeId(entry.userId) === normalizedUserId,
+        subTopics.forEach((subTopic) => {
+          const subTopicTyped = subTopic as unknown as LeanSubTopic;
+          const entry = subTopicTyped.flashcardAccuracies?.find(
+            (entry: AccuracyEntry) => this.normalizeId(entry.userId) === normalizedUserId,
           );
           if (entry && typeof entry.accuracy === 'number') {
             accuracies.push(entry.accuracy);
@@ -334,14 +399,11 @@ export class TeamGameService {
           topicAccuracy = Math.round((sum / accuracies.length) * 100) / 100;
         }
 
-        // Update topic accuracy (single entry per user)
-        const topicDoc = await this.topicModel
-          .findById(topicId)
-          .select(arrayField)
-          .lean();
-
-        const existingEntry = (topicDoc as any)?.[arrayField]?.find(
-          (entry: any) => this.normalizeId(entry.userId) === normalizedUserId,
+        // OPTIMIZED: Use topic fetched above to check existing entry (no additional query needed)
+        const topicDocTyped = topic as unknown as LeanTopic;
+        const accuracyArray = topicDocTyped?.flashcardAccuracies;
+        const existingEntry = accuracyArray?.find(
+          (entry: AccuracyEntry) => this.normalizeId(entry.userId) === normalizedUserId,
         );
 
         if (existingEntry) {
@@ -380,8 +442,12 @@ export class TeamGameService {
           .select(arrayField)
           .lean();
 
-        const existingEntry = (topicDoc as any)?.[arrayField]?.find(
-          (entry: any) => this.normalizeId(entry.userId) === normalizedUserId,
+        const topicDocTyped = topicDoc as unknown as LeanTopic;
+        const accuracyArray = arrayField === 'flashcardAccuracies' 
+          ? topicDocTyped?.flashcardAccuracies 
+          : topicDocTyped?.battleAccuracies;
+        const existingEntry = accuracyArray?.find(
+          (entry: AccuracyEntry) => this.normalizeId(entry.userId) === normalizedUserId,
         );
 
         if (existingEntry) {
@@ -421,19 +487,19 @@ export class TeamGameService {
   }
 
   private getUserAccuracyFromGame(
-    game: any,
+    game: LeanGame | null | undefined,
     userId: string,
   ): number | null {
     if (!game) {
       return null;
     }
 
-    const accuracyMap = (game as any)?.accuracy as Record<string, number>;
+    const accuracyMap = game.accuracy as Record<string, number> | undefined;
     if (accuracyMap && typeof accuracyMap[userId] === 'number') {
       return accuracyMap[userId];
     }
 
-    const playerAnswers = (game as any)?.playerAnswers as
+    const playerAnswers = game.playerAnswers as
       | Array<{ userId: string; isCorrect: boolean }>
       | undefined;
     if (!playerAnswers) {
@@ -459,97 +525,108 @@ export class TeamGameService {
   async updateTeamMemberOnlineStatus(
     userId: string,
     isOnline: boolean,
-  ): Promise<any> {
-    if (!userId) {
-      throw new BadRequestException('User ID is required');
+  ): Promise<LeanUser | null> {
+    try {
+      if (!userId) {
+        throw new BadRequestException('User ID is required');
+      }
+
+      const normalizedUserId = this.normalizeId(userId);
+      const updated = await this.userModel
+        .findByIdAndUpdate(
+          normalizedUserId,
+          { $set: { isOnline } },
+          { new: true, lean: true },
+        )
+        .exec();
+
+      if (!updated) {
+        throw new NotFoundException('User not found');
+      }
+
+      return updated as LeanUser | null;
+    } catch (error) {
+      console.error('Error in updateTeamMemberOnlineStatus:', error);
+      throw error;
     }
-
-    const normalizedUserId = this.normalizeId(userId);
-    const updated = await this.userModel
-      .findByIdAndUpdate(
-        normalizedUserId,
-        { $set: { isOnline } },
-        { new: true, lean: true },
-      )
-      .exec();
-
-    if (!updated) {
-      throw new NotFoundException('User not found');
-    }
-
-    return updated;
   }
 
   async getTeamMembers(
     teamId?: string,
     organizationId?: string,
-  ): Promise<any[]> {
-    const query: any = {
-      status: 'approved', // Only approved team members
-    };
+  ): Promise<TeamMemberWithUser[]> {
+    try {
+      const query: FilterQuery<TeamMemberDocument> = {
+        status: 'approved', // Only approved team members
+      };
 
-    if (teamId) {
-      const normalizedTeamId = this.normalizeId(teamId);
-      if (!normalizedTeamId) {
-        throw new BadRequestException('Invalid team ID');
+      if (teamId) {
+        const normalizedTeamId = this.normalizeId(teamId);
+        if (!normalizedTeamId) {
+          throw new BadRequestException('Invalid team ID');
+        }
+        query.team = normalizedTeamId;
       }
-      query.team = normalizedTeamId;
-    }
 
-    if (organizationId) {
-      const normalizedOrgId = this.normalizeId(organizationId);
-      if (!normalizedOrgId) {
-        throw new BadRequestException('Invalid organization ID');
+      if (organizationId) {
+        const normalizedOrgId = this.normalizeId(organizationId);
+        if (!normalizedOrgId) {
+          throw new BadRequestException('Invalid organization ID');
+        }
+        query.organization = normalizedOrgId;
       }
-      query.organization = normalizedOrgId;
-    }
 
-    // Get team members
-    const teamMembers = await this.teamMemberModel
-      .find(query)
-      .populate('user', '_id name email profileImage isOnline lastSeen')
-      .lean()
-      .exec();
+      // Get team members
+      const teamMembers = await this.teamMemberModel
+        .find(query)
+        .populate('user', '_id name email profileImage isOnline lastSeen')
+        .lean()
+        .exec();
 
-    // Include all members with users (both online and offline)
-    const allTeamMembers = teamMembers
-      .filter((member: any) => {
-        // Check if member has a user and user is active
-        return (
-          member.user &&
-          typeof member.user === 'object' &&
-          member.user.isActive !== false
-        );
-      })
-      .map((member: any) => {
-        const user = member.user;
-        return {
-          _id: user._id,
-          name: user.name,
-          email: user.email,
-          profileImage: user.profileImage,
-          isOnline: user.isOnline || false,
-          lastSeen: user.lastSeen,
-          teamMemberId: member._id,
-          teamId: member.team,
-          organizationId: member.organization,
-          isAdmin: member.isAdmin,
-          status: member.status,
-          joinedAt: member.joinedAt,
-        };
+      // Include all members with users (both online and offline)
+      type PopulatedTeamMember = TeamMemberDocument & { user: LeanUser };
+      const allTeamMembers = (teamMembers as unknown as PopulatedTeamMember[])
+        .filter((member) => {
+          // Check if member has a user and user is active
+          return (
+            member.user &&
+            typeof member.user === 'object' &&
+            member.user.isActive !== false
+          );
+        })
+        .map((member): TeamMemberWithUser => {
+          const user = member.user;
+          return {
+            _id: user._id as Types.ObjectId,
+            name: user.name || null,
+            email: user.email,
+            profileImage: user.profileImage,
+            isOnline: user.isOnline || false,
+            lastSeen: user.lastSeen,
+            teamMemberId: member._id,
+            teamId: this.normalizeId(member.team) || '',
+            organizationId: this.normalizeId(member.organization) || '',
+            isAdmin: member.isAdmin,
+            status: member.status,
+            joinedAt: member.joinedAt,
+          };
+        });
+
+      // Sort by isOnline first (online users first), then by lastSeen descending
+      return allTeamMembers.sort((a, b) => {
+        // Online users first
+        if (a.isOnline !== b.isOnline) {
+          return a.isOnline ? -1 : 1;
+        }
+        // Then sort by lastSeen descending
+        const aTime = a.lastSeen ? new Date(a.lastSeen).getTime() : 0;
+        const bTime = b.lastSeen ? new Date(b.lastSeen).getTime() : 0;
+        return bTime - aTime;
       });
-
-    // Sort by isOnline first (online users first), then by lastSeen descending
-    return allTeamMembers.sort((a, b) => {
-      // Online users first
-      if (a.isOnline !== b.isOnline) {
-        return a.isOnline ? -1 : 1;
-      }
-      // Then sort by lastSeen descending
-      const aTime = a.lastSeen ? new Date(a.lastSeen).getTime() : 0;
-      const bTime = b.lastSeen ? new Date(b.lastSeen).getTime() : 0;
-      return bTime - aTime;
-    });
+    } catch (error) {
+      console.error('Error in getTeamMembers:', error);
+      throw error;
+    }
   }
 
 
@@ -558,87 +635,93 @@ export class TeamGameService {
     userId?: string,
     teamId?: string,
     organizationId?: string,
-  ): Promise<any[]> {
-    const trimmedName = name?.trim();
-    if (!trimmedName) {
-      return [];
-    }
-
-    const query: any = {
-      status: 'approved', // Only approved team members
-    };
-
-    if (teamId) {
-      const normalizedTeamId = this.normalizeId(teamId);
-      if (normalizedTeamId) {
-        query.team = normalizedTeamId;
+  ): Promise<TeamMemberWithUser[]> {
+    try {
+      const trimmedName = name?.trim();
+      if (!trimmedName) {
+        return [];
       }
-    }
 
-    if (organizationId) {
-      const normalizedOrgId = this.normalizeId(organizationId);
-      if (normalizedOrgId) {
-        query.organization = normalizedOrgId;
-      }
-    }
+      const query: FilterQuery<TeamMemberDocument> = {
+        status: 'approved', // Only approved team members
+      };
 
-    // Get team members
-    const teamMembers = await this.teamMemberModel
-      .find(query)
-      .populate('user', '_id name email profileImage isOnline lastSeen')
-      .lean()
-      .exec();
-
-    // Filter to include members with users (both online and offline) that match the name
-    const matchingTeamMembers = teamMembers
-      .filter((member: any) => {
-        // Check if member has a user and user is active
-        if (
-          !member.user ||
-          typeof member.user !== 'object' ||
-          member.user.isActive === false
-        ) {
-          return false;
+      if (teamId) {
+        const normalizedTeamId = this.normalizeId(teamId);
+        if (normalizedTeamId) {
+          query.team = normalizedTeamId;
         }
+      }
 
-        // Exclude current user if provided
-        if (userId) {
-          const normalizedUserId = this.normalizeId(userId);
-          const memberUserId = this.normalizeId(member.user._id);
-          if (normalizedUserId && memberUserId === normalizedUserId) {
+      if (organizationId) {
+        const normalizedOrgId = this.normalizeId(organizationId);
+        if (normalizedOrgId) {
+          query.organization = normalizedOrgId;
+        }
+      }
+
+      // Get team members
+      const teamMembers = await this.teamMemberModel
+        .find(query)
+        .populate('user', '_id name email profileImage isOnline lastSeen')
+        .lean()
+        .exec();
+
+      // Filter to include members with users (both online and offline) that match the name
+      type PopulatedTeamMember = TeamMemberDocument & { user: LeanUser };
+      const matchingTeamMembers = (teamMembers as unknown as PopulatedTeamMember[])
+        .filter((member) => {
+          // Check if member has a user and user is active
+          if (
+            !member.user ||
+            typeof member.user !== 'object' ||
+            member.user.isActive === false
+          ) {
             return false;
           }
+
+          // Exclude current user if provided
+          if (userId) {
+            const normalizedUserId = this.normalizeId(userId);
+            const memberUserId = this.normalizeId(member.user._id);
+            if (normalizedUserId && memberUserId === normalizedUserId) {
+              return false;
+            }
+          }
+
+          // Check if name matches (case-insensitive)
+          const userName = member.user.name || '';
+          return userName.toLowerCase().includes(trimmedName.toLowerCase());
+        })
+        .map((member): TeamMemberWithUser => {
+          const user = member.user;
+          return {
+            _id: user._id as Types.ObjectId,
+            name: user.name || null,
+            email: user.email,
+            profileImage: user.profileImage,
+            isOnline: user.isOnline || false,
+            lastSeen: user.lastSeen,
+            teamMemberId: member._id,
+            teamId: this.normalizeId(member.team) || '',
+            organizationId: this.normalizeId(member.organization) || '',
+            isAdmin: member.isAdmin,
+            status: member.status,
+            joinedAt: member.joinedAt,
+          };
+        });
+
+      // Sort by isOnline first (online users first), then by name
+      return matchingTeamMembers.sort((a, b) => {
+        if (a.isOnline !== b.isOnline) {
+          return a.isOnline ? -1 : 1;
         }
-
-        // Check if name matches (case-insensitive)
-        const userName = member.user.name || '';
-        return userName.toLowerCase().includes(trimmedName.toLowerCase());
-      })
-      .map((member: any) => {
-        const user = member.user;
-        return {
-          _id: user._id,
-          name: user.name,
-          email: user.email,
-          profileImage: user.profileImage,
-          isOnline: user.isOnline || false,
-          lastSeen: user.lastSeen,
-          teamMemberId: member._id,
-          teamId: member.team,
-          organizationId: member.organization,
-          isAdmin: member.isAdmin,
-          status: member.status,
-          joinedAt: member.joinedAt,
-        };
+        return (a.name || '').localeCompare(b.name || '');
       });
-
-    // Sort by isOnline first (online users first), then by name
-    return matchingTeamMembers.sort((a, b) => {
-      if (a.isOnline !== b.isOnline) {
-        return a.isOnline ? -1 : 1;
-      }
-      return (a.name || '').localeCompare(b.name || '');
-    });
+    } catch (error) {
+      console.error('Error in searchTeamMembersName:', error);
+      throw error;
+    }
   }
 
   /**
@@ -648,29 +731,34 @@ export class TeamGameService {
   async searchDeckName(
     searchTerm: string,
     limit: number = 10,
-  ): Promise<Array<{ _id: any; name: string; description?: string; category?: string }>> {
-    const term = searchTerm?.trim();
-    if (!term) {
-      return [];
+  ): Promise<DeckSearchResult[]> {
+    try {
+      const term = searchTerm?.trim();
+      if (!term) {
+        return [];
+      }
+
+      // Escape regex special chars to avoid unintended patterns
+      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escaped, 'i');
+
+      const parsedLimit = Number(limit);
+      const safeLimit =
+        Number.isFinite(parsedLimit) && parsedLimit > 0
+          ? Math.min(parsedLimit, 50)
+          : 10;
+
+      return await this.deckModel
+        .find({ name: regex })
+        .select('_id name description category')
+        .limit(safeLimit)
+        .sort({ createdAt: -1 })
+        .lean()
+        .exec();
+    } catch (error) {
+      console.error('Error in searchDeckName:', error);
+      throw error;
     }
-
-    // Escape regex special chars to avoid unintended patterns
-    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(escaped, 'i');
-
-    const parsedLimit = Number(limit);
-    const safeLimit =
-      Number.isFinite(parsedLimit) && parsedLimit > 0
-        ? Math.min(parsedLimit, 50)
-        : 10;
-
-    return this.deckModel
-      .find({ name: regex })
-      .select('_id name description category')
-      .limit(safeLimit)
-      .sort({ createdAt: -1 })
-      .lean()
-      .exec();
   }
 
   /**
@@ -678,69 +766,74 @@ export class TeamGameService {
    * @param organizationId Organization ID to filter decks
    * @returns Random deck created by organization's admin/superadmin
    */
-  async getRandomDeck(organizationId?: string): Promise<any> {
-    const query: FilterQuery<DeckDocument> = {};
+  async getRandomDeck(organizationId?: string): Promise<LeanDeck> {
+    try {
+      const query: FilterQuery<DeckDocument> = {};
 
-    // If organizationId is provided, filter decks by organization's admin/superadmin
-    if (organizationId) {
-      const normalizedOrgId = this.normalizeId(organizationId);
-      if (normalizedOrgId) {
-        // Find all users in this organization with userType 'admin' or 'superAdmin'
-        const orgAdmins = await this.userModel
-          .find({
-            organization: normalizedOrgId,
-            userType: { $in: ['admin', 'superAdmin'] },
-          })
-          .select('_id')
-          .lean()
-          .exec();
+      // If organizationId is provided, filter decks by organization's admin/superadmin
+      if (organizationId) {
+        const normalizedOrgId = this.normalizeId(organizationId);
+        if (normalizedOrgId) {
+          // Find all users in this organization with userType 'admin' or 'superAdmin'
+          const orgAdmins = await this.userModel
+            .find({
+              organization: normalizedOrgId,
+              userType: { $in: ['admin', 'superAdmin'] },
+            })
+            .select('_id')
+            .lean()
+            .exec();
 
-        const adminUserIds = orgAdmins.map((admin) =>
-          this.normalizeId(admin._id),
-        ).filter((id): id is string => id !== null);
+          const adminUserIds = orgAdmins.map((admin) =>
+            this.normalizeId(admin._id),
+          ).filter((id): id is string => id !== null);
 
-        if (adminUserIds.length > 0) {
-          // Filter decks created by organization's admin/superadmin
-          // No need to check isPublic or status - any deck created by admin/superAdmin is allowed
-          query.userId = { $in: adminUserIds };
-        } else {
-          // No admins found in organization, return empty result
-          throw new NotFoundException(
-            'No admin or superAdmin found in your organization. Please contact your organization administrator.',
-          );
+          if (adminUserIds.length > 0) {
+            // Filter decks created by organization's admin/superadmin
+            // No need to check isPublic or status - any deck created by admin/superAdmin is allowed
+            query.userId = { $in: adminUserIds };
+          } else {
+            // No admins found in organization, return empty result
+            throw new NotFoundException(
+              'No admin or superAdmin found in your organization. Please contact your organization administrator.',
+            );
+          }
         }
+      } else {
+        // If no organizationId, we can't filter by admin - this shouldn't happen for team games
+        throw new BadRequestException(
+          'Organization ID is required to get random deck for team games.',
+        );
       }
-    } else {
-      // If no organizationId, we can't filter by admin - this shouldn't happen for team games
-      throw new BadRequestException(
-        'Organization ID is required to get random deck for team games.',
-      );
+
+      // Get count of matching decks
+      const count = await this.deckModel.countDocuments(query).exec();
+
+      if (count === 0) {
+        throw new NotFoundException(
+          'No decks available from your organization\'s admin or superAdmin. Please ask an admin to create a deck.',
+        );
+      }
+
+      // Get random skip value
+      const randomSkip = Math.floor(Math.random() * count);
+
+      // Get one random deck
+      const randomDeck = await this.deckModel
+        .findOne(query)
+        .skip(randomSkip)
+        .lean()
+        .exec();
+
+      if (!randomDeck) {
+        throw new NotFoundException('Failed to retrieve random deck');
+      }
+
+      return randomDeck;
+    } catch (error) {
+      console.error('Error in getRandomDeck:', error);
+      throw error;
     }
-
-    // Get count of matching decks
-    const count = await this.deckModel.countDocuments(query).exec();
-
-    if (count === 0) {
-      throw new NotFoundException(
-        'No decks available from your organization\'s admin or superAdmin. Please ask an admin to create a deck.',
-      );
-    }
-
-    // Get random skip value
-    const randomSkip = Math.floor(Math.random() * count);
-
-    // Get one random deck
-    const randomDeck = await this.deckModel
-      .findOne(query)
-      .skip(randomSkip)
-      .lean()
-      .exec();
-
-    if (!randomDeck) {
-      throw new NotFoundException('Failed to retrieve random deck');
-    }
-
-    return randomDeck;
   }
 
   /**
@@ -759,111 +852,116 @@ export class TeamGameService {
     teams: Map<string, string[]>; // teamId -> participantIds
     teamAcceptanceCounts: Map<string, number>; // teamId -> accepted count
   }> {
-    const teams = new Map<string, string[]>();
-    const teamAcceptanceCounts = new Map<string, number>();
+    try {
+      const teams = new Map<string, string[]>();
+      const teamAcceptanceCounts = new Map<string, number>();
 
-    // Get team memberships for all participants
-    // Exclude inviter (admin) from validation - they can only view, not play
-    const normalizedInviterId = inviterId ? this.normalizeId(inviterId) : null;
-    const normalizedParticipants = participants
-      .map((p) => this.normalizeId(p))
-      .filter((id): id is string => id !== null && id !== normalizedInviterId);
+      // Get team memberships for all participants
+      // Exclude inviter (admin) from validation - they can only view, not play
+      const normalizedInviterId = inviterId ? this.normalizeId(inviterId) : null;
+      const normalizedParticipants = participants
+        .map((p) => this.normalizeId(p))
+        .filter((id): id is string => id !== null && id !== normalizedInviterId);
 
-    // Find team memberships for all participants
-    const teamMembers = await this.teamMemberModel
-      .find({
-        user: { $in: normalizedParticipants },
-        status: 'approved', // Only approved team members
-      })
-      .lean()
-      .exec();
-
-    // Get team details separately
-    const teamIds = teamMembers
-      .map((tm) => this.normalizeId(tm.team))
-      .filter((id): id is string => id !== null);
-    
-    const teamDetailsMap = new Map<string, any>();
-    if (teamIds.length > 0) {
-      const teamsData = await this.teamModel
-        .find({ _id: { $in: teamIds } })
-        .select('_id teamName')
+      // Find team memberships for all participants
+      const teamMembers = await this.teamMemberModel
+        .find({
+          user: { $in: normalizedParticipants },
+          status: 'approved', // Only approved team members
+        })
         .lean()
         .exec();
-      teamsData.forEach((team: any) => {
-        const teamId = this.normalizeId(team._id);
-        if (teamId) {
-          teamDetailsMap.set(teamId, team);
-        }
-      });
-    }
 
-    // Group participants by team
-    for (const participantId of normalizedParticipants) {
-      const teamMember = teamMembers.find(
-        (tm) => this.normalizeId(tm.user) === participantId,
-      );
-
-      if (teamMember) {
-        const teamId = this.normalizeId(teamMember.team);
-        if (teamId) {
-          if (!teams.has(teamId)) {
-            teams.set(teamId, []);
+      // Get team details separately
+      const teamIds = teamMembers
+        .map((tm) => this.normalizeId(tm.team))
+        .filter((id): id is string => id !== null);
+      
+      const teamDetailsMap = new Map<string, LeanTeam>();
+      if (teamIds.length > 0) {
+        const teamsData = await this.teamModel
+          .find({ _id: { $in: teamIds } })
+          .select('_id teamName')
+          .lean()
+          .exec();
+        teamsData.forEach((team) => {
+          const teamId = this.normalizeId(team._id);
+          if (teamId) {
+            teamDetailsMap.set(teamId, team as unknown as LeanTeam);
           }
-          teams.get(teamId)!.push(participantId);
-        }
-      } else {
-        // Participant is not in any team - create a "no-team" group
-        const noTeamId = 'no-team';
-        if (!teams.has(noTeamId)) {
-          teams.set(noTeamId, []);
-        }
-        teams.get(noTeamId)!.push(participantId);
+        });
       }
-    }
 
-    // Count accepted players per team (all participants are considered accepted since they're in the room)
-    for (const [teamId, teamParticipants] of teams.entries()) {
-      teamAcceptanceCounts.set(teamId, teamParticipants.length);
-    }
+      // Group participants by team
+      for (const participantId of normalizedParticipants) {
+        const teamMember = teamMembers.find(
+          (tm) => this.normalizeId(tm.user) === participantId,
+        );
 
-    // Validate number of teams (must be 2 or 3)
-    const teamCount = teams.size;
-    if (teamCount !== 2 && teamCount !== 3) {
+        if (teamMember) {
+          const teamId = this.normalizeId(teamMember.team);
+          if (teamId) {
+            if (!teams.has(teamId)) {
+              teams.set(teamId, []);
+            }
+            teams.get(teamId)!.push(participantId);
+          }
+        } else {
+          // Participant is not in any team - create a "no-team" group
+          const noTeamId = 'no-team';
+          if (!teams.has(noTeamId)) {
+            teams.set(noTeamId, []);
+          }
+          teams.get(noTeamId)!.push(participantId);
+        }
+      }
+
+      // Count accepted players per team (all participants are considered accepted since they're in the room)
+      for (const [teamId, teamParticipants] of teams.entries()) {
+        teamAcceptanceCounts.set(teamId, teamParticipants.length);
+      }
+
+      // Validate number of teams (must be 2 or 3)
+      const teamCount = teams.size;
+      if (teamCount !== 2 && teamCount !== 3) {
+        return {
+          isValid: false,
+          errorMessage: `Game requires exactly 2 or 3 teams. Found ${teamCount} teams.`,
+          teams,
+          teamAcceptanceCounts,
+        };
+      }
+
+      // Validate all teams have equal accepted players
+      const acceptanceCounts = Array.from(teamAcceptanceCounts.values());
+      const firstCount = acceptanceCounts[0];
+      const allEqual = acceptanceCounts.every((count) => count === firstCount);
+
+      if (!allEqual) {
+        const teamCountsStr = Array.from(teamAcceptanceCounts.entries())
+          .map(([teamId, count]) => {
+            const teamDetails = teamDetailsMap.get(teamId);
+            const teamName = teamDetails?.teamName || teamId;
+            return `${teamName}: ${count}`;
+          })
+          .join(', ');
+        return {
+          isValid: false,
+          errorMessage: `All teams must have equal number of accepted players. Current counts: ${teamCountsStr}`,
+          teams,
+          teamAcceptanceCounts,
+        };
+      }
+
       return {
-        isValid: false,
-        errorMessage: `Game requires exactly 2 or 3 teams. Found ${teamCount} teams.`,
+        isValid: true,
         teams,
         teamAcceptanceCounts,
       };
+    } catch (error) {
+      console.error('Error in validateTeamBasedAcceptance:', error);
+      throw error;
     }
-
-    // Validate all teams have equal accepted players
-    const acceptanceCounts = Array.from(teamAcceptanceCounts.values());
-    const firstCount = acceptanceCounts[0];
-    const allEqual = acceptanceCounts.every((count) => count === firstCount);
-
-    if (!allEqual) {
-      const teamCountsStr = Array.from(teamAcceptanceCounts.entries())
-        .map(([teamId, count]) => {
-          const teamDetails = teamDetailsMap.get(teamId);
-          const teamName = teamDetails?.teamName || teamId;
-          return `${teamName}: ${count}`;
-        })
-        .join(', ');
-      return {
-        isValid: false,
-        errorMessage: `All teams must have equal number of accepted players. Current counts: ${teamCountsStr}`,
-        teams,
-        teamAcceptanceCounts,
-      };
-    }
-
-    return {
-      isValid: true,
-      teams,
-      teamAcceptanceCounts,
-    };
   }
 
   async createTeamGame(
@@ -875,9 +973,10 @@ export class TeamGameService {
     gameMode?: 'Regular' | 'Knockout',
     member?: number,
   ): Promise<{ gameId: string; deckId: string; topicId: string; subTopicId: string }> {
-    if (!userId) {
-      throw new BadRequestException('userId is required');
-    }
+    try {
+      if (!userId) {
+        throw new BadRequestException('userId is required');
+      }
 
     // Validate topicType and deckId
     if (topicType === 'selected') {
@@ -893,7 +992,7 @@ export class TeamGameService {
       topicType = 'random';
     }
 
-    let deck: any = null;
+    let deck: LeanDeck | null = null;
 
     // Get deck based on topicType
     if (topicType === 'selected' && deckId) {
@@ -1116,12 +1215,16 @@ export class TeamGameService {
       },
     });
 
-    return {
-      gameId,
-      deckId: normalizedDeckId || '',
-      topicId: selectedTopicId || '',
-      subTopicId: selectedSubTopicId,
-    };
+      return {
+        gameId,
+        deckId: normalizedDeckId || '',
+        topicId: selectedTopicId || '',
+        subTopicId: selectedSubTopicId,
+      };
+    } catch (error) {
+      console.error('Error in createTeamGame:', error);
+      throw error;
+    }
   }
 
   /**
@@ -1141,58 +1244,68 @@ export class TeamGameService {
     deckId?: string;
     deckName?: string;
   }> {
-    if (!userId) {
-      throw new BadRequestException('userId is required');
-    }
+    try {
+      if (!userId) {
+        throw new BadRequestException('userId is required');
+      }
 
-    // Use contentService's singlePlayCreateGame method directly for same logic
-    return await this.contentService.singlePlayCreateGame(
-      userId,
-      subTopicId,
-      difficulty,
-    );
+      // Use contentService's singlePlayCreateGame method directly for same logic
+      return await this.contentService.singlePlayCreateGame(
+        userId,
+        subTopicId,
+        difficulty,
+      );
+    } catch (error) {
+      console.error('Error in teamMemberCreateGame:', error);
+      throw error;
+    }
   }
 
   /**
    * Remove a player from an active team game in persistence
    */
   async removePlayerFromGame(gameId: string, userId: string) {
-    const normalizedGameId = this.normalizeId(gameId);
-    const normalizedUserId = this.normalizeId(userId);
+    try {
+      const normalizedGameId = this.normalizeId(gameId);
+      const normalizedUserId = this.normalizeId(userId);
 
-    if (!normalizedGameId) {
-      throw new BadRequestException('gameId is required');
-    }
+      if (!normalizedGameId) {
+        throw new BadRequestException('gameId is required');
+      }
 
-    if (!normalizedUserId) {
-      throw new BadRequestException('userId is required');
-    }
+      if (!normalizedUserId) {
+        throw new BadRequestException('userId is required');
+      }
 
-    const game = await this.gameModel.findOne({ gameId: normalizedGameId }).lean().exec();
-    if (!game) {
-      throw new NotFoundException('Game not found');
-    }
+      const game = await this.gameModel.findOne({ gameId: normalizedGameId }).lean().exec();
+      if (!game) {
+        throw new NotFoundException('Game not found');
+      }
 
-    await this.gameModel
-      .updateOne(
-        { gameId: normalizedGameId },
-        {
-          $pull: {
-            players: normalizedUserId,
-            acceptedPlayers: normalizedUserId,
+      await this.gameModel
+        .updateOne(
+          { gameId: normalizedGameId },
+          {
+            $pull: {
+              players: normalizedUserId,
+              acceptedPlayers: normalizedUserId,
+            },
+            $unset: {
+              [`scores.${normalizedUserId}`]: '',
+            },
           },
-          $unset: {
-            [`scores.${normalizedUserId}`]: '',
-          },
-        },
-      )
-      .exec();
+        )
+        .exec();
 
-    return {
-      success: true,
-      gameId: normalizedGameId,
-      removedUserId: normalizedUserId,
-    };
+      return {
+        success: true,
+        gameId: normalizedGameId,
+        removedUserId: normalizedUserId,
+      };
+    } catch (error) {
+      console.error('Error in removePlayerFromGame:', error);
+      throw error;
+    }
   }
 
   /**
@@ -1205,7 +1318,7 @@ export class TeamGameService {
     gameId: string;
     message: string;
   }): Promise<{
-    _id: any;
+    _id: Types.ObjectId;
     gameId: string;
     teamId: string;
     userId: string;
@@ -1213,106 +1326,116 @@ export class TeamGameService {
     message: string;
     createdAt: Date;
   }> {
-    const trimmedMessage = params?.message?.trim();
-    const normalizedUserId = this.normalizeId(params?.userId);
-    const normalizedTeamId = this.normalizeId(params?.teamId);
-    const normalizedGameId = this.normalizeId(params?.gameId);
-
-    if (!normalizedUserId || !normalizedTeamId || !normalizedGameId) {
-      throw new BadRequestException('gameId, teamId and userId are required');
-    }
-
-    if (!trimmedMessage) {
-      throw new BadRequestException('Message is required');
-    }
-
-    // Fetch organizationId for the sender
-    const user = await this.userModel
-      .findById(normalizedUserId)
-      .select('organization')
-      .lean()
-      .exec();
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    const normalizedOrgId = this.normalizeId((user as any).organization);
-
-    const created = await this.teamGameChatModel.create({
-      gameId: normalizedGameId,
-      teamId: normalizedTeamId,
-      userId: normalizedUserId,
-      organizationId: normalizedOrgId,
-      message: trimmedMessage,
-    });
-
-    // Best-effort: also append to the game document's chatMessages array
     try {
-      await this.gameModel.updateOne(
-        { gameId: normalizedGameId },
-        {
-          $push: {
-            chatMessages: {
-              participantId: normalizedUserId,
-              teamId: normalizedTeamId,
-              message: trimmedMessage,
-              timestamp: new Date(),
+      const trimmedMessage = params?.message?.trim();
+      const normalizedUserId = this.normalizeId(params?.userId);
+      const normalizedTeamId = this.normalizeId(params?.teamId);
+      const normalizedGameId = this.normalizeId(params?.gameId);
+
+      if (!normalizedUserId || !normalizedTeamId || !normalizedGameId) {
+        throw new BadRequestException('gameId, teamId and userId are required');
+      }
+
+      if (!trimmedMessage) {
+        throw new BadRequestException('Message is required');
+      }
+
+      // Fetch organizationId for the sender
+      const user = await this.userModel
+        .findById(normalizedUserId)
+        .select('organization')
+        .lean()
+        .exec();
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      const normalizedOrgId = this.normalizeId(user.organization);
+
+      const created = await this.teamGameChatModel.create({
+        gameId: normalizedGameId,
+        teamId: normalizedTeamId,
+        userId: normalizedUserId,
+        organizationId: normalizedOrgId,
+        message: trimmedMessage,
+      });
+
+      // Best-effort: also append to the game document's chatMessages array
+      try {
+        await this.gameModel.updateOne(
+          { gameId: normalizedGameId },
+          {
+            $push: {
+              chatMessages: {
+                participantId: normalizedUserId,
+                teamId: normalizedTeamId,
+                message: trimmedMessage,
+                timestamp: new Date(),
+              },
             },
           },
-        },
-      );
-    } catch (error) {
-      // Non-blocking: log for observability
-      console.warn('Failed to append chat message to game', {
-        gameId: normalizedGameId,
-        error,
-      });
-    }
+        );
+      } catch (error) {
+        // Non-blocking: log for observability
+        console.warn('Failed to append chat message to game', {
+          gameId: normalizedGameId,
+          error,
+        });
+      }
 
-    const createdAt =
-      (created as any)?.createdAt instanceof Date
-        ? (created as any).createdAt
+      const createdObj = created.toObject() as TeamGameChatDocument & { createdAt?: Date };
+      const createdAt = createdObj.createdAt instanceof Date
+        ? createdObj.createdAt
         : new Date();
 
-    return {
-      _id: (created as any)?._id,
-      gameId: normalizedGameId,
-      teamId: normalizedTeamId,
-      userId: normalizedUserId,
-      organizationId: normalizedOrgId,
-      message: trimmedMessage,
-      createdAt,
-    };
+      return {
+        _id: createdObj._id as Types.ObjectId,
+        gameId: normalizedGameId,
+        teamId: normalizedTeamId,
+        userId: normalizedUserId,
+        organizationId: normalizedOrgId,
+        message: trimmedMessage,
+        createdAt,
+      };
+    } catch (error) {
+      console.error('Error in addTeamGameChatMessage:', error);
+      throw error;
+    }
   }
 
   /**
    * Increment cumulative points for a team (e.g., awarding win bonuses).
    */
   async incrementTeamPoints(teamId: string, pointsToAdd: number) {
-    const normalizedTeamId = this.normalizeId(teamId);
+    try {
+      const normalizedTeamId = this.normalizeId(teamId);
 
-    if (!normalizedTeamId) {
-      throw new BadRequestException('teamId is required');
+      if (!normalizedTeamId) {
+        throw new BadRequestException('teamId is required');
+      }
+
+      if (!isValidObjectId(normalizedTeamId)) {
+        throw new BadRequestException('Invalid teamId');
+      }
+
+      const updatedTeam = await this.teamModel
+        .findByIdAndUpdate(
+          normalizedTeamId,
+          { $inc: { points: pointsToAdd } },
+          { new: true, lean: true },
+        )
+        .exec();
+
+      if (!updatedTeam) {
+        throw new NotFoundException('Team not found');
+      }
+
+      return updatedTeam;
+    } catch (error) {
+      console.error('Error in incrementTeamPoints:', error);
+      throw error;
     }
-
-    if (!isValidObjectId(normalizedTeamId)) {
-      throw new BadRequestException('Invalid teamId');
-    }
-
-    const updatedTeam = await this.teamModel
-      .findByIdAndUpdate(
-        normalizedTeamId,
-        { $inc: { points: pointsToAdd } },
-        { new: true, lean: true },
-      )
-      .exec();
-
-    if (!updatedTeam) {
-      throw new NotFoundException('Team not found');
-    }
-
-    return updatedTeam;
   }
 
   /**
@@ -1322,65 +1445,70 @@ export class TeamGameService {
    * average of the available category averages.
    */
   async refreshMemberAccuracies(userId: string): Promise<void> {
-    const normalizedUserId = this.normalizeId(userId);
-    if (!normalizedUserId) {
-      return;
-    }
-
-    const completedGames = await this.gameModel
-      .find({
-        isCompleted: true,
-        $or: [
-          { players: normalizedUserId },
-          { playerAnswers: { $elemMatch: { userId: normalizedUserId } } },
-        ],
-      })
-      .select({
-        type: 1,
-        gameMode: 1,
-        accuracy: 1,
-        playerAnswers: 1,
-      })
-      .lean()
-      .exec();
-
-    const flashcardAccuracies: number[] = [];
-    const battleAccuracies: number[] = [];
-
-    completedGames.forEach((game) => {
-      const accuracy = this.getUserAccuracyFromGame(game, normalizedUserId);
-      if (accuracy === null) {
+    try {
+      const normalizedUserId = this.normalizeId(userId);
+      if (!normalizedUserId) {
         return;
       }
 
-      if (game.type === 'single') {
-        flashcardAccuracies.push(accuracy);
-      } else if (game.gameMode === 'team') {
-        battleAccuracies.push(accuracy);
-      }
-    });
+      const completedGames = await this.gameModel
+        .find({
+          isCompleted: true,
+          $or: [
+            { players: normalizedUserId },
+            { playerAnswers: { $elemMatch: { userId: normalizedUserId } } },
+          ],
+        })
+        .select({
+          type: 1,
+          gameMode: 1,
+          accuracy: 1,
+          playerAnswers: 1,
+        })
+        .lean()
+        .exec();
 
-    const flashcardAccuracy = this.calculateAverage(flashcardAccuracies);
-    const battleAccuracy = this.calculateAverage(battleAccuracies);
+      const flashcardAccuracies: number[] = [];
+      const battleAccuracies: number[] = [];
 
-    const categoryAccuracies = [
-      flashcardAccuracies.length > 0 ? flashcardAccuracy : null,
-      battleAccuracies.length > 0 ? battleAccuracy : null,
-    ].filter((v): v is number => v !== null);
+      completedGames.forEach((game) => {
+        const accuracy = this.getUserAccuracyFromGame(game as unknown as LeanGame, normalizedUserId);
+        if (accuracy === null) {
+          return;
+        }
 
-    const gameAccuracy = this.calculateAverage(categoryAccuracies);
+        if (game.type === 'single') {
+          flashcardAccuracies.push(accuracy);
+        } else if (game.gameMode === 'team') {
+          battleAccuracies.push(accuracy);
+        }
+      });
 
-    await this.teamMemberModel.updateMany(
-      { user: normalizedUserId },
-      {
-        $set: {
-          flashcardAccuracy,
-          battleAccuracy,
-          gameAccuracy,
+      const flashcardAccuracy = this.calculateAverage(flashcardAccuracies);
+      const battleAccuracy = this.calculateAverage(battleAccuracies);
+
+      const categoryAccuracies = [
+        flashcardAccuracies.length > 0 ? flashcardAccuracy : null,
+        battleAccuracies.length > 0 ? battleAccuracy : null,
+      ].filter((v): v is number => v !== null);
+
+      const gameAccuracy = this.calculateAverage(categoryAccuracies);
+
+      await this.teamMemberModel.updateMany(
+        { user: normalizedUserId },
+        {
+          $set: {
+            flashcardAccuracy,
+            battleAccuracy,
+            gameAccuracy,
+          },
         },
-      },
-      { upsert: false },
-    );
+        { upsert: false },
+      );
+    } catch (error) {
+      console.error('Error in refreshMemberAccuracies:', error);
+      throw error;
+    }
   }
 
   /**
@@ -1394,53 +1522,58 @@ export class TeamGameService {
     accuracy: number,
     responseTime?: number, // total response time in seconds for this game
   ): Promise<void> {
-    const normalizedTeamId = this.normalizeId(teamId);
-    const normalizedUserId = this.normalizeId(userId);
+    try {
+      const normalizedTeamId = this.normalizeId(teamId);
+      const normalizedUserId = this.normalizeId(userId);
 
-    if (!normalizedTeamId || !normalizedUserId) {
-      return;
+      if (!normalizedTeamId || !normalizedUserId) {
+        return;
+      }
+
+      const pointsToAdd = accuracy >= 80 ? 10 : 0;
+
+      // Calculate running average response time if responseTime is provided
+      let updateData: UpdateQuery<TeamGameScoreDocument> = {
+        $inc: { points: pointsToAdd },
+        $set: {
+          accuracy,
+        },
+      };
+
+      if (responseTime !== undefined && responseTime !== null) {
+        // Fetch existing record to get current average and gamesPlayed
+        const existingRecord = await this.teamGameScoreModel
+          .findOne({ teamId: normalizedTeamId, userId: normalizedUserId })
+          .select('averageResponseTime gamesPlayed')
+          .lean()
+          .exec();
+
+        const oldGamesPlayed = existingRecord?.gamesPlayed || 0;
+        const oldAverage = existingRecord?.averageResponseTime || 0;
+        const newGamesPlayed = oldGamesPlayed + 1;
+
+        // Calculate new running average: (oldAverage * oldGamesPlayed + newResponseTime) / newGamesPlayed
+        const newAverage =
+          oldGamesPlayed === 0
+            ? responseTime
+            : Math.round(
+                ((oldAverage * oldGamesPlayed + responseTime) / newGamesPlayed) *
+                  100,
+              ) / 100;
+
+        updateData.$set.averageResponseTime = newAverage;
+        updateData.$inc.gamesPlayed = 1;
+      }
+
+      await this.teamGameScoreModel.updateOne(
+        { teamId: normalizedTeamId, userId: normalizedUserId },
+        updateData,
+        { upsert: true },
+      );
+    } catch (error) {
+      console.error('Error in recordBattleAccuracyAndPoints:', error);
+      throw error;
     }
-
-    const pointsToAdd = accuracy >= 80 ? 10 : 0;
-
-    // Calculate running average response time if responseTime is provided
-    let updateData: any = {
-      $inc: { points: pointsToAdd },
-      $set: {
-        accuracy,
-      },
-    };
-
-    if (responseTime !== undefined && responseTime !== null) {
-      // Fetch existing record to get current average and gamesPlayed
-      const existingRecord = await this.teamGameScoreModel
-        .findOne({ teamId: normalizedTeamId, userId: normalizedUserId })
-        .select('averageResponseTime gamesPlayed')
-        .lean()
-        .exec();
-
-      const oldGamesPlayed = existingRecord?.gamesPlayed || 0;
-      const oldAverage = existingRecord?.averageResponseTime || 0;
-      const newGamesPlayed = oldGamesPlayed + 1;
-
-      // Calculate new running average: (oldAverage * oldGamesPlayed + newResponseTime) / newGamesPlayed
-      const newAverage =
-        oldGamesPlayed === 0
-          ? responseTime
-          : Math.round(
-              ((oldAverage * oldGamesPlayed + responseTime) / newGamesPlayed) *
-                100,
-            ) / 100;
-
-      updateData.$set.averageResponseTime = newAverage;
-      updateData.$inc.gamesPlayed = 1;
-    }
-
-    await this.teamGameScoreModel.updateOne(
-      { teamId: normalizedTeamId, userId: normalizedUserId },
-      updateData,
-      { upsert: true },
-    );
   }
 
 }

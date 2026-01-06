@@ -7,7 +7,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model, Types, Schema as MongooseSchema } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
 import { addMinutes } from 'date-fns';
@@ -65,22 +65,6 @@ export class AuthService {
         );
       }
 
-      // Generate and send OTP if monthOfBirth or yearOfBirth is not provided
-      let registrationOtp: number | null = null;
-      let otpExpires: Date | null = null;
-      const requiresOtp = !createUserDto.monthOfBirth || !createUserDto.yearOfBirth;
-      
-      if (requiresOtp) {
-        // Check if email domain is in free email domains list
-        const emailDomain = createUserDto.email.split('@')[1]?.toLowerCase();
-        if (emailDomain && this.freeEmailDomains.includes(emailDomain)) {
-          throw new BadRequestException('Only business emails are allowed. Please use a business email address.');
-        }
-        
-        registrationOtp = Math.floor(100000 + Math.random() * 900000);
-        otpExpires = OTP_FUNCTION.getOtpExpiryDate();
-      }
-
       // Check for pending admin invitation
       const pendingAdmin = await this.adminCreationModel.findOne({
         email: createUserDto.email,
@@ -121,6 +105,26 @@ export class AuthService {
         ? 'superAdmin'
         : 'individual';
 
+      // Generate and send OTP if userType is individual OR monthOfBirth or yearOfBirth is not provided
+      let registrationOtp: number | null = null;
+      let otpExpires: Date | null = null;
+      const requiresOtp = userType === 'individual' || !createUserDto.monthOfBirth || !createUserDto.yearOfBirth;
+      
+      // Check if email domain is in free email domains list (only when birth fields are missing)
+      // This check should NOT apply when user provides both monthOfBirth and yearOfBirth
+      const isAnyBirthFieldMissing = !createUserDto.monthOfBirth || !createUserDto.yearOfBirth;
+      if (isAnyBirthFieldMissing && (userType === 'individual' || userType === 'superAdmin')) {
+        const emailDomain = createUserDto.email.split('@')[1]?.toLowerCase();
+        if (emailDomain && this.freeEmailDomains.includes(emailDomain)) {
+          throw new BadRequestException('Only business emails are allowed. Please use a business email address.');
+        }
+      }
+      
+      if (requiresOtp) {
+        registrationOtp = Math.floor(100000 + Math.random() * 900000);
+        otpExpires = OTP_FUNCTION.getOtpExpiryDate();
+      }
+
       const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
 
       // Check for existing temp registration
@@ -131,7 +135,7 @@ export class AuthService {
       // If temp registration exists and OTP is required, resend OTP
       if (existingTempRegistration && requiresOtp && registrationOtp && otpExpires) {
         // Prepare updated temp registration data
-        const tempRegistrationData: any = {
+        const tempRegistrationData: Record<string, unknown> = {
           ...createUserDto,
           password: hashedPassword,
           name: createUserDto.name ?? null,
@@ -192,7 +196,7 @@ export class AuthService {
       // If OTP is required and no temp registration exists, store in temp registration instead of creating user
       if (requiresOtp && registrationOtp && otpExpires && !existingTempRegistration) {
         // Prepare temp registration data
-        const tempRegistrationData: any = {
+        const tempRegistrationData: Record<string, unknown> = {
           ...createUserDto,
           password: hashedPassword,
           name: createUserDto.name ?? null,
@@ -247,7 +251,7 @@ export class AuthService {
       }
 
       // If OTP is not required, create user directly
-      const userData: any = {
+      const userData: Record<string, unknown> = {
         ...createUserDto,
         password: hashedPassword,
         name: createUserDto.name ?? null,
@@ -317,13 +321,13 @@ export class AuthService {
       // Update pending invitation status if exists
       if (pendingAdmin) {
         pendingAdmin.status = 'approved';
-        pendingAdmin.createdAdmin = newUser._id as any;
+        pendingAdmin.createdAdmin = newUser._id as unknown as MongooseSchema.Types.ObjectId;
         await pendingAdmin.save();
       }
 
       if (pendingTeamMember) {
         pendingTeamMember.status = 'approved';
-        pendingTeamMember.user = newUser._id as any;
+        pendingTeamMember.user = newUser._id as unknown as MongooseSchema.Types.ObjectId;
         await pendingTeamMember.save();
       }
 
@@ -345,7 +349,7 @@ export class AuthService {
 
   async login(loginDto: LoginDto) {
     try {
-      const { email, password, fcmToken } = loginDto as any;
+      const { email, password } = loginDto;
 
       const user = await this.userModel.findOne({ email });
 
@@ -536,8 +540,25 @@ export class AuthService {
           }
         }
 
+        // Check if user already exists (in case someone registered with same email/phone between registration and OTP verification)
+        const existingUserByEmail = await this.userModel.findOne({
+          email: tempRegistration.email,
+        });
+        if (existingUserByEmail) {
+          await this.tempRegistrationModel.deleteOne({ email: verifyOtpDto.email });
+          throw new BadRequestException('This email is already registered.');
+        }
+
+        const existingUserByPhone = await this.userModel.findOne({
+          contactNumber: tempRegistration.contactNumber,
+        });
+        if (existingUserByPhone) {
+          await this.tempRegistrationModel.deleteOne({ email: verifyOtpDto.email });
+          throw new BadRequestException('This phone number is already registered.');
+        }
+
         // Create user from temp registration data
-        const userData: any = {
+        const userData: Record<string, unknown> = {
           name: tempRegistration.name,
           contactNumber: tempRegistration.contactNumber,
           email: tempRegistration.email,
@@ -576,13 +597,13 @@ export class AuthService {
         // Update pending invitation status if exists
         if (pendingAdmin) {
           pendingAdmin.status = 'approved';
-          pendingAdmin.createdAdmin = newUser._id as any;
+          pendingAdmin.createdAdmin = newUser._id as unknown as MongooseSchema.Types.ObjectId;
           await pendingAdmin.save();
         }
 
         if (pendingTeamMember) {
           pendingTeamMember.status = 'approved';
-          pendingTeamMember.user = newUser._id as any;
+          pendingTeamMember.user = newUser._id as unknown as MongooseSchema.Types.ObjectId;
           await pendingTeamMember.save();
         }
 
@@ -757,7 +778,7 @@ export class AuthService {
   }
 }
 
-export function generateJwtToken(user: any): string {
+export function generateJwtToken(user: UserDocument): string {
   return jwt.sign({ id: user._id, role: user.role }, 'TOKEN');
 }
 

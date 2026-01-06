@@ -170,21 +170,11 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       // Verify and decode token
       let decoded: any;
-      try {
-        decoded = this.jwtService.verify(token);
-        console.log('[handleConnection] Token verified:', {
-          socketId: client.id,
-          hasDecoded: !!decoded,
-        });
-      } catch (error) {
-        console.log('[handleConnection] Error: Invalid or expired token:', {
-          socketId: client.id,
-          error: error.message,
-        });
-        client.emit('error_response', { message: 'Invalid or expired token' });
-        client.disconnect();
-        return;
-      }
+      decoded = this.jwtService.verify(token);
+      console.log('[handleConnection] Token verified:', {
+        socketId: client.id,
+        hasDecoded: !!decoded,
+      });
 
       // Extract userId from token (token contains { id, role })
       const userId = decoded.id || decoded.userId;
@@ -272,7 +262,14 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         error: error.message,
         stack: error.stack,
       });
-      client.emit('error_response', { message: 'Connection failed' });
+      
+      // Handle specific JWT verification errors
+      if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+        client.emit('error_response', { message: 'Invalid or expired token' });
+      } else {
+        client.emit('error_response', { message: 'Connection failed' });
+      }
+      
       client.disconnect();
     }
   }
@@ -382,18 +379,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
                   teamGameState.eliminatedPlayers.delete(normalizedUserId);
 
                   // Update persistence
-                  try {
-                    await this.teamGameService.removePlayerFromGame(
-                      teamGameState.gameId,
-                      normalizedUserId,
-                    );
-                  } catch (error) {
-                    console.error('[handleDisconnect] Failed to remove player from game in DB:', {
-                      userId: normalizedUserId,
-                      gameId: teamGameState.gameId,
-                      error: error.message,
-                    });
-                  }
+                  await this.teamGameService.removePlayerFromGame(
+                    teamGameState.gameId,
+                    normalizedUserId,
+                  );
 
                   shouldContinueGame = true;
 
@@ -431,39 +420,31 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           }
 
           // Remove user from room (only delete room if game is not continuing)
-          try {
-            if (shouldContinueGame) {
-              await this.contentService.removeUserFromRoomParticipants(existingRoom.roomId, userId);
-            } else {
-              await this.contentService.leaveUser(userId);
-            }
-            console.log('[handleDisconnect] User removed from room:', {
-              userId,
-              roomId: existingRoom.roomId,
-              shouldContinueGame,
-            });
+          if (shouldContinueGame) {
+            await this.contentService.removeUserFromRoomParticipants(existingRoom.roomId, userId);
+          } else {
+            await this.contentService.leaveUser(userId);
+          }
+          console.log('[handleDisconnect] User removed from room:', {
+            userId,
+            roomId: existingRoom.roomId,
+            shouldContinueGame,
+          });
 
-            // Notify only the disconnecting user (not other participants)
-            const userDisconnectedPayload = {
-              userId,
-              roomId: existingRoom.roomId,
-              message: 'A user disconnected from the room',
-            };
+          // Notify only the disconnecting user (not other participants)
+          const userDisconnectedPayload = {
+            userId,
+            roomId: existingRoom.roomId,
+            message: 'A user disconnected from the room',
+          };
 
-            // Emit only to the disconnecting user
-            const normalizedDisconnectingUserId = this.normalizeId(userId);
-            if (normalizedDisconnectingUserId) {
-              const disconnectingUserSocket = this.userSockets.get(normalizedDisconnectingUserId);
-              if (disconnectingUserSocket) {
-                disconnectingUserSocket.emit('userDisconnected', userDisconnectedPayload);
-              }
+          // Emit only to the disconnecting user
+          const normalizedDisconnectingUserId = this.normalizeId(userId);
+          if (normalizedDisconnectingUserId) {
+            const disconnectingUserSocket = this.userSockets.get(normalizedDisconnectingUserId);
+            if (disconnectingUserSocket) {
+              disconnectingUserSocket.emit('userDisconnected', userDisconnectedPayload);
             }
-          } catch (roomError) {
-            console.error('[handleDisconnect] Error removing user from room:', {
-              userId,
-              roomId: existingRoom.roomId,
-              error: roomError.message,
-            });
           }
         }
 
@@ -476,14 +457,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
             score: game.score,
           });
           // send final summary to socket (if connected) and remove game
-          try {
-            game.socket.emit('GAME_ABORTED', {
-              message: 'User disconnected',
-              score: game.score,
-            });
-          } catch (e) {
-            // ignore
-          }
+          game.socket.emit('GAME_ABORTED', {
+            message: 'User disconnected',
+            score: game.score,
+          });
           this.activeGames.delete(userId);
         }
       } else {
@@ -812,27 +789,26 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     data: { gameId: string; teamId: string; message: string },
   ) {
     const userId = client.data.userId;
-    console.log('[teamGameSendMessage] Event received:', {
-      userId,
-      data,
-      socketId: client.id,
-      timestamp: new Date().toISOString(),
-    });
-
-    if (!userId) {
-      console.log('[teamGameSendMessage] Error: Unauthorized - no userId');
-      return client.emit('errorMessage', { message: 'Unauthorized' });
-    }
-
-    const trimmedMessage = data?.message?.trim();
-    if (!data?.gameId || !data?.teamId || !trimmedMessage) {
-      console.log('[teamGameSendMessage] Error: gameId, teamId and message are required');
-      return client.emit('errorMessage', {
-        message: 'gameId, teamId and message are required',
-      });
-    }
-
     try {
+      console.log('[teamGameSendMessage] Event received:', {
+        userId,
+        data,
+        socketId: client.id,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (!userId) {
+        console.log('[teamGameSendMessage] Error: Unauthorized - no userId');
+        return client.emit('errorMessage', { message: 'Unauthorized' });
+      }
+
+      const trimmedMessage = data?.message?.trim();
+      if (!data?.gameId || !data?.teamId || !trimmedMessage) {
+        console.log('[teamGameSendMessage] Error: gameId, teamId and message are required');
+        return client.emit('errorMessage', {
+          message: 'gameId, teamId and message are required',
+        });
+      }
       const normalizedUserId = this.normalizeId(userId);
       if (!normalizedUserId) {
         return client.emit('errorMessage', {
@@ -915,15 +891,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Get user's name and profileImage
       let userName = '';
       let userProfileImage: string | null = null;
-      try {
-        const user = await this.usersService.findById(normalizedUserId);
-        if (user) {
-          userName = (user as any)?.name || (user as any)?.username || '';
-          userProfileImage = (user as any)?.profileImage || null;
-        }
-      } catch (error) {
-        console.warn('[teamGameSendMessage] Failed to fetch user info:', error);
-        // Continue with empty values if fetch fails
+      const user = await this.usersService.findById(normalizedUserId);
+      if (user) {
+        userName = (user as any)?.name || (user as any)?.username || '';
+        userProfileImage = (user as any)?.profileImage || null;
       }
 
       const payload = {
@@ -1002,40 +973,39 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     @MessageBody() data: { teamId: string[]; mode?: 'Regular' | 'Knockout'; deckId?: string; topicId?: string },
   ) {
     const inviterId = client.data.userId;
-    console.log('[inviteTeamUser] Event received:', {
-      inviterId,
-      data,
-      socketId: client.id,
-      timestamp: new Date().toISOString(),
-    });
-
-    if (!inviterId) {
-      console.log('[inviteTeamUser] Error: Unauthorized - no inviterId');
-      return client.emit('errorMessage', { message: 'Unauthorized' });
-    }
-
-    // Check if user is blocked
-    const { isBlocked } = await this.checkUserIsBlocked(inviterId);
-    if (isBlocked) {
-      console.log('[inviteTeamUser] Error: User account is blocked:', { inviterId });
-      return client.emit('errorMessage', { message: 'Your account is blocked' });
-    }
-
-    const { teamId, mode } = data;
-    if (!teamId || !Array.isArray(teamId) || teamId.length === 0) {
-      console.log('[inviteTeamUser] Error: teamId array is required and must not be empty');
-      return client.emit('errorMessage', {
-        message: 'teamId array is required and must not be empty',
-      });
-    }
-
-    // Validate and normalize mode
-    const validMode = mode && (mode === 'Regular' || mode === 'Knockout') ? mode : undefined;
-    if (mode && !validMode) {
-      console.log('[inviteTeamUser] Warning: Invalid mode provided, ignoring:', { mode });
-    }
-
     try {
+      console.log('[inviteTeamUser] Event received:', {
+        inviterId,
+        data,
+        socketId: client.id,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (!inviterId) {
+        console.log('[inviteTeamUser] Error: Unauthorized - no inviterId');
+        return client.emit('errorMessage', { message: 'Unauthorized' });
+      }
+
+      // Check if user is blocked
+      const { isBlocked } = await this.checkUserIsBlocked(inviterId);
+      if (isBlocked) {
+        console.log('[inviteTeamUser] Error: User account is blocked:', { inviterId });
+        return client.emit('errorMessage', { message: 'Your account is blocked' });
+      }
+
+      const { teamId, mode } = data;
+      if (!teamId || !Array.isArray(teamId) || teamId.length === 0) {
+        console.log('[inviteTeamUser] Error: teamId array is required and must not be empty');
+        return client.emit('errorMessage', {
+          message: 'teamId array is required and must not be empty',
+        });
+      }
+
+      // Validate and normalize mode
+      const validMode = mode && (mode === 'Regular' || mode === 'Knockout') ? mode : undefined;
+      if (mode && !validMode) {
+        console.log('[inviteTeamUser] Warning: Invalid mode provided, ignoring:', { mode });
+      }
       // Check if user has superAdmin or admin userType
       const inviter = await this.userModel.findById(inviterId).exec();
       if (!inviter) {
@@ -1071,22 +1041,46 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         existingParticipants,
       });
 
-      // Collect all team members from all teams
+      // Collect all team members from all teams - OPTIMIZED: Batch query instead of loop
       const allTeamMembersMap = new Map<string, any>(); // Use Map to track unique members by ID
       
-      for (const singleTeamId of teamId) {
-        if (!singleTeamId) {
-          continue; // Skip invalid team IDs
-        }
+      // Filter out invalid team IDs
+      const validTeamIds = teamId
+        .map((id) => this.normalizeId(id))
+        .filter((id): id is string => id !== null);
+      
+      if (validTeamIds.length > 0) {
+        // OPTIMIZATION: Single batch query for all teams instead of N queries
+        const allTeamMembers = await this.teamMemberModel
+          .find({
+            team: { $in: validTeamIds },
+            status: 'approved',
+          })
+          .populate('user', '_id name email username profileImage isOnline lastSeen isActive')
+          .lean()
+          .exec();
         
-        // Get all team members (online and offline) for this team
-        const teamMembers = await this.teamGameService.getTeamMembers(singleTeamId);
-        
-        // Add to map (will automatically handle duplicates if user is in multiple teams)
-        teamMembers.forEach((member: any) => {
-          const memberId = this.normalizeId(member._id);
-          if (memberId && !allTeamMembersMap.has(memberId)) {
-            allTeamMembersMap.set(memberId, member);
+        // Process all team members and add to map (handles duplicates automatically)
+        allTeamMembers.forEach((member: any) => {
+          const user = member.user;
+          if (user && typeof user === 'object' && user.isActive !== false) {
+            const memberId = this.normalizeId(user._id);
+            if (memberId && !allTeamMembersMap.has(memberId)) {
+              allTeamMembersMap.set(memberId, {
+                _id: memberId,
+                name: user.name || user.username || null,
+                email: user.email,
+                profileImage: user.profileImage,
+                isOnline: user.isOnline || false,
+                lastSeen: user.lastSeen,
+                teamMemberId: this.normalizeId(member._id),
+                teamId: this.normalizeId(member.team) || '',
+                organizationId: this.normalizeId(member.organization) || '',
+                isAdmin: member.isAdmin,
+                status: member.status,
+                joinedAt: member.joinedAt,
+              });
+            }
           }
         });
       }
@@ -1155,42 +1149,29 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       // Get inviter's name
       let inviterName = '';
-      try {
-        inviterName = (inviter as any)?.name || (inviter as any)?.username || '';
-      } catch (error) {
-        // If unable to get name, leave it empty
-        inviterName = '';
-      }
+      inviterName = (inviter as any)?.name || (inviter as any)?.username || '';
 
       // Fetch deck and topic names if deckId and topicId are provided
       let deckName: string | null = null;
       let topicName: string | null = null;
       
       if (data.deckId) {
-        try {
-          const normalizedDeckId = this.normalizeId(data.deckId);
-          if (normalizedDeckId) {
-            const deck = await this.deckModel.findById(normalizedDeckId).select('name').lean().exec();
-            if (deck) {
-              deckName = (deck as any)?.name || null;
-            }
+        const normalizedDeckId = this.normalizeId(data.deckId);
+        if (normalizedDeckId) {
+          const deck = await this.deckModel.findById(normalizedDeckId).select('name').lean().exec();
+          if (deck) {
+            deckName = (deck as any)?.name || null;
           }
-        } catch (error) {
-          console.warn('[inviteTeamUser] Failed to fetch deck name:', error);
         }
       }
       
       if (data.topicId) {
-        try {
-          const normalizedTopicId = this.normalizeId(data.topicId);
-          if (normalizedTopicId) {
-            const topic = await this.topicModel.findById(normalizedTopicId).select('title').lean().exec();
-            if (topic) {
-              topicName = (topic as any)?.title || null;
-            }
+        const normalizedTopicId = this.normalizeId(data.topicId);
+        if (normalizedTopicId) {
+          const topic = await this.topicModel.findById(normalizedTopicId).select('title').lean().exec();
+          if (topic) {
+            topicName = (topic as any)?.title || null;
           }
-        } catch (error) {
-          console.warn('[inviteTeamUser] Failed to fetch topic name:', error);
         }
       }
 
@@ -1259,22 +1240,21 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     @MessageBody() data: { userId?: string; deviceId?: string; gameId?: string },
   ) {
     const acceptorId = client.data.userId;
-    console.log('[acceptTeamInvite] Event received:', {
-      acceptorId,
-      data,
-      socketId: client.id,
-      timestamp: new Date().toISOString(),
-    });
-
-    if (!acceptorId) {
-      console.log('[acceptTeamInvite] Error: Unauthorized - no acceptorId');
-      return client.emit('errorMessage', { message: 'Unauthorized' });
-    }
-
-    // Declare normalizedAcceptorId at function scope to avoid redeclaration issues
-    const normalizedAcceptorId = this.normalizeId(acceptorId);
-
     try {
+      console.log('[acceptTeamInvite] Event received:', {
+        acceptorId,
+        data,
+        socketId: client.id,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (!acceptorId) {
+        console.log('[acceptTeamInvite] Error: Unauthorized - no acceptorId');
+        return client.emit('errorMessage', { message: 'Unauthorized' });
+      }
+
+      // Declare normalizedAcceptorId at function scope to avoid redeclaration issues
+      const normalizedAcceptorId = this.normalizeId(acceptorId);
       // For team invites, we don't need userId in data - it will be found from pending invites
       // If userId is provided but it's the acceptor's own ID, we'll ignore it and find from invite
       const providedUserId = data?.userId ? this.normalizeId(data.userId) : null;
@@ -1307,15 +1287,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Get acceptor's name and profile image for inviter to see who accepted
       let acceptorName = '';
       let acceptorProfileImage: string | null = null;
-      try {
-        const acceptor = await this.usersService.findById(acceptorId);
-        acceptorName = (acceptor as any)?.name || (acceptor as any)?.username || '';
-        acceptorProfileImage = (acceptor as any)?.profileImage || null;
-      } catch (error) {
-        // If unable to get name/profile image, leave it empty
-        acceptorName = '';
-        acceptorProfileImage = null;
-      }
+      const acceptor = await this.usersService.findById(acceptorId);
+      acceptorName = (acceptor as any)?.name || (acceptor as any)?.username || '';
+      acceptorProfileImage = (acceptor as any)?.profileImage || null;
 
       // Get host ID (first participant)
       const hostId = this.normalizeId(participants[0]);
@@ -1385,58 +1359,69 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         teamName?: string;
       }> = [];
 
-      await Promise.all(
-        participants.map(async (participantId) => {
-          const normalizedId = this.normalizeId(participantId);
-          if (!normalizedId) return;
+      // Batch query all participants
+      const participantIds = participants.map(p => this.normalizeId(p)).filter((id): id is string => id !== null);
+      const allParticipants = await this.userModel.find({ 
+        _id: { $in: participantIds } 
+      }).lean().exec();
 
-          try {
-            const participant = await this.usersService.findById(normalizedId);
-            const userName = (participant as any)?.name || (participant as any)?.username || '';
-            const userProfileImage = (participant as any)?.profileImage || null;
-            const isHost = normalizedId === hostId;
+      // Create a map for quick lookup
+      const participantsMap = new Map<string, any>();
+      allParticipants.forEach((participant: any) => {
+        const participantId = this.normalizeId(participant._id);
+        if (participantId) {
+          participantsMap.set(participantId, participant);
+        }
+      });
 
-            // Get team information for this participant
-            const participantTeamId = userTeamMap.get(normalizedId);
-            const teamInfo = participantTeamId ? teamsInfoMap.get(participantTeamId) : null;
+      // Process each participant using the map
+      participants.forEach((participantId) => {
+        const normalizedId = this.normalizeId(participantId);
+        if (!normalizedId) return;
 
-            participantDetails.push({
-              userId: normalizedId,
-              name: userName,
-              profileImage: userProfileImage,
-              isHost: isHost,
-              teamId: participantTeamId || undefined,
-              teamName: teamInfo?.teamName || undefined,
-            });
+        const participant = participantsMap.get(normalizedId);
+        
+        if (participant) {
+          const userName = (participant as any)?.name || (participant as any)?.username || '';
+          const userProfileImage = (participant as any)?.profileImage || null;
+          const isHost = normalizedId === hostId;
 
-            console.log('[acceptTeamInvite] Participant details fetched:', {
-              userId: normalizedId,
-              name: userName,
-              hasProfileImage: !!userProfileImage,
-              isHost,
-              teamId: participantTeamId,
-              teamName: teamInfo?.teamName,
-            });
-          } catch (error) {
-            console.warn('[acceptTeamInvite] Failed to fetch participant info:', {
-              participantId: normalizedId,
-              error: error.message,
-            });
-            // Get team information even if user fetch fails
-            const participantTeamId = userTeamMap.get(normalizedId);
-            const teamInfo = participantTeamId ? teamsInfoMap.get(participantTeamId) : null;
-            // Add participant with default values
-            participantDetails.push({
-              userId: normalizedId,
-              name: '',
-              profileImage: null,
-              isHost: normalizedId === hostId,
-              teamId: participantTeamId || undefined,
-              teamName: teamInfo?.teamName || undefined,
-            });
-          }
-        }),
-      );
+          // Get team information for this participant
+          const participantTeamId = userTeamMap.get(normalizedId);
+          const teamInfo = participantTeamId ? teamsInfoMap.get(participantTeamId) : null;
+
+          participantDetails.push({
+            userId: normalizedId,
+            name: userName,
+            profileImage: userProfileImage,
+            isHost: isHost,
+            teamId: participantTeamId || undefined,
+            teamName: teamInfo?.teamName || undefined,
+          });
+
+          console.log('[acceptTeamInvite] Participant details fetched:', {
+            userId: normalizedId,
+            name: userName,
+            hasProfileImage: !!userProfileImage,
+            isHost,
+            teamId: participantTeamId,
+            teamName: teamInfo?.teamName,
+          });
+        } else {
+          // Get team information even if user not found
+          const participantTeamId = userTeamMap.get(normalizedId);
+          const teamInfo = participantTeamId ? teamsInfoMap.get(participantTeamId) : null;
+          // Add participant with default values
+          participantDetails.push({
+            userId: normalizedId,
+            name: '',
+            profileImage: null,
+            isHost: normalizedId === hostId,
+            teamId: participantTeamId || undefined,
+            teamName: teamInfo?.teamName || undefined,
+          });
+        }
+      });
 
       // Notify all participants in room that invite was accepted
       const inviteAcceptedPayload = {
@@ -1503,13 +1488,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         if (roomDeckId) {
           deckId = this.normalizeId(roomDeckId) || undefined;
           if (deckId) {
-            try {
-              const deck = await this.deckModel.findById(deckId).select('name').lean().exec();
-              if (deck) {
-                deckName = (deck as any)?.name || undefined;
-              }
-            } catch (error) {
-              console.warn('[acceptTeamInvite] Failed to fetch deck name:', error);
+            const deck = await this.deckModel.findById(deckId).select('name').lean().exec();
+            if (deck) {
+              deckName = (deck as any)?.name || undefined;
             }
           }
         }
@@ -1517,13 +1498,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         if (roomTopicId) {
           topicId = this.normalizeId(roomTopicId) || undefined;
           if (topicId) {
-            try {
-              const topic = await this.topicModel.findById(topicId).select('title').lean().exec();
-              if (topic) {
-                topicName = (topic as any)?.title || undefined;
-              }
-            } catch (error) {
-              console.warn('[acceptTeamInvite] Failed to fetch topic name:', error);
+            const topic = await this.topicModel.findById(topicId).select('title').lean().exec();
+            if (topic) {
+              topicName = (topic as any)?.title || undefined;
             }
           }
         }
@@ -1593,19 +1570,18 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     @MessageBody() data: { gameId?: string; inviterId: string },
   ) {
     const userId = client.data.userId;
-    console.log('[cancelTeamInvite] Event received:', {
-      userId,
-      data,
-      socketId: client.id,
-      timestamp: new Date().toISOString(),
-    });
-
-    if (!userId) {
-      console.log('[cancelTeamInvite] Error: Unauthorized - no userId');
-      return client.emit('errorMessage', { message: 'Unauthorized' });
-    }
-
     try {
+      console.log('[cancelTeamInvite] Event received:', {
+        userId,
+        data,
+        socketId: client.id,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (!userId) {
+        console.log('[cancelTeamInvite] Error: Unauthorized - no userId');
+        return client.emit('errorMessage', { message: 'Unauthorized' });
+      }
       const result = await this.contentService.cancelInvite(userId, data);
       client.emit('cancelTeamInviteResponse', {
         success: true,
@@ -1709,44 +1685,59 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
             teamName?: string;
           }> = [];
 
-          await Promise.all(
-            participants.map(async (participantId) => {
-              const normalizedId = this.normalizeId(participantId);
-              if (!normalizedId) return;
+          // Batch query all participants
+          const participantIds = participants.map(p => this.normalizeId(p)).filter((id): id is string => id !== null);
+          const allParticipants = await this.userModel.find({ 
+            _id: { $in: participantIds } 
+          }).lean().exec();
 
-              try {
-                const participant = await this.usersService.findById(normalizedId);
-                const userName = (participant as any)?.name || (participant as any)?.username || '';
-                const userProfileImage = (participant as any)?.profileImage || null;
-                const isHost = normalizedId === hostId;
+          // Create a map for quick lookup
+          const participantsMap = new Map<string, any>();
+          allParticipants.forEach((participant: any) => {
+            const participantId = this.normalizeId(participant._id);
+            if (participantId) {
+              participantsMap.set(participantId, participant);
+            }
+          });
 
-                // Get team information for this participant
-                const participantTeamId = userTeamMap.get(normalizedId);
-                const teamInfo = participantTeamId ? teamsInfoMap.get(participantTeamId) : null;
+          // Process each participant using the map
+          participants.forEach((participantId) => {
+            const normalizedId = this.normalizeId(participantId);
+            if (!normalizedId) return;
 
-                participantDetails.push({
-                  userId: normalizedId,
-                  name: userName,
-                  profileImage: userProfileImage,
-                  isHost: isHost,
-                  teamId: participantTeamId || undefined,
-                  teamName: teamInfo?.teamName || undefined,
-                });
-              } catch (error) {
-                // Get team information even if user fetch fails
-                const participantTeamId = userTeamMap.get(normalizedId);
-                const teamInfo = participantTeamId ? teamsInfoMap.get(participantTeamId) : null;
-                participantDetails.push({
-                  userId: normalizedId,
-                  name: '',
-                  profileImage: null,
-                  isHost: normalizedId === hostId,
-                  teamId: participantTeamId || undefined,
-                  teamName: teamInfo?.teamName || undefined,
-                });
-              }
-            }),
-          );
+            const participant = participantsMap.get(normalizedId);
+            
+            if (participant) {
+              const userName = (participant as any)?.name || (participant as any)?.username || '';
+              const userProfileImage = (participant as any)?.profileImage || null;
+              const isHost = normalizedId === hostId;
+
+              // Get team information for this participant
+              const participantTeamId = userTeamMap.get(normalizedId);
+              const teamInfo = participantTeamId ? teamsInfoMap.get(participantTeamId) : null;
+
+              participantDetails.push({
+                userId: normalizedId,
+                name: userName,
+                profileImage: userProfileImage,
+                isHost: isHost,
+                teamId: participantTeamId || undefined,
+                teamName: teamInfo?.teamName || undefined,
+              });
+            } else {
+              // Get team information even if user not found
+              const participantTeamId = userTeamMap.get(normalizedId);
+              const teamInfo = participantTeamId ? teamsInfoMap.get(participantTeamId) : null;
+              participantDetails.push({
+                userId: normalizedId,
+                name: '',
+                profileImage: null,
+                isHost: normalizedId === hostId,
+                teamId: participantTeamId || undefined,
+                teamName: teamInfo?.teamName || undefined,
+              });
+            }
+          });
 
           const normalizedInviterId = this.normalizeId(activeRoom.participants[0]);
           
@@ -1762,13 +1753,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           if (roomDeckId) {
             deckId = this.normalizeId(roomDeckId) || undefined;
             if (deckId) {
-              try {
-                const deck = await this.deckModel.findById(deckId).select('name').lean().exec();
-                if (deck) {
-                  deckName = (deck as any)?.name || undefined;
-                }
-              } catch (error) {
-                console.warn('[cancelTeamInvite] Failed to fetch deck name:', error);
+              const deck = await this.deckModel.findById(deckId).select('name').lean().exec();
+              if (deck) {
+                deckName = (deck as any)?.name || undefined;
               }
             }
           }
@@ -1776,13 +1763,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           if (roomTopicId) {
             topicId = this.normalizeId(roomTopicId) || undefined;
             if (topicId) {
-              try {
-                const topic = await this.topicModel.findById(topicId).select('title').lean().exec();
-                if (topic) {
-                  topicName = (topic as any)?.title || undefined;
-                }
-              } catch (error) {
-                console.warn('[cancelTeamInvite] Failed to fetch topic name:', error);
+              const topic = await this.topicModel.findById(topicId).select('title').lean().exec();
+              if (topic) {
+                topicName = (topic as any)?.title || undefined;
               }
             }
           }
@@ -1842,78 +1825,71 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { gameId: string; userId?: string },
   ) {
-    const requesterId = client.data.userId;
-    console.log('[teamUserLeft] Event received:', {
-      requesterId,
-      data,
-      socketId: client.id,
-      timestamp: new Date().toISOString(),
-    });
-
-    if (!requesterId) {
-      console.log('[teamUserLeft] Error: Unauthorized - no requesterId');
-      return client.emit('errorMessage', { message: 'Unauthorized' });
-    }
-
-    const normalizedGameId = this.normalizeId(data?.gameId);
-    const normalizedUserId =
-      this.normalizeId(data?.userId) || this.normalizeId(requesterId);
-
-    if (!normalizedGameId) {
-      console.log('[teamUserLeft] Error: gameId is required');
-      return client.emit('errorMessage', { message: 'gameId is required' });
-    }
-
-    if (!normalizedUserId) {
-      console.log('[teamUserLeft] Error: Invalid user');
-      return client.emit('errorMessage', { message: 'Invalid user' });
-    }
-
-    const gameState = this.teamGames.get(normalizedGameId);
-    if (!gameState) {
-      return client.emit('errorMessage', { message: 'Team game not found' });
-    }
-
-    // Remove user from active room participants (best-effort)
     try {
+      const requesterId = client.data.userId;
+      console.log('[teamUserLeft] Event received:', {
+        requesterId,
+        data,
+        socketId: client.id,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (!requesterId) {
+        console.log('[teamUserLeft] Error: Unauthorized - no requesterId');
+        return client.emit('errorMessage', { message: 'Unauthorized' });
+      }
+
+      const normalizedGameId = this.normalizeId(data?.gameId);
+      const normalizedUserId =
+        this.normalizeId(data?.userId) || this.normalizeId(requesterId);
+
+      if (!normalizedGameId) {
+        console.log('[teamUserLeft] Error: gameId is required');
+        return client.emit('errorMessage', { message: 'gameId is required' });
+      }
+
+      if (!normalizedUserId) {
+        console.log('[teamUserLeft] Error: Invalid user');
+        return client.emit('errorMessage', { message: 'Invalid user' });
+      }
+
+      const gameState = this.teamGames.get(normalizedGameId);
+      if (!gameState) {
+        return client.emit('errorMessage', { message: 'Team game not found' });
+      }
+
+      // Remove user from active room participants (best-effort)
       await this.contentService.removeUserFromRoomParticipants(
         normalizedGameId,
         normalizedUserId,
       );
-    } catch (error) {
-      // Ignore errors here; continue cleaning up local state
-    }
 
-    // Remove player from teams and tracking maps
-    let leftTeamId: string | null = null;
-    for (const [teamId, playerIds] of gameState.teams.entries()) {
-      if (playerIds.includes(normalizedUserId)) {
-        leftTeamId = teamId;
-        const updatedPlayers = playerIds.filter((p) => p !== normalizedUserId);
-        if (updatedPlayers.length === 0) {
-          gameState.teams.delete(teamId);
-          gameState.teamScores.delete(teamId);
-        } else {
-          gameState.teams.set(teamId, updatedPlayers);
+      // Remove player from teams and tracking maps
+      let leftTeamId: string | null = null;
+      for (const [teamId, playerIds] of gameState.teams.entries()) {
+        if (playerIds.includes(normalizedUserId)) {
+          leftTeamId = teamId;
+          const updatedPlayers = playerIds.filter((p) => p !== normalizedUserId);
+          if (updatedPlayers.length === 0) {
+            gameState.teams.delete(teamId);
+            gameState.teamScores.delete(teamId);
+          } else {
+            gameState.teams.set(teamId, updatedPlayers);
+          }
+          break;
         }
-        break;
       }
-    }
 
-    gameState.players = gameState.players.filter((p) => p !== normalizedUserId);
-    gameState.playerAnswers.delete(normalizedUserId);
-    gameState.playerWrongAnswers.delete(normalizedUserId);
-    gameState.eliminatedPlayers.delete(normalizedUserId);
+      gameState.players = gameState.players.filter((p) => p !== normalizedUserId);
+      gameState.playerAnswers.delete(normalizedUserId);
+      gameState.playerWrongAnswers.delete(normalizedUserId);
+      gameState.eliminatedPlayers.delete(normalizedUserId);
 
-    // Update persistence (best-effort)
-    try {
+      // Update persistence (best-effort)
       await this.teamGameService.removePlayerFromGame(
         gameState.gameId,
         normalizedUserId,
       );
-    } catch (error) {
-      // Non-blocking; continue notifying clients
-    }
 
     // Emit left event to room, not globally - ensures only users in the room receive it
     this.server.to(gameState.roomId).emit('teamUserLeft', {
@@ -1948,10 +1924,19 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       }
     });
 
-    if (gameState.players.length === 0 || activeTeams.size <= 1) {
-      setTimeout(() => {
-        this.endTeamGame(gameState);
-      }, 500);
+      if (gameState.players.length === 0 || activeTeams.size <= 1) {
+        setTimeout(() => {
+          this.endTeamGame(gameState);
+        }, 500);
+      }
+    } catch (error) {
+      console.error('[teamUserLeft] Error occurred:', {
+        error: error.message,
+        stack: error.stack,
+      });
+      client.emit('errorMessage', {
+        message: error?.message || 'Failed to handle team user left',
+      });
     }
   }
 
@@ -1977,29 +1962,28 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     },
   ) {
     const userId = client.data.userId as string;
-    console.log('[teamCreateGame] Event received:', {
-      userId,
-      body,
-      socketId: client.id,
-      timestamp: new Date().toISOString(),
-    });
-
-    if (!userId) {
-      console.log('[teamCreateGame] Error: Unauthorized - no userId');
-      return client.emit('errorMessage', { message: 'Unauthorized' });
-    }
-
-    const { topicType, deckId, topicId, gameMode, member } = body;
-
-    // Validate topicType and deckId
-    if (topicType === 'selected' && !deckId) {
-      console.log('[teamCreateGame] Error: deckId is required when topicType is "selected"');
-      return client.emit('errorMessage', {
-        message: 'deckId is required when topicType is "selected"',
-      });
-    }
-
     try {
+      console.log('[teamCreateGame] Event received:', {
+        userId,
+        body,
+        socketId: client.id,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (!userId) {
+        console.log('[teamCreateGame] Error: Unauthorized - no userId');
+        return client.emit('errorMessage', { message: 'Unauthorized' });
+      }
+
+      const { topicType, deckId, topicId, gameMode, member } = body;
+
+      // Validate topicType and deckId
+      if (topicType === 'selected' && !deckId) {
+        console.log('[teamCreateGame] Error: deckId is required when topicType is "selected"');
+        return client.emit('errorMessage', {
+          message: 'deckId is required when topicType is "selected"',
+        });
+      }
       // Check if user is in an active room
       const room = this.contentService.getRoomByUserId(userId);
       if (!room) {
@@ -2232,31 +2216,47 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       const playerInfo: Record<string, { name: string; profileImage: string | null; isHost: boolean }> = {};
       const hostId = this.normalizeId(room.participants[0]);
       
-      await Promise.all(
-        room.participants.map(async (participantId) => {
-          const normalizedId = this.normalizeId(participantId);
-          if (!normalizedId) return;
-          try {
-            const player = await this.usersService.findById(normalizedId);
-            const userName = (player as any)?.name || (player as any)?.username || '';
-            const userProfileImage = (player as any)?.profileImage || null;
-            const isHost = normalizedId === hostId;
-            playerInfo[normalizedId] = {
-              name: userName,
-              profileImage: userProfileImage,
-              isHost: isHost,
-            };
-          } catch (error) {
-            // Default values if user not found
-            const isHost = normalizedId === hostId;
-            playerInfo[normalizedId] = {
-              name: '',
-              profileImage: null,
-              isHost: isHost,
-            };
-          }
-        }),
-      );
+      // Batch query all participants
+      const participantIds = room.participants.map(p => this.normalizeId(p)).filter((id): id is string => id !== null);
+      const allParticipants = await this.userModel.find({ 
+        _id: { $in: participantIds } 
+      }).lean().exec();
+
+      // Create a map for quick lookup
+      const participantsMap = new Map<string, any>();
+      allParticipants.forEach((participant: any) => {
+        const participantId = this.normalizeId(participant._id);
+        if (participantId) {
+          participantsMap.set(participantId, participant);
+        }
+      });
+
+      // Process each participant using the map
+      room.participants.forEach((participantId) => {
+        const normalizedId = this.normalizeId(participantId);
+        if (!normalizedId) return;
+
+        const participant = participantsMap.get(normalizedId);
+        
+        if (participant) {
+          const userName = (participant as any)?.name || (participant as any)?.username || '';
+          const userProfileImage = (participant as any)?.profileImage || null;
+          const isHost = normalizedId === hostId;
+          playerInfo[normalizedId] = {
+            name: userName,
+            profileImage: userProfileImage,
+            isHost: isHost,
+          };
+        } else {
+          // Default values if user not found
+          const isHost = normalizedId === hostId;
+          playerInfo[normalizedId] = {
+            name: '',
+            profileImage: null,
+            isHost: isHost,
+          };
+        }
+      });
 
       // Get team points and team names for each team
       const teampoint: Record<string, number> = {};
@@ -2286,13 +2286,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Get deck name
       let deckName: string | null = null;
       if (result.deckId) {
-        try {
-          const deck = await this.deckModel.findById(result.deckId).select('name').lean().exec();
-          if (deck) {
-            deckName = (deck as any)?.name || null;
-          }
-        } catch (error) {
-          console.warn('Failed to fetch deck name:', error);
+        const deck = await this.deckModel.findById(result.deckId).select('name').lean().exec();
+        if (deck) {
+          deckName = (deck as any)?.name || null;
         }
       }
 
@@ -2349,42 +2345,49 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
   // SEND NEXT TEAM QUESTION
   // -------------------------------------------------------------
   private sendNextTeamQuestion(gameState: TeamGameState) {
-    const { roomId, questions, currentIndex } = gameState;
+    try {
+      const { roomId, questions, currentIndex } = gameState;
 
-    if (currentIndex >= questions.length) {
-      return this.endTeamGame(gameState);
+      if (currentIndex >= questions.length) {
+        return this.endTeamGame(gameState);
+      }
+
+      const q = questions[currentIndex];
+
+      // Get list of eliminated players for Knockout mode
+      const eliminatedPlayersList = gameState.gameMode === 'Knockout' 
+        ? Array.from(gameState.eliminatedPlayers)
+        : [];
+
+      // Emit question event (same as regular game gateway for consistency)
+      // Admin/inviter can view questions but cannot answer
+      // Emit to room, not globally - ensures only users in the room receive it
+      // this.server.to(roomId).emit('question', {
+      //   index: currentIndex,
+      //   total: questions.length,
+      //   question: {
+      //     text: q.question,
+      //     options: q.options ?? [],
+      //     id: q.id,
+      //     hint: q.hint,
+      //   },
+      //   time: QUESTION_TIME_SECONDS,
+      //   eliminatedPlayers: eliminatedPlayersList,
+      //   gameMode: gameState.gameMode,
+      //   inviterId: gameState.inviterId, // Include inviterId so client knows who can't answer
+      // });
+
+      const questionStartTime = new Date();
+      gameState.questionStartAt = questionStartTime;
+      gameState.questionStartTimes.set(currentIndex, questionStartTime);
+
+      // Timer removed - no auto-submit
+    } catch (error) {
+      console.error('[sendNextTeamQuestion] Error occurred:', {
+        error: error.message,
+        stack: error.stack,
+      });
     }
-
-    const q = questions[currentIndex];
-
-    // Get list of eliminated players for Knockout mode
-    const eliminatedPlayersList = gameState.gameMode === 'Knockout' 
-      ? Array.from(gameState.eliminatedPlayers)
-      : [];
-
-    // Emit question event (same as regular game gateway for consistency)
-    // Admin/inviter can view questions but cannot answer
-    // Emit to room, not globally - ensures only users in the room receive it
-    // this.server.to(roomId).emit('question', {
-    //   index: currentIndex,
-    //   total: questions.length,
-    //   question: {
-    //     text: q.question,
-    //     options: q.options ?? [],
-    //     id: q.id,
-    //     hint: q.hint,
-    //   },
-    //   time: QUESTION_TIME_SECONDS,
-    //   eliminatedPlayers: eliminatedPlayersList,
-    //   gameMode: gameState.gameMode,
-    //   inviterId: gameState.inviterId, // Include inviterId so client knows who can't answer
-    // });
-
-    const questionStartTime = new Date();
-    gameState.questionStartAt = questionStartTime;
-    gameState.questionStartTimes.set(currentIndex, questionStartTime);
-
-    // Timer removed - no auto-submit
   }
 
   // -------------------------------------------------------------
@@ -2398,29 +2401,30 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     @MessageBody() body: { index: number; answer: string | null; gameId?: string; responstime?: number },
   ) {
     const userId = client.data.userId;
-    console.log('[teamSubmitAnswer] Event received:', {
-      userId,
-      body,
-      socketId: client.id,
-      timestamp: new Date().toISOString(),
-    });
-
-    if (!userId) {
-      console.log('[teamSubmitAnswer] Error: Unauthorized - no userId');
-      return client.emit('errorMessage', { message: 'Unauthorized' });
-    }
-
-    // Check if user is online
-    const isOnline = await this.checkUserIsOnline(userId);
-    console.log('[teamSubmitAnswer] User online status:', { userId, isOnline });
-    if (!isOnline) {
-      console.log('[teamSubmitAnswer] Error: User is not online');
-      return client.emit('errorMessage', {
-        message: 'You must be online to submit answers. Please set your status to online.',
+    try {
+      console.log('[teamSubmitAnswer] Event received:', {
+        userId,
+        body,
+        socketId: client.id,
+        timestamp: new Date().toISOString(),
       });
-    }
 
-    const { answer, index, gameId, responstime } = body;
+      if (!userId) {
+        console.log('[teamSubmitAnswer] Error: Unauthorized - no userId');
+        return client.emit('errorMessage', { message: 'Unauthorized' });
+      }
+
+      // Check if user is online
+      const isOnline = await this.checkUserIsOnline(userId);
+      console.log('[teamSubmitAnswer] User online status:', { userId, isOnline });
+      if (!isOnline) {
+        console.log('[teamSubmitAnswer] Error: User is not online');
+        return client.emit('errorMessage', {
+          message: 'You must be online to submit answers. Please set your status to online.',
+        });
+      }
+
+      const { answer, index, gameId, responstime } = body;
     console.log('[teamSubmitAnswer] Processing answer:', {
       userId,
       index,
@@ -2536,6 +2540,17 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       });
       await this.handleWrongAnswer(gameState, answer, client);
     }
+    } catch (error) {
+      console.error('[teamSubmitAnswer] Error occurred:', {
+        userId,
+        error: error.message,
+        stack: error.stack,
+        body,
+      });
+      client.emit('errorMessage', {
+        message: error?.message || 'Failed to submit answer',
+      });
+    }
   }
 
   // -------------------------------------------------------------
@@ -2549,259 +2564,270 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     answer: string | null,
     responstime?: number,
   ) {
-    const normalizedUserId = this.normalizeId(userId);
-    if (!normalizedUserId) {
-      return client.emit('errorMessage', { message: 'Invalid user' });
-    }
-
-    // Block inviter (admin) from answering - they can only view
-    const normalizedInviterId = this.normalizeId(gameState.inviterId);
-    if (normalizedUserId === normalizedInviterId) {
-      return client.emit('errorMessage', {
-        message: 'Admin can only view questions, not answer them',
-      });
-    }
-
-    if (!gameState.players.includes(normalizedUserId)) {
-      return client.emit('errorMessage', {
-        message: 'You are not a player in this game',
-      });
-    }
-
-    // Check if player is eliminated (Knockout mode)
-    if (gameState.eliminatedPlayers.has(normalizedUserId)) {
-      return client.emit('errorMessage', {
-        message: 'You have been eliminated and cannot answer questions',
-      });
-    }
-
-    const currentIndex = gameState.currentIndex;
-
-    if (Number(index) !== Number(currentIndex)) {
-      return client.emit('errorMessage', {
-        message: 'Invalid question index',
-      });
-    }
-
-    // Check if user already answered this question
-    const userAnswers = gameState.playerAnswers.get(normalizedUserId) || [];
-    const alreadyAnswered = userAnswers.some((a) => a.index === currentIndex);
-    if (alreadyAnswered) {
-      return client.emit('errorMessage', {
-        message: 'You have already answered this question',
-      });
-    }
-
-    const currentQ = gameState.questions[currentIndex];
-    // Handle null answer - treat as incorrect
-    const isCorrect = answer !== null &&
-      currentQ.correctAnswer.trim().toLowerCase() ===
-      answer.trim().toLowerCase();
-
-    // Record answer
-    const answerRecord: AnswerRecord = {
-      index: currentIndex,
-      question: currentQ.question,
-      userAnswer: answer,
-      correctAnswer: currentQ.correctAnswer,
-      isCorrect,
-      timestamp: new Date(),
-      responstime: responstime, // Store response time from client
-    };
-
-    userAnswers.push(answerRecord);
-    gameState.playerAnswers.set(normalizedUserId, userAnswers);
-
-    // Update team score if correct
-    if (isCorrect) {
-      // Find which team this player belongs to
-      for (const [teamId, playerIds] of gameState.teams.entries()) {
-        if (playerIds.includes(normalizedUserId)) {
-          const currentTeamScore = gameState.teamScores.get(teamId) || 0;
-          gameState.teamScores.set(teamId, currentTeamScore + 1);
-          break;
-        }
+    try {
+      const normalizedUserId = this.normalizeId(userId);
+      if (!normalizedUserId) {
+        return client.emit('errorMessage', { message: 'Invalid user' });
       }
-    } else {
-      // Track wrong answers for Knockout mode
-      if (gameState.gameMode === 'Knockout') {
-        const currentWrongAnswers = gameState.playerWrongAnswers.get(normalizedUserId) || 0;
-        const newWrongAnswers = currentWrongAnswers + 1;
-        gameState.playerWrongAnswers.set(normalizedUserId, newWrongAnswers);
 
-        // Check if player should be eliminated (3 wrong answers)
-        if (newWrongAnswers >= 3) {
-          gameState.eliminatedPlayers.add(normalizedUserId);
-          
-          // Get all eliminated players list
-          const allEliminatedPlayers = Array.from(gameState.eliminatedPlayers);
-          
-          // Find which team the eliminated player belongs to
-          let eliminatedPlayerTeamId: string | null = null;
-          for (const [teamId, playerIds] of gameState.teams.entries()) {
-            if (playerIds.includes(normalizedUserId)) {
-              eliminatedPlayerTeamId = teamId;
-              break;
-            }
+      // Block inviter (admin) from answering - they can only view
+      const normalizedInviterId = this.normalizeId(gameState.inviterId);
+      if (normalizedUserId === normalizedInviterId) {
+        return client.emit('errorMessage', {
+          message: 'Admin can only view questions, not answer them',
+        });
+      }
+
+      if (!gameState.players.includes(normalizedUserId)) {
+        return client.emit('errorMessage', {
+          message: 'You are not a player in this game',
+        });
+      }
+
+      // Check if player is eliminated (Knockout mode)
+      if (gameState.eliminatedPlayers.has(normalizedUserId)) {
+        return client.emit('errorMessage', {
+          message: 'You have been eliminated and cannot answer questions',
+        });
+      }
+
+      const currentIndex = gameState.currentIndex;
+
+      if (Number(index) !== Number(currentIndex)) {
+        return client.emit('errorMessage', {
+          message: 'Invalid question index',
+        });
+      }
+
+      // Check if user already answered this question
+      const userAnswers = gameState.playerAnswers.get(normalizedUserId) || [];
+      const alreadyAnswered = userAnswers.some((a) => a.index === currentIndex);
+      if (alreadyAnswered) {
+        return client.emit('errorMessage', {
+          message: 'You have already answered this question',
+        });
+      }
+
+      const currentQ = gameState.questions[currentIndex];
+      // Handle null answer - treat as incorrect
+      const isCorrect = answer !== null &&
+        currentQ.correctAnswer.trim().toLowerCase() ===
+        answer.trim().toLowerCase();
+
+      // Record answer
+      const answerRecord: AnswerRecord = {
+        index: currentIndex,
+        question: currentQ.question,
+        userAnswer: answer,
+        correctAnswer: currentQ.correctAnswer,
+        isCorrect,
+        timestamp: new Date(),
+        responstime: responstime, // Store response time from client
+      };
+
+      userAnswers.push(answerRecord);
+      gameState.playerAnswers.set(normalizedUserId, userAnswers);
+
+      // Update team score if correct
+      if (isCorrect) {
+        // Find which team this player belongs to
+        for (const [teamId, playerIds] of gameState.teams.entries()) {
+          if (playerIds.includes(normalizedUserId)) {
+            const currentTeamScore = gameState.teamScores.get(teamId) || 0;
+            gameState.teamScores.set(teamId, currentTeamScore + 1);
+            break;
           }
-          
-          // Notify only the eliminated player's team members about elimination
-          // Exclude inviter (admin) from receiving the event
-          const normalizedInviterId = this.normalizeId(gameState.inviterId);
-          if (eliminatedPlayerTeamId) {
-            const teamMembers = gameState.teams.get(eliminatedPlayerTeamId) || [];
-            teamMembers.forEach((teamMemberId) => {
-              const normalizedTeamMemberId = this.normalizeId(teamMemberId);
-              // Only send to team members (not the inviter/host)
-              if (normalizedTeamMemberId && normalizedTeamMemberId !== normalizedInviterId) {
-                const teamMemberSocket = this.userSockets.get(normalizedTeamMemberId);
-                if (teamMemberSocket) {
-                  teamMemberSocket.emit('teamPlayerEliminated', {
-                    eliminatedUserId: normalizedUserId,
-                    gameId: gameState.gameId,
-                    roomId: gameState.roomId,
-                    wrongAnswers: newWrongAnswers,
-                    allEliminatedPlayers: allEliminatedPlayers,
-                    activePlayers: gameState.players.filter(
-                      (p) => !gameState.eliminatedPlayers.has(p)
-                    ),
-                  });
+        }
+      } else {
+        // Track wrong answers for Knockout mode
+        if (gameState.gameMode === 'Knockout') {
+          const currentWrongAnswers = gameState.playerWrongAnswers.get(normalizedUserId) || 0;
+          const newWrongAnswers = currentWrongAnswers + 1;
+          gameState.playerWrongAnswers.set(normalizedUserId, newWrongAnswers);
+
+          // Check if player should be eliminated (3 wrong answers)
+          if (newWrongAnswers >= 3) {
+            gameState.eliminatedPlayers.add(normalizedUserId);
+            
+            // Get all eliminated players list
+            const allEliminatedPlayers = Array.from(gameState.eliminatedPlayers);
+            
+            // Find which team the eliminated player belongs to
+            let eliminatedPlayerTeamId: string | null = null;
+            for (const [teamId, playerIds] of gameState.teams.entries()) {
+              if (playerIds.includes(normalizedUserId)) {
+                eliminatedPlayerTeamId = teamId;
+                break;
+              }
+            }
+            
+            // Notify only the eliminated player's team members about elimination
+            // Exclude inviter (admin) from receiving the event
+            const normalizedInviterId = this.normalizeId(gameState.inviterId);
+            if (eliminatedPlayerTeamId) {
+              const teamMembers = gameState.teams.get(eliminatedPlayerTeamId) || [];
+              teamMembers.forEach((teamMemberId) => {
+                const normalizedTeamMemberId = this.normalizeId(teamMemberId);
+                // Only send to team members (not the inviter/host)
+                if (normalizedTeamMemberId && normalizedTeamMemberId !== normalizedInviterId) {
+                  const teamMemberSocket = this.userSockets.get(normalizedTeamMemberId);
+                  if (teamMemberSocket) {
+                    teamMemberSocket.emit('teamPlayerEliminated', {
+                      eliminatedUserId: normalizedUserId,
+                      gameId: gameState.gameId,
+                      roomId: gameState.roomId,
+                      wrongAnswers: newWrongAnswers,
+                      allEliminatedPlayers: allEliminatedPlayers,
+                      activePlayers: gameState.players.filter(
+                        (p) => !gameState.eliminatedPlayers.has(p)
+                      ),
+                    });
+                  }
+                }
+              });
+            }
+
+            // Notify the eliminated player specifically
+            client.emit('youAreEliminated', {
+              message: 'You have been eliminated after 3 wrong answers',
+              wrongAnswers: newWrongAnswers,
+              eliminatedPlayers: allEliminatedPlayers,
+            });
+
+            // Check if game should end (only one team remaining)
+            const activeTeams = new Set<string>();
+            gameState.players.forEach((playerId) => {
+              if (!gameState.eliminatedPlayers.has(playerId)) {
+                for (const [teamId, playerIds] of gameState.teams.entries()) {
+                  if (playerIds.includes(playerId)) {
+                    activeTeams.add(teamId);
+                  }
                 }
               }
             });
-          }
 
-          // Notify the eliminated player specifically
-          client.emit('youAreEliminated', {
-            message: 'You have been eliminated after 3 wrong answers',
-            wrongAnswers: newWrongAnswers,
-            eliminatedPlayers: allEliminatedPlayers,
-          });
-
-          // Check if game should end (only one team remaining)
-          const activeTeams = new Set<string>();
-          gameState.players.forEach((playerId) => {
-            if (!gameState.eliminatedPlayers.has(playerId)) {
-              for (const [teamId, playerIds] of gameState.teams.entries()) {
-                if (playerIds.includes(playerId)) {
-                  activeTeams.add(teamId);
-                }
-              }
+            if (activeTeams.size <= 1) {
+              // End game early
+              setTimeout(() => {
+                this.endTeamGame(gameState);
+              }, 2000);
+              return;
             }
-          });
-
-          if (activeTeams.size <= 1) {
-            // End game early
-            setTimeout(() => {
-              this.endTeamGame(gameState);
-            }, 2000);
-            return;
           }
         }
       }
-    }
 
-    // Update progress
-    await this.contentService.updateProgressAfterQuestion(
-      normalizedUserId,
-      isCorrect,
-    );
+      // Update progress
+      await this.contentService.updateProgressAfterQuestion(
+        normalizedUserId,
+        isCorrect,
+      );
 
-    // Get team ID for this player
-    let playerTeamId: string | null = null;
-    for (const [teamId, playerIds] of gameState.teams.entries()) {
-      if (playerIds.includes(normalizedUserId)) {
-        playerTeamId = teamId;
-        break;
-      }
-    }
-
-    // Send answer result to the player
-    client.emit('teamAnswerResult', {
-      correct: isCorrect,
-      teamScore: playerTeamId ? (gameState.teamScores.get(playerTeamId) || 0) : 0,
-      questionIndex: currentIndex,
-      correctAnswer: currentQ.correctAnswer,
-      wrongAnswers: gameState.playerWrongAnswers.get(normalizedUserId) || 0,
-      isEliminated: gameState.eliminatedPlayers.has(normalizedUserId),
-      responstime: responstime, // Include response time in response
-    });
-
-    // Broadcast team scores update
-    const teamScoresObj: Record<string, number> = {};
-    gameState.teamScores.forEach((score, teamId) => {
-      teamScoresObj[teamId] = score;
-    });
-
-    // Emit to room, not globally - ensures only users in the room receive it
-    this.server.to(gameState.roomId).emit('teamScoresUpdate', {
-      gameId: gameState.gameId,
-      roomId: gameState.roomId,
-      teamScores: teamScoresObj,
-    });
-
-    // Check if all active (non-eliminated) players have answered
-    // Exclude inviter (admin) from the check - they can only view, not answer
-    const activePlayers = gameState.players.filter(
-      (p) => !gameState.eliminatedPlayers.has(p) && this.normalizeId(p) !== normalizedInviterId
-    );
-    const allAnswered = activePlayers.every((playerId) => {
-      const answers = gameState.playerAnswers.get(playerId) || [];
-      return answers.some((a) => a.index === currentIndex);
-    });
-
-    // Only broadcast all user answers when ALL participants have answered
-    if (allAnswered) {
-      // Collect all answers for current question from all players
-      const allUserAnswers: Array<{
-        userId: string;
-        userAnswer: string | null;
-        isCorrect: boolean;
-        teamScore: number;
-        responstime?: number;
-      }> = [];
-      for (const playerId of gameState.players) {
-        const playerAnswers = gameState.playerAnswers.get(playerId) || [];
-        const currentQuestionAnswer = playerAnswers.find((a) => a.index === currentIndex);
-        if (currentQuestionAnswer) {
-          // Get team ID for this player
-          let playerTeamId: string | null = null;
-          for (const [teamId, playerIds] of gameState.teams.entries()) {
-            if (playerIds.includes(playerId)) {
-              playerTeamId = teamId;
-              break;
-            }
-          }
-          
-          allUserAnswers.push({
-            userId: playerId,
-            userAnswer: currentQuestionAnswer.userAnswer,
-            isCorrect: currentQuestionAnswer.isCorrect,
-            teamScore: playerTeamId ? (gameState.teamScores.get(playerTeamId) || 0) : 0,
-            responstime: currentQuestionAnswer.responstime, // Include response time
-          });
+      // Get team ID for this player
+      let playerTeamId: string | null = null;
+      for (const [teamId, playerIds] of gameState.teams.entries()) {
+        if (playerIds.includes(normalizedUserId)) {
+          playerTeamId = teamId;
+          break;
         }
       }
 
-      // Broadcast all user answers to all participants in the room
-      this.server.to(gameState.roomId).emit('alluseranswerresult', {
-        gameId: gameState.gameId,
-        roomId: gameState.roomId,
+      // Send answer result to the player
+      client.emit('teamAnswerResult', {
+        correct: isCorrect,
+        teamScore: playerTeamId ? (gameState.teamScores.get(playerTeamId) || 0) : 0,
         questionIndex: currentIndex,
         correctAnswer: currentQ.correctAnswer,
-        allAnswers: allUserAnswers,
+        wrongAnswers: gameState.playerWrongAnswers.get(normalizedUserId) || 0,
+        isEliminated: gameState.eliminatedPlayers.has(normalizedUserId),
+        responstime: responstime, // Include response time in response
       });
 
-      // Wait a bit before sending next question
-      setTimeout(() => {
-        gameState.currentIndex++;
-        if (gameState.currentIndex >= gameState.questions.length) {
-          // All questions completed, end game
-          this.endTeamGame(gameState);
-        } else {
-          this.sendNextTeamQuestion(gameState);
+      // Broadcast team scores update
+      const teamScoresObj: Record<string, number> = {};
+      gameState.teamScores.forEach((score, teamId) => {
+        teamScoresObj[teamId] = score;
+      });
+
+      // Emit to room, not globally - ensures only users in the room receive it
+      this.server.to(gameState.roomId).emit('teamScoresUpdate', {
+        gameId: gameState.gameId,
+        roomId: gameState.roomId,
+        teamScores: teamScoresObj,
+      });
+
+      // Check if all active (non-eliminated) players have answered
+      // Exclude inviter (admin) from the check - they can only view, not answer
+      const activePlayers = gameState.players.filter(
+        (p) => !gameState.eliminatedPlayers.has(p) && this.normalizeId(p) !== normalizedInviterId
+      );
+      const allAnswered = activePlayers.every((playerId) => {
+        const answers = gameState.playerAnswers.get(playerId) || [];
+        return answers.some((a) => a.index === currentIndex);
+      });
+
+      // Only broadcast all user answers when ALL participants have answered
+      if (allAnswered) {
+        // Collect all answers for current question from all players
+        const allUserAnswers: Array<{
+          userId: string;
+          userAnswer: string | null;
+          isCorrect: boolean;
+          teamScore: number;
+          responstime?: number;
+        }> = [];
+        for (const playerId of gameState.players) {
+          const playerAnswers = gameState.playerAnswers.get(playerId) || [];
+          const currentQuestionAnswer = playerAnswers.find((a) => a.index === currentIndex);
+          if (currentQuestionAnswer) {
+            // Get team ID for this player
+            let playerTeamId: string | null = null;
+            for (const [teamId, playerIds] of gameState.teams.entries()) {
+              if (playerIds.includes(playerId)) {
+                playerTeamId = teamId;
+                break;
+              }
+            }
+            
+            allUserAnswers.push({
+              userId: playerId,
+              userAnswer: currentQuestionAnswer.userAnswer,
+              isCorrect: currentQuestionAnswer.isCorrect,
+              teamScore: playerTeamId ? (gameState.teamScores.get(playerTeamId) || 0) : 0,
+              responstime: currentQuestionAnswer.responstime, // Include response time
+            });
+          }
         }
-      }, 1000);
+
+        // Broadcast all user answers to all participants in the room
+        this.server.to(gameState.roomId).emit('alluseranswerresult', {
+          gameId: gameState.gameId,
+          roomId: gameState.roomId,
+          questionIndex: currentIndex,
+          correctAnswer: currentQ.correctAnswer,
+          allAnswers: allUserAnswers,
+        });
+
+        // Wait a bit before sending next question
+        setTimeout(() => {
+          gameState.currentIndex++;
+          if (gameState.currentIndex >= gameState.questions.length) {
+            // All questions completed, end game
+            this.endTeamGame(gameState);
+          } else {
+            this.sendNextTeamQuestion(gameState);
+          }
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('[handleTeamAnswer] Error occurred:', {
+        userId,
+        error: error.message,
+        stack: error.stack,
+      });
+      client.emit('errorMessage', {
+        message: error?.message || 'Failed to process team answer',
+      });
     }
   }
 
@@ -2809,17 +2835,18 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
   // HANDLE TEAM QUESTION TIMEOUT
   // -------------------------------------------------------------
   private async handleTeamQuestionTimeout(gameState: TeamGameState) {
-    const { currentIndex, questions } = gameState;
-    const currentQ = questions[currentIndex];
+    try {
+      const { currentIndex, questions } = gameState;
+      const currentQ = questions[currentIndex];
 
-    // Mark unanswered active (non-eliminated) players as wrong
-    // Exclude inviter (admin) from timeout handling - they can only view, not answer
-    const normalizedInviterId = this.normalizeId(gameState.inviterId);
-    const activePlayers = gameState.players.filter(
-      (p) => !gameState.eliminatedPlayers.has(p) && this.normalizeId(p) !== normalizedInviterId
-    );
+      // Mark unanswered active (non-eliminated) players as wrong
+      // Exclude inviter (admin) from timeout handling - they can only view, not answer
+      const normalizedInviterId = this.normalizeId(gameState.inviterId);
+      const activePlayers = gameState.players.filter(
+        (p) => !gameState.eliminatedPlayers.has(p) && this.normalizeId(p) !== normalizedInviterId
+      );
 
-    for (const playerId of activePlayers) {
+      for (const playerId of activePlayers) {
       const answers = gameState.playerAnswers.get(playerId) || [];
       const alreadyAnswered = answers.some((a) => a.index === currentIndex);
 
@@ -2982,46 +3009,59 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       return;
     }
 
-    // Move to next question
-    setTimeout(() => {
-      gameState.currentIndex++;
-      if (gameState.currentIndex >= gameState.questions.length) {
-        // All questions completed, end game
-        this.endTeamGame(gameState);
-      } else {
-        this.sendNextTeamQuestion(gameState);
-      }
-    }, 1000);
+      // Move to next question
+      setTimeout(() => {
+        gameState.currentIndex++;
+        if (gameState.currentIndex >= gameState.questions.length) {
+          // All questions completed, end game
+          this.endTeamGame(gameState);
+        } else {
+          this.sendNextTeamQuestion(gameState);
+        }
+      }, 1000);
+    } catch (error) {
+      console.error('[handleTeamQuestionTimeout] Error occurred:', {
+        error: error.message,
+        stack: error.stack,
+      });
+    }
   }
 
   // -------------------------------------------------------------
   // SEND NEXT QUESTION (for single player team member games)
   // -------------------------------------------------------------
   private sendNextQuestion(gameState: GameState) {
-    const { socket, questions, currentIndex } = gameState;
+    try {
+      const { socket, questions, currentIndex } = gameState;
 
-    if (currentIndex >= questions.length) {
-      return this.endGame(gameState);
+      if (currentIndex >= questions.length) {
+        return this.endGame(gameState);
+      }
+
+      const q = questions[currentIndex];
+
+      // socket.emit('question', {
+      //   index: currentIndex,
+      //   total: questions.length,
+      //   question: {
+      //     text: q.question,
+      //     options: q.options ?? [],
+      //     id: q.id,
+      //     hint: q.hint,
+      //   },
+      //   lives: gameState.lives,
+      //   time: QUESTION_TIME_SECONDS,
+      // });
+
+      gameState.questionStartAt = new Date();
+
+      // Timer removed - no auto-submit
+    } catch (error) {
+      console.error('[sendNextQuestion] Error occurred:', {
+        error: error.message,
+        stack: error.stack,
+      });
     }
-
-    const q = questions[currentIndex];
-
-    // socket.emit('question', {
-    //   index: currentIndex,
-    //   total: questions.length,
-    //   question: {
-    //     text: q.question,
-    //     options: q.options ?? [],
-    //     id: q.id,
-    //     hint: q.hint,
-    //   },
-    //   lives: gameState.lives,
-    //   time: QUESTION_TIME_SECONDS,
-    // });
-
-    gameState.questionStartAt = new Date();
-
-    // Timer removed - no auto-submit
   }
 
   // -------------------------------------------------------------
@@ -3032,60 +3072,68 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     userAnswer: string | null,
     client?: Socket,
   ) {
-    const { socket, questions, currentIndex, userId } = gameState;
-    const currentQ = questions[currentIndex];
+    try {
+      const { socket, questions, currentIndex, userId } = gameState;
+      const currentQ = questions[currentIndex];
 
-    // Prevent double push
-    const exists = gameState.answers.some((a) => a.index === currentIndex);
-    if (!exists) {
-      gameState.answers.push({
-        index: currentIndex,
-        question: currentQ.question,
-        userAnswer:userAnswer ? userAnswer : null,
+      // Prevent double push
+      const exists = gameState.answers.some((a) => a.index === currentIndex);
+      if (!exists) {
+        gameState.answers.push({
+          index: currentIndex,
+          question: currentQ.question,
+          userAnswer:userAnswer ? userAnswer : null,
+          correctAnswer: currentQ.correctAnswer,
+          isCorrect: false,
+          timestamp: new Date(),
+        });
+      }
+
+      // Decrement lives in User model (1 life deducted)
+      const updatedUser = await this.usersService.decrementLife(userId, 1);
+
+      if (!updatedUser) {
+        console.warn('User not found while decrementing life');
+        return;
+      }
+
+      // Also decrement lives in GameProgress (1 life deducted)
+      await this.contentService.decrementLives(userId, 1);
+
+      // Prefer provided client (if any), otherwise fall back to game state's socket
+      const targetSocket = client ?? socket;
+
+      gameState.lives = updatedUser.lives;
+      targetSocket.emit('answerResult', {
+        correct: false,
+        livesLeft: gameState.lives,
         correctAnswer: currentQ.correctAnswer,
-        isCorrect: false,
-        timestamp: new Date(),
+        questionIndex: currentIndex,
+        userAnswer:userAnswer ? userAnswer : null
+      });
+
+      if (gameState.lives <= 0) {
+        return this.endGame(gameState);
+      }
+
+      gameState.currentIndex++;
+      setTimeout(() => this.sendNextQuestion(gameState), 700);
+    } catch (error) {
+      console.error('[handleWrongAnswer] Error occurred:', {
+        error: error.message,
+        stack: error.stack,
       });
     }
-
-    // Decrement lives in User model (1 life deducted)
-    const updatedUser = await this.usersService.decrementLife(userId, 1);
-
-    if (!updatedUser) {
-      console.warn('User not found while decrementing life');
-      return;
-    }
-
-    // Also decrement lives in GameProgress (1 life deducted)
-    await this.contentService.decrementLives(userId, 1);
-
-    // Prefer provided client (if any), otherwise fall back to game state's socket
-    const targetSocket = client ?? socket;
-
-    gameState.lives = updatedUser.lives;
-    targetSocket.emit('answerResult', {
-      correct: false,
-      livesLeft: gameState.lives,
-      correctAnswer: currentQ.correctAnswer,
-      questionIndex: currentIndex,
-      userAnswer:userAnswer ? userAnswer : null
-    });
-
-    if (gameState.lives <= 0) {
-      return this.endGame(gameState);
-    }
-
-    gameState.currentIndex++;
-    setTimeout(() => this.sendNextQuestion(gameState), 700);
   }
 
   // -------------------------------------------------------------
   // END GAME (for single player team member games)
   // -------------------------------------------------------------
   private async endGame(gameState: GameState) {
-    // Timer removed - no cleanup needed
+    try {
+      // Timer removed - no cleanup needed
 
-    const { socket, score, questions, answers, startedAt } = gameState;
+      const { socket, score, questions, answers, startedAt } = gameState;
 
     // Calculate accuracy: (correct answers / total questions) * 100
     const totalQuestions = questions.length;
@@ -3094,9 +3142,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
     const accuracyRounded = Math.round(accuracy * 100) / 100;
 
-    // Persist flashcard accuracy to deck (if this game was tied to a deck)
-    // Always try to find deck from subtopicId -> topicId -> deck
-    try {
+      // Persist flashcard accuracy to deck (if this game was tied to a deck)
+      // Always try to find deck from subtopicId -> topicId -> deck
       const gameDoc = await this.contentService
         .getGameModel()
         .findOne({ gameId: gameState.gameId })
@@ -3107,24 +3154,19 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Always try to find deck by topicId from subtopicId if we have subtopicId
       // This ensures we always get the deck even if selectedDeckId is not set
       if (gameState.subTopicId || gameDoc?.subTopicId) {
-        try {
-          const subtopicId = gameState.subTopicId || gameDoc?.subTopicId;
-          if (subtopicId) {
-            const { topic } = await this.contentService.getSubTopicAndTopic(
-              subtopicId,
-            );
-            const topicId = this.normalizeId(topic._id);
-            if (topicId) {
-              // Find deck that contains this topic
-              const deckIdFromTopic = await this.teamGameService.findDeckIdByTopicId(topicId);
-              if (deckIdFromTopic) {
-                selectedDeckId = deckIdFromTopic;
-              }
+        const subtopicId = gameState.subTopicId || gameDoc?.subTopicId;
+        if (subtopicId) {
+          const { topic } = await this.contentService.getSubTopicAndTopic(
+            subtopicId,
+          );
+          const topicId = this.normalizeId(topic._id);
+          if (topicId) {
+            // Find deck that contains this topic
+            const deckIdFromTopic = await this.teamGameService.findDeckIdByTopicId(topicId);
+            if (deckIdFromTopic) {
+              selectedDeckId = deckIdFromTopic;
             }
           }
-        } catch (error) {
-          // Non-blocking: log but continue
-          console.error('Failed to find deck by topicId from subtopicId', error);
         }
       }
       
@@ -3150,10 +3192,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           );
         }
       }
-    } catch (error) {
-      // non-blocking
-      console.error('Failed to record deck flashcard accuracy', error);
-    }
 
     await this.contentService.completeGame(gameState.gameId, {
       currentQuestion: gameState.currentIndex,
@@ -3169,12 +3207,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       accuracy: { [gameState.userId]: accuracyRounded },
     });
 
-    // Update team-member accuracy aggregates (flashcard/battle/game)
-    try {
+      // Update team-member accuracy aggregates (flashcard/battle/game)
       await this.teamGameService.refreshMemberAccuracies(gameState.userId);
-    } catch (error) {
-      console.error('Failed to refresh member accuracies', error);
-    }
 
     // Increment totalGamesPlayed when game is completed
     await this.contentService.incrementTotalGamesPlayed(gameState.userId);
@@ -3192,8 +3226,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       );
     }
 
-    if (gameState.subTopicId) {
-      try {
+      if (gameState.subTopicId) {
         await this.contentService.updateSubTopicUserAccuracy(
           gameState.subTopicId,
           gameState.userId,
@@ -3203,16 +3236,11 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           gameState.userId,
           gameState.subTopicId,
         );
-      } catch (error) {
-        // best-effort update; log for visibility without interrupting game end
-        console.error('Failed to update subtopic accuracy', error);
       }
-    }
 
-    // Check if user has 0 lives and set up refill timer (5 minutes later)
-    // Refill amount: 15 lives for "individual"/"Individual", 50 lives for "member"
-    if (gameState.lives <= 0) {
-      try {
+      // Check if user has 0 lives and set up refill timer (5 minutes later)
+      // Refill amount: 15 lives for "individual"/"Individual", 50 lives for "member"
+      if (gameState.lives <= 0) {
         const user = await this.usersService.findById(gameState.userId);
         if (user && user.lives <= 0) {
           // Set nextLivesRefillAt to 5 minutes from now if not already set
@@ -3228,103 +3256,101 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
             ).exec();
           }
         }
-      } catch (error) {
-        // Non-blocking: log error but don't interrupt game end
-        console.error('Failed to set lives refill timer', error);
       }
+
+      socket.emit('gameOver', {
+        gameId: gameState.gameId,
+        score,
+        totalQuestions: questions.length,
+        answers,
+        livesLeft: gameState.lives,
+        startedAt,
+        endedAt: new Date(),
+        isCompleted: true,
+        accuracy: accuracyRounded,
+      });
+
+      this.activeGames.delete(gameState.userId);
+    } catch (error) {
+      console.error('[endGame] Error occurred:', {
+        error: error.message,
+        stack: error.stack,
+      });
     }
-
-    socket.emit('gameOver', {
-      gameId: gameState.gameId,
-      score,
-      totalQuestions: questions.length,
-      answers,
-      livesLeft: gameState.lives,
-      startedAt,
-      endedAt: new Date(),
-      isCompleted: true,
-      accuracy: accuracyRounded,
-    });
-
-    this.activeGames.delete(gameState.userId);
   }
 
   // -------------------------------------------------------------
   // END TEAM GAME
   // -------------------------------------------------------------
   private async endTeamGame(gameState: TeamGameState) {
-    // Timer removed - no cleanup needed
+    try {
+      // Timer removed - no cleanup needed
 
-    const { gameId, players, questions, playerAnswers, teamScores, teams } = gameState;
+      const { gameId, players, questions, playerAnswers, teamScores, teams } = gameState;
 
-    // Calculate team correct answers and accuracy
-    const teamCorrectCounts: Map<string, number> = new Map();
-    const teamAccuracies: Map<string, number> = new Map();
+      // Calculate team correct answers and accuracy
+      const teamCorrectCounts: Map<string, number> = new Map();
+      const teamAccuracies: Map<string, number> = new Map();
 
-    teams.forEach((playerIds, teamId) => {
-      let teamCorrectCount = 0;
-      let teamTotalAnswers = 0;
+      teams.forEach((playerIds, teamId) => {
+        let teamCorrectCount = 0;
+        let teamTotalAnswers = 0;
 
-      playerIds.forEach((playerId) => {
-        const answers = playerAnswers.get(playerId) || [];
-        const correctCount = answers.filter((a) => a.isCorrect).length;
-        teamCorrectCount += correctCount;
-        teamTotalAnswers += answers.length;
+        playerIds.forEach((playerId) => {
+          const answers = playerAnswers.get(playerId) || [];
+          const correctCount = answers.filter((a) => a.isCorrect).length;
+          teamCorrectCount += correctCount;
+          teamTotalAnswers += answers.length;
+        });
+
+        teamCorrectCounts.set(teamId, teamCorrectCount);
+        
+        // Calculate accuracy: (correct answers / total questions) * 100
+        const totalQuestions = questions.length;
+        const accuracy = totalQuestions > 0 ? (teamCorrectCount / totalQuestions) * 100 : 0;
+        const accuracyRounded = Math.round(accuracy * 100) / 100;
+        teamAccuracies.set(teamId, accuracyRounded);
       });
 
-      teamCorrectCounts.set(teamId, teamCorrectCount);
-      
-      // Calculate accuracy: (correct answers / total questions) * 100
+      // Calculate individual player accuracy
+      const playerAccuracies: Map<string, number> = new Map();
       const totalQuestions = questions.length;
-      const accuracy = totalQuestions > 0 ? (teamCorrectCount / totalQuestions) * 100 : 0;
-      const accuracyRounded = Math.round(accuracy * 100) / 100;
-      teamAccuracies.set(teamId, accuracyRounded);
-    });
 
-    // Calculate individual player accuracy
-    const playerAccuracies: Map<string, number> = new Map();
-    const totalQuestions = questions.length;
+      players.forEach((playerId) => {
+        const answers = playerAnswers.get(playerId) || [];
+        const correctCount = answers.filter((a) => a.isCorrect).length;
+        const accuracy = totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0;
+        const accuracyRounded = Math.round(accuracy * 100) / 100;
+        playerAccuracies.set(playerId, accuracyRounded);
+      });
 
-    players.forEach((playerId) => {
-      const answers = playerAnswers.get(playerId) || [];
-      const correctCount = answers.filter((a) => a.isCorrect).length;
-      const accuracy = totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0;
-      const accuracyRounded = Math.round(accuracy * 100) / 100;
-      playerAccuracies.set(playerId, accuracyRounded);
-    });
-
-    // Persist per-user battle accuracy on the associated deck (if available)
-    let deckIdForGame: string | undefined = gameState.deckId;
-    if (!deckIdForGame) {
-      try {
+      // Persist per-user battle accuracy on the associated deck (if available)
+      let deckIdForGame: string | undefined = gameState.deckId;
+      if (!deckIdForGame) {
         const gameDoc = await this.contentService
           .getGameModel()
           .findOne({ gameId })
           .select('selectedDeckId')
           .lean();
         deckIdForGame = this.normalizeId(gameDoc?.selectedDeckId) || undefined;
-      } catch (error) {
-        console.error('Failed to fetch deck for team game accuracy', error);
       }
-    }
 
-    if (deckIdForGame) {
-      await Promise.all(
-        Array.from(playerAccuracies.entries()).map(
-          ([playerId, accuracy]) =>
-            this.teamGameService.recordDeckAccuracy(
-              deckIdForGame,
-              playerId,
-              accuracy,
-              'battle',
-            ),
-        ),
-      );
-    }
+      if (deckIdForGame) {
+        await Promise.all(
+          Array.from(playerAccuracies.entries()).map(
+            ([playerId, accuracy]) =>
+              this.teamGameService.recordDeckAccuracy(
+                deckIdForGame,
+                playerId,
+                accuracy,
+                'battle',
+              ),
+          ),
+        );
+      }
 
-    // Record battle accuracy to subtopic and update topic for each player
-    if (gameState.subTopicId) {
-      try {
+      // Record battle accuracy to subtopic and update topic for each player
+      if (gameState.subTopicId) {
         await Promise.all(
           Array.from(playerAccuracies.entries()).map(
             ([playerId, accuracy]) =>
@@ -3336,89 +3362,75 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
               ),
           ),
         );
-      } catch (error) {
-        // Non-blocking: log error but don't interrupt game completion
-        console.error('Failed to record subtopic battle accuracy', error);
       }
-    }
 
-    // Calculate average response time for each player
-    const playerAverageResponseTimes: Map<string, number> = new Map();
-    players.forEach((playerId) => {
-      const answers = playerAnswers.get(playerId) || [];
-      // Filter answers that have response time (exclude null/undefined)
-      const answersWithResponseTime = answers.filter(
-        (a) => a.responstime !== undefined && a.responstime !== null
-      );
-      
-      if (answersWithResponseTime.length > 0) {
-        // Calculate average response time: sum of all response times / number of answered questions
-        const totalResponseTime = answersWithResponseTime.reduce(
-          (sum, answer) => sum + (answer.responstime || 0),
-          0
+      // Calculate average response time for each player
+      const playerAverageResponseTimes: Map<string, number> = new Map();
+      players.forEach((playerId) => {
+        const answers = playerAnswers.get(playerId) || [];
+        // Filter answers that have response time (exclude null/undefined)
+        const answersWithResponseTime = answers.filter(
+          (a) => a.responstime !== undefined && a.responstime !== null
         );
-        const averageResponseTime = totalResponseTime / answersWithResponseTime.length;
-        playerAverageResponseTimes.set(playerId, averageResponseTime);
-      }
-    });
-
-    // Persist per-player battle accuracy and award bonus points (>=80% -> +10)
-    for (const playerId of players) {
-      const accuracy = playerAccuracies.get(playerId) ?? 0;
-      let playerTeamId: string | null = null;
-      for (const [teamId, memberIds] of teams.entries()) {
-        if (memberIds.includes(playerId)) {
-          playerTeamId = teamId;
-          break;
+        
+        if (answersWithResponseTime.length > 0) {
+          // Calculate average response time: sum of all response times / number of answered questions
+          const totalResponseTime = answersWithResponseTime.reduce(
+            (sum, answer) => sum + (answer.responstime || 0),
+            0
+          );
+          const averageResponseTime = totalResponseTime / answersWithResponseTime.length;
+          playerAverageResponseTimes.set(playerId, averageResponseTime);
         }
-      }
+      });
 
-      if (!playerTeamId) {
-        continue;
-      }
+      // Persist per-player battle accuracy and award bonus points (>=80% -> +10)
+      for (const playerId of players) {
+        const accuracy = playerAccuracies.get(playerId) ?? 0;
+        let playerTeamId: string | null = null;
+        for (const [teamId, memberIds] of teams.entries()) {
+          if (memberIds.includes(playerId)) {
+            playerTeamId = teamId;
+            break;
+          }
+        }
 
-      // Get average response time for this player (in seconds)
-      const averageResponseTime = playerAverageResponseTimes.get(playerId);
+        if (!playerTeamId) {
+          continue;
+        }
 
-      try {
+        // Get average response time for this player (in seconds)
+        const averageResponseTime = playerAverageResponseTimes.get(playerId);
+
         await this.teamGameService.recordBattleAccuracyAndPoints(
           playerTeamId,
           playerId,
           accuracy,
           averageResponseTime, // Pass average response time for this game
         );
-      } catch (error) {
-        // Non-blocking: log and continue finishing game
-        console.error('Failed to record team game score', {
-          playerId,
-          teamId: playerTeamId,
-          error,
-        });
       }
-    }
 
-    // Calculate total response time for each team
-    const teamResponseTimeSums: Map<string, number> = new Map();
-    teams.forEach((playerIds, teamId) => {
-      let totalResponseTime = 0;
-      playerIds.forEach((playerId) => {
-        const answers = playerAnswers.get(playerId) || [];
-        answers.forEach((answer) => {
-          // Sum all response times (only for answered questions, ignore null/undefined)
-          if (answer.responstime !== undefined && answer.responstime !== null) {
-            totalResponseTime += answer.responstime;
-          }
+      // Calculate total response time for each team
+      const teamResponseTimeSums: Map<string, number> = new Map();
+      teams.forEach((playerIds, teamId) => {
+        let totalResponseTime = 0;
+        playerIds.forEach((playerId) => {
+          const answers = playerAnswers.get(playerId) || [];
+          answers.forEach((answer) => {
+            // Sum all response times (only for answered questions, ignore null/undefined)
+            if (answer.responstime !== undefined && answer.responstime !== null) {
+              totalResponseTime += answer.responstime;
+            }
+          });
         });
+        teamResponseTimeSums.set(teamId, totalResponseTime);
       });
-      teamResponseTimeSums.set(teamId, totalResponseTime);
-    });
 
-    // Get team information (teamName, points) BEFORE awarding points
-    // This way we can show the points before the game
-    const teamsInfoMapBeforeAward: Map<string, { teamName: string; points: number }> = new Map();
-    const teamIds = Array.from(teams.keys());
-    if (teamIds.length > 0) {
-      try {
+      // Get team information (teamName, points) BEFORE awarding points
+      // This way we can show the points before the game
+      const teamsInfoMapBeforeAward: Map<string, { teamName: string; points: number }> = new Map();
+      const teamIds = Array.from(teams.keys());
+      if (teamIds.length > 0) {
         const teamsData = await this.teamModel
           .find({ _id: { $in: teamIds } })
           .select('_id teamName points')
@@ -3433,83 +3445,74 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
             });
           }
         });
-      } catch (error) {
-        console.error('Failed to fetch team information', error);
       }
-    }
 
-    // Determine winner (team with highest score, tiebreaker: lowest response time sum)
-    const teamScoresArray = Array.from(teamScores.entries());
-    teamScoresArray.sort((a, b) => {
-      // Sort by score (descending)
-      const scoreDiff = b[1] - a[1];
-      if (scoreDiff !== 0) {
-        return scoreDiff;
-      }
-      // If scores are equal, sort by response time sum (ascending - lower is better)
-      const responseTimeA = teamResponseTimeSums.get(a[0]) || Infinity;
-      const responseTimeB = teamResponseTimeSums.get(b[0]) || Infinity;
-      return responseTimeA - responseTimeB;
-    });
+      // Determine winner (team with highest score, tiebreaker: lowest response time sum)
+      const teamScoresArray = Array.from(teamScores.entries());
+      teamScoresArray.sort((a, b) => {
+        // Sort by score (descending)
+        const scoreDiff = b[1] - a[1];
+        if (scoreDiff !== 0) {
+          return scoreDiff;
+        }
+        // If scores are equal, sort by response time sum (ascending - lower is better)
+        const responseTimeA = teamResponseTimeSums.get(a[0]) || Infinity;
+        const responseTimeB = teamResponseTimeSums.get(b[0]) || Infinity;
+        return responseTimeA - responseTimeB;
+      });
 
-    const winnerTeamId = teamScoresArray.length > 0 ? teamScoresArray[0][0] : null;
-    const winnerScore = winnerTeamId ? teamScores.get(winnerTeamId) || 0 : 0;
-    
-    // Check if there's a tie at the top score
-    const topScoreTeams = teamScoresArray.filter(([_, score]) => score === winnerScore);
-    
-    // Determine final winner: if multiple teams tied on score, use response time tiebreaker
-    let finalWinnerTeamId: string | null = null;
-    if (topScoreTeams.length > 1) {
-      // Multiple teams tied on score - check response times
-      const topScoreTeamResponseTimes = topScoreTeams.map(([teamId]) => ({
-        teamId,
-        responseTime: teamResponseTimeSums.get(teamId) || Infinity,
-      }));
+      const winnerTeamId = teamScoresArray.length > 0 ? teamScoresArray[0][0] : null;
+      const winnerScore = winnerTeamId ? teamScores.get(winnerTeamId) || 0 : 0;
       
-      // Sort by response time (ascending - lower is better)
-      topScoreTeamResponseTimes.sort((a, b) => a.responseTime - b.responseTime);
+      // Check if there's a tie at the top score
+      const topScoreTeams = teamScoresArray.filter(([_, score]) => score === winnerScore);
       
-      // Check if there's a unique lowest response time
-      const lowestResponseTime = topScoreTeamResponseTimes[0].responseTime;
-      const teamsWithLowestResponseTime = topScoreTeamResponseTimes.filter(
-        (t) => t.responseTime === lowestResponseTime
-      );
-      
-      if (teamsWithLowestResponseTime.length === 1) {
-        // Unique winner based on response time
-        finalWinnerTeamId = teamsWithLowestResponseTime[0].teamId;
+      // Determine final winner: if multiple teams tied on score, use response time tiebreaker
+      let finalWinnerTeamId: string | null = null;
+      if (topScoreTeams.length > 1) {
+        // Multiple teams tied on score - check response times
+        const topScoreTeamResponseTimes = topScoreTeams.map(([teamId]) => ({
+          teamId,
+          responseTime: teamResponseTimeSums.get(teamId) || Infinity,
+        }));
+        
+        // Sort by response time (ascending - lower is better)
+        topScoreTeamResponseTimes.sort((a, b) => a.responseTime - b.responseTime);
+        
+        // Check if there's a unique lowest response time
+        const lowestResponseTime = topScoreTeamResponseTimes[0].responseTime;
+        const teamsWithLowestResponseTime = topScoreTeamResponseTimes.filter(
+          (t) => t.responseTime === lowestResponseTime
+        );
+        
+        if (teamsWithLowestResponseTime.length === 1) {
+          // Unique winner based on response time
+          finalWinnerTeamId = teamsWithLowestResponseTime[0].teamId;
+        } else {
+          // Still tied on response time - no winner
+          finalWinnerTeamId = null;
+        }
       } else {
-        // Still tied on response time - no winner
-        finalWinnerTeamId = null;
+        // Only one team has the top score
+        finalWinnerTeamId = winnerTeamId;
       }
-    } else {
-      // Only one team has the top score
-      finalWinnerTeamId = winnerTeamId;
-    }
 
-    // Identify loser teams (lowest score). If all teams share the same score (including 0),
-    // all team IDs will be included as losers per requirement.
-    // Exclude the winner team from loser teams
-    const lowestScore = teamScoresArray.length > 0 ? teamScoresArray[teamScoresArray.length - 1][1] : 0;
-    const loserTeamIds = teamScoresArray
-      .filter(([teamId, score]) => score === lowestScore && teamId !== finalWinnerTeamId)
-      .map(([teamId]) => teamId);
+      // Identify loser teams (lowest score). If all teams share the same score (including 0),
+      // all team IDs will be included as losers per requirement.
+      // Exclude the winner team from loser teams
+      const lowestScore = teamScoresArray.length > 0 ? teamScoresArray[teamScoresArray.length - 1][1] : 0;
+      const loserTeamIds = teamScoresArray
+        .filter(([teamId, score]) => score === lowestScore && teamId !== finalWinnerTeamId)
+        .map(([teamId]) => teamId);
 
-    // Award 50 points to the winning team (if a unique winner exists)
-    if (finalWinnerTeamId && finalWinnerTeamId !== 'no-team') {
-      try {
+      // Award 50 points to the winning team (if a unique winner exists)
+      if (finalWinnerTeamId && finalWinnerTeamId !== 'no-team') {
         await this.teamGameService.incrementTeamPoints(finalWinnerTeamId, 50);
-      } catch (error) {
-        // Log but do not block game completion
-        console.error('Failed to award team win points', error);
       }
-    }
 
-    // Get team information (teamName, points) AFTER awarding points (for host view)
-    const teamsInfoMap: Map<string, { teamName: string; points: number }> = new Map();
-    if (teamIds.length > 0) {
-      try {
+      // Get team information (teamName, points) AFTER awarding points (for host view)
+      const teamsInfoMap: Map<string, { teamName: string; points: number }> = new Map();
+      if (teamIds.length > 0) {
         const teamsData = await this.teamModel
           .find({ _id: { $in: teamIds } })
           .select('_id teamName points')
@@ -3524,390 +3527,413 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
             });
           }
         });
-      } catch (error) {
-        console.error('Failed to fetch team information', error);
       }
-    }
 
-    // Update game in database
-    const playerAnswersArray: Array<{
-      userId: string;
-      questionIndex: number;
-      answer: string;
-      isCorrect: boolean;
-      timestamp: Date;
-    }> = [];
+      // Update game in database
+      const playerAnswersArray: Array<{
+        userId: string;
+        questionIndex: number;
+        answer: string;
+        isCorrect: boolean;
+        timestamp: Date;
+      }> = [];
 
-    players.forEach((playerId) => {
-      const answers = playerAnswers.get(playerId) || [];
-      playerAnswersArray.push(
-        ...answers.map((answer) => ({
-          userId: playerId,
-          questionIndex: answer.index,
-          answer: answer.userAnswer ?? '',
-          isCorrect: answer.isCorrect,
-          timestamp: answer.timestamp ?? new Date(),
-        })),
-      );
-    });
+      players.forEach((playerId) => {
+        const answers = playerAnswers.get(playerId) || [];
+        playerAnswersArray.push(
+          ...answers.map((answer) => ({
+            userId: playerId,
+            questionIndex: answer.index,
+            answer: answer.userAnswer ?? '',
+            isCorrect: answer.isCorrect,
+            timestamp: answer.timestamp ?? new Date(),
+          })),
+        );
+      });
 
-    const scoresObj: Record<string, number> = {};
-    teamScores.forEach((score, teamId) => {
-      scoresObj[teamId] = score;
-    });
+      const scoresObj: Record<string, number> = {};
+      teamScores.forEach((score, teamId) => {
+        scoresObj[teamId] = score;
+      });
 
-    const accuracyObj: Record<string, number> = {};
-    teamAccuracies.forEach((accuracy, teamId) => {
-      accuracyObj[teamId] = accuracy;
-    });
+      const accuracyObj: Record<string, number> = {};
+      teamAccuracies.forEach((accuracy, teamId) => {
+        accuracyObj[teamId] = accuracy;
+      });
 
-    await this.contentService.completeGame(gameId, {
-      currentQuestion: gameState.currentIndex,
-      scores: scoresObj,
-      playerAnswers: playerAnswersArray,
-      lastQuestionTimestamp: new Date(),
-      isCompleted: true,
-      gameStarted: true,
-      accuracy: accuracyObj,
-    });
+      await this.contentService.completeGame(gameId, {
+        currentQuestion: gameState.currentIndex,
+        scores: scoresObj,
+        playerAnswers: playerAnswersArray,
+        lastQuestionTimestamp: new Date(),
+        isCompleted: true,
+        gameStarted: true,
+        accuracy: accuracyObj,
+      });
 
-    // Refresh accuracy aggregates for all participants
-    try {
+      // Refresh accuracy aggregates for all participants
       await Promise.all(
         players.map((playerId) =>
           this.teamGameService.refreshMemberAccuracies(playerId),
         ),
       );
-    } catch (error) {
-      console.error('Failed to refresh member accuracies for team game', error);
-    }
 
-    // Update total games played for all players
-    await Promise.all(
-      players.map((playerId) =>
-        this.contentService.incrementTotalGamesPlayed(playerId),
-      ),
-    );
+      // Update total games played for all players
+      await Promise.all(
+        players.map((playerId) =>
+          this.contentService.incrementTotalGamesPlayed(playerId),
+        ),
+      );
 
-    // Get player information (name, profileImage) and points for all players
-    const playerInfoMap: Map<string, { name: string; profileImage: string | null; points: number }> = new Map();
-    const playerPointsMap: Map<string, number> = new Map();
-    
-    // Fetch all player points from TeamGameScore (need to get teamId for each player first)
-    const playerTeamIdMap: Map<string, string> = new Map();
-    players.forEach((playerId) => {
-      for (const [teamId, playerIds] of teams.entries()) {
-        if (playerIds.includes(playerId)) {
-          playerTeamIdMap.set(playerId, teamId);
-          break;
+      // Get player information (name, profileImage) and points for all players
+      // OPTIMIZATION: Batch queries instead of N individual queries
+      const playerInfoMap: Map<string, { name: string; profileImage: string | null; points: number }> = new Map();
+      const playerPointsMap: Map<string, number> = new Map();
+      
+      // Build playerTeamIdMap (no query, just mapping)
+      const playerTeamIdMap: Map<string, string> = new Map();
+      players.forEach((playerId) => {
+        for (const [teamId, playerIds] of teams.entries()) {
+          if (playerIds.includes(playerId)) {
+            playerTeamIdMap.set(playerId, teamId);
+            break;
+          }
         }
-      }
-    });
+      });
 
-    // Fetch player points from TeamGameScore
-    await Promise.all(
-      players.map(async (playerId) => {
+      // OPTIMIZATION: Build query conditions for TeamGameScore batch query
+      const teamGameScoreConditions: Array<{ userId: string; teamId: string }> = [];
+      players.forEach((playerId) => {
         const teamId = playerTeamIdMap.get(playerId);
         if (teamId) {
-          try {
-            const teamGameScore = await this.teamGameScoreModel
-              .findOne({ userId: playerId, teamId: teamId })
-              .select('points')
-              .lean()
-              .exec();
-            const points = teamGameScore && typeof (teamGameScore as any).points === 'number' 
-              ? (teamGameScore as any).points 
-              : 0;
-            playerPointsMap.set(playerId, points);
-          } catch (error) {
-            console.warn(`Failed to fetch player points for ${playerId}`, error);
-            playerPointsMap.set(playerId, 0);
-          }
-        } else {
+          teamGameScoreConditions.push({ userId: playerId, teamId });
+        }
+      });
+
+      // OPTIMIZATION: Single batch query for all TeamGameScore records instead of N queries
+      let teamGameScores: any[] = [];
+      if (teamGameScoreConditions.length > 0) {
+        teamGameScores = await this.teamGameScoreModel
+          .find({
+            $or: teamGameScoreConditions.map(cond => ({
+              userId: cond.userId,
+              teamId: cond.teamId,
+            })),
+          })
+          .select('userId teamId points')
+          .lean()
+          .exec();
+      }
+
+      // Create map for quick lookup of player points
+      teamGameScores.forEach((tgs: any) => {
+        const userId = this.normalizeId(tgs.userId);
+        if (userId) {
+          const points = typeof tgs.points === 'number' && Number.isFinite(tgs.points) 
+            ? tgs.points 
+            : 0;
+          playerPointsMap.set(userId, points);
+        }
+      });
+
+      // Set default 0 for players without scores
+      players.forEach((playerId) => {
+        if (!playerPointsMap.has(playerId)) {
           playerPointsMap.set(playerId, 0);
         }
-      }),
-    );
+      });
 
-    // Fetch player info (name, profileImage)
-    await Promise.all(
-      players.map(async (playerId) => {
-        try {
-          const player = await this.usersService.findById(playerId);
+      // OPTIMIZATION: Single batch query for all User info instead of N queries
+      const allPlayers = await this.userModel
+        .find({ _id: { $in: players } })
+        .select('name username profileImage')
+        .lean()
+        .exec();
+
+      // Create map for quick lookup of player info
+      allPlayers.forEach((player: any) => {
+        const playerId = this.normalizeId(player._id);
+        if (playerId) {
           const points = playerPointsMap.get(playerId) || 0;
-          if (player) {
-            const userName = (player as any)?.name || (player as any)?.username || '';
-            const userProfileImage = (player as any)?.profileImage || null;
-            playerInfoMap.set(playerId, {
-              name: userName,
-              profileImage: userProfileImage,
-              points: points,
-            });
-          } else {
-            playerInfoMap.set(playerId, { name: '', profileImage: null, points: points });
-          }
-        } catch (error) {
-          console.warn(`Failed to fetch player info for ${playerId}`, error);
-          const points = playerPointsMap.get(playerId) || 0;
-          playerInfoMap.set(playerId, { name: '', profileImage: null, points: points });
-        }
-      }),
-    );
-
-    // Calculate team-wise ranks (within each team assign sequential ranks 1,2,3...)
-    const playerRankMap: Map<string, number> = new Map();
-    for (const [teamId, playerIds] of teams.entries()) {
-      // Build array of { playerId, points } for this team
-      const teamPlayersWithPoints = playerIds.map((pid) => {
-        const info = playerInfoMap.get(pid) || { name: '', profileImage: null, points: 0 };
-        return { playerId: pid, points: info.points };
-      });
-
-      // Sort descending by points; when points equal, preserve stable order but still assign sequential ranks
-      teamPlayersWithPoints.sort((a, b) => b.points - a.points);
-
-      // Assign ranks sequentially within the team
-      teamPlayersWithPoints.forEach(({ playerId }, idx) => {
-        playerRankMap.set(playerId, idx + 1);
-      });
-    }
-
-    // Normalize inviterId for comparison
-    const normalizedInviterId = this.normalizeId(gameState.inviterId);
-
-    // Determine team result for each team (win/loss/tie)
-    const getTeamResult = (teamId: string): 'win' | 'loss' | 'tie' => {
-      if (!finalWinnerTeamId) {
-        return 'tie'; // No winner means tie
-      }
-      if (teamId === finalWinnerTeamId) {
-        return 'win';
-      }
-      return 'loss';
-    };
-
-    // Extract team points from teamsInfoMap
-    const teamPointsObj: Record<string, number> = {};
-    teamsInfoMap.forEach((teamInfo, teamId) => {
-      teamPointsObj[teamId] = teamInfo.points;
-    });
-
-    // Build structured payload matching requested view and send to host (inviter/admin) only
-    const teamScoresObj = Object.fromEntries(teamScores);
-    const teamAccuracyObj = Object.fromEntries(teamAccuracies);
-    const teamResponseTimeSumsObj = Object.fromEntries(teamResponseTimeSums);
-
-    // Match-only points for this match (50 for winner, 0 otherwise)
-    const teamMatchPointsObj: Record<string, number> = {};
-    for (const tid of teamIds) {
-      teamMatchPointsObj[tid] = finalWinnerTeamId && tid === finalWinnerTeamId ? 50 : 0;
-    }
-
-    const playerAccuracyObj = Object.fromEntries(playerAccuracies);
-    const playerAverageResponseTimesObj = Object.fromEntries(playerAverageResponseTimes);
-
-    // Group player info by team: { teamId: { playerId: { name, profileImage, rank, points } }}
-    const playerInfoGrouped: Record<string, Record<string, { name: string; profileImage: string | null; rank: number; points: number }>> = {};
-    for (const [teamId, memberIds] of teams.entries()) {
-      playerInfoGrouped[teamId] = {};
-      for (const memberId of memberIds) {
-        const normalizedMemberId = this.normalizeId(memberId);
-        if (!normalizedMemberId) continue;
-        const pInfo = playerInfoMap.get(memberId) || { name: '', profileImage: null, points: 0 };
-        const rank = playerRankMap.get(memberId) || 0;
-        playerInfoGrouped[teamId][normalizedMemberId] = {
-          name: pInfo.name,
-          profileImage: pInfo.profileImage ?? null,
-          rank,
-          points: pInfo.points ?? 0,
-        };
-      }
-    }
-
-    // Build playerAnswers object keyed by normalized playerId, trimmed to desired fields
-    const playerAnswersObj: Record<string, Array<{ index: number; userAnswer: string; correctAnswer: string; isCorrect: boolean; responstime?: number }>> = {};
-    for (const playerId of players) {
-      const normalizedPlayerId = this.normalizeId(playerId);
-      if (!normalizedPlayerId) continue;
-      const answers = playerAnswers.get(playerId) || [];
-      playerAnswersObj[normalizedPlayerId] = answers.map((a) => ({
-        index: a.index,
-        userAnswer: a.userAnswer ?? '',
-        correctAnswer: a.correctAnswer,
-        isCorrect: a.isCorrect,
-        responstime: a.responstime,
-      }));
-    }
-
-    const gameOverData = {
-      gameId,
-      totalQuestions: questions.length,
-      startedAt: gameState.startedAt,
-      endedAt: new Date(),
-      isCompleted: true,
-
-      winnerTeamId: finalWinnerTeamId,
-      loserTeamIds,
-
-      teamScores: teamScoresObj,
-
-      teamAccuracy: teamAccuracyObj,
-
-      teamResponseTimeSums: teamResponseTimeSumsObj,
-
-      // MATCH-ONLY POINTS (NOT TOTAL)
-      teamPoints: teamMatchPointsObj,
-
-      playerAccuracy: playerAccuracyObj,
-
-      playerAverageResponseTimes: playerAverageResponseTimesObj,
-
-      // PLAYER INFO GROUPED BY TEAM
-      playerInfo: playerInfoGrouped,
-
-      playerAnswers: playerAnswersObj,
-    };
-
-    if (normalizedInviterId) {
-      const hostSocket = this.userSockets.get(normalizedInviterId);
-      if (hostSocket) {
-        hostSocket.emit('teamGameOver', gameOverData);
-      }
-    }
-
-    // Send simplified game over data to each member (non-host players)
-    for (const playerId of players) {
-      const normalizedPlayerId = this.normalizeId(playerId);
-      if (!normalizedPlayerId || normalizedPlayerId === normalizedInviterId) {
-        continue; // Skip host
-      }
-
-      // Find player's team
-      let playerTeamId: string | null = null;
-      for (const [teamId, playerIds] of teams.entries()) {
-        if (playerIds.includes(normalizedPlayerId)) {
-          playerTeamId = teamId;
-          break;
-        }
-      }
-
-      if (!playerTeamId) {
-        continue; // Skip if player has no team
-      }
-
-      // Get team info (use BEFORE award points for display)
-      const teamInfoBefore = teamsInfoMapBeforeAward.get(playerTeamId) || { teamName: '', points: 0 };
-      const teamInfo = teamsInfoMap.get(playerTeamId) || { teamName: '', points: 0 };
-      const teamScore = teamScores.get(playerTeamId) || 0;
-      const teamResult = getTeamResult(playerTeamId);
-
-      // Calculate points gained from this game: 50 if won, 0 if lost/tied
-      const myTeamPoints = teamResult === 'win' ? 50 : 0;
-
-      // (team member ids will be collected below)
-
-      // Get player's answers
-      const myAnswers = playerAnswers.get(normalizedPlayerId) || [];
-      
-      // Get player's individual score and accuracy
-      const playerScore = myAnswers.filter((a) => a.isCorrect).length;
-      const playerAccuracyValue = playerAccuracies.get(normalizedPlayerId) || 0;
-
-      // Get player's average response time
-      const playerAverageResponseTime = playerAverageResponseTimes.get(normalizedPlayerId) || 0;
-
-      // Get player info with rank and points for members of this player's team only
-      const playerInfoObj: Record<string, { 
-        name: string; 
-        profileImage: string | null; 
-        rank: number; 
-        points: number;
-      }> = {};
-
-      // teamMemberIds contains original playerIds for this team
-      const teamMemberIds = teams.get(playerTeamId) || [];
-      const teamMemberCount = teamMemberIds.length;
-      teamMemberIds.forEach((memberId) => {
-        const normalizedMemberId = this.normalizeId(memberId);
-        if (!normalizedMemberId) return;
-        const pInfo = playerInfoMap.get(memberId) || { name: '', profileImage: null, points: 0 };
-        const rank = playerRankMap.get(memberId) || 0;
-        playerInfoObj[normalizedMemberId] = {
-          name: pInfo.name,
-          profileImage: pInfo.profileImage,
-          rank: rank,
-          points: pInfo.points,
-        };
-      });
-
-      // Get current player info for user field
-      const currentPlayerInfo = playerInfoMap.get(normalizedPlayerId) || { name: '', profileImage: null, points: 0 };
-      const userField = `${normalizedPlayerId}|${currentPlayerInfo.name}`;
-
-      // Get player points from the map
-      const playerPoints = currentPlayerInfo.points;
-
-      // Get team response time sum
-      const myTeamResponseTimeSum = teamResponseTimeSums.get(playerTeamId) || 0;
-
-      // Get opponent teams information (all teams except player's own team)
-      // Use points before award for consistency
-      const opponentTeams: Array<{
-        teamId: string;
-        teamName: string;
-        teamPoints: number;
-        teamScore: number;
-      }> = [];
-      
-      for (const [teamId, teamInfoData] of teamsInfoMapBeforeAward.entries()) {
-        if (teamId !== playerTeamId) {
-          const opponentTeamScore = teamScores.get(teamId) || 0;
-          // Calculate points gained from this game for opponent team
-          const opponentTeamResult = getTeamResult(teamId);
-          const opponentTeamPoints = opponentTeamResult === 'win' ? 50 : 0;
-          opponentTeams.push({
-            teamId: teamId,
-            teamName: teamInfoData.teamName,
-            teamPoints: opponentTeamPoints, // Points gained from this game
-            teamScore: opponentTeamScore,
+          playerInfoMap.set(playerId, {
+            name: (player as any)?.name || (player as any)?.username || '',
+            profileImage: (player as any)?.profileImage || null,
+            points: points,
           });
         }
+      });
+
+      // Set default for players not found in database
+      players.forEach((playerId) => {
+        if (!playerInfoMap.has(playerId)) {
+          playerInfoMap.set(playerId, {
+            name: '',
+            profileImage: null,
+            points: playerPointsMap.get(playerId) || 0,
+          });
+        }
+      });
+
+      // Calculate team-wise ranks (within each team assign sequential ranks 1,2,3...)
+      const playerRankMap: Map<string, number> = new Map();
+      for (const [teamId, playerIds] of teams.entries()) {
+        // Build array of { playerId, points } for this team
+        const teamPlayersWithPoints = playerIds.map((pid) => {
+          const info = playerInfoMap.get(pid) || { name: '', profileImage: null, points: 0 };
+          return { playerId: pid, points: info.points };
+        });
+
+        // Sort descending by points; when points equal, preserve stable order but still assign sequential ranks
+        teamPlayersWithPoints.sort((a, b) => b.points - a.points);
+
+        // Assign ranks sequentially within the team
+        teamPlayersWithPoints.forEach(({ playerId }, idx) => {
+          playerRankMap.set(playerId, idx + 1);
+        });
       }
 
-      // Create member game over data
-      const memberGameOverData = {
+      // Normalize inviterId for comparison
+      const normalizedInviterId = this.normalizeId(gameState.inviterId);
+
+      // Determine team result for each team (win/loss/tie)
+      const getTeamResult = (teamId: string): 'win' | 'loss' | 'tie' => {
+        if (!finalWinnerTeamId) {
+          return 'tie'; // No winner means tie
+        }
+        if (teamId === finalWinnerTeamId) {
+          return 'win';
+        }
+        return 'loss';
+      };
+
+      // Extract team points from teamsInfoMap
+      const teamPointsObj: Record<string, number> = {};
+      teamsInfoMap.forEach((teamInfo, teamId) => {
+        teamPointsObj[teamId] = teamInfo.points;
+      });
+
+      // Build structured payload matching requested view and send to host (inviter/admin) only
+      const teamScoresObj = Object.fromEntries(teamScores);
+      const teamAccuracyObj = Object.fromEntries(teamAccuracies);
+      const teamResponseTimeSumsObj = Object.fromEntries(teamResponseTimeSums);
+
+      // Match-only points for this match (50 for winner, 0 otherwise)
+      const teamMatchPointsObj: Record<string, number> = {};
+      for (const tid of teamIds) {
+        teamMatchPointsObj[tid] = finalWinnerTeamId && tid === finalWinnerTeamId ? 50 : 0;
+      }
+
+      const playerAccuracyObj = Object.fromEntries(playerAccuracies);
+      const playerAverageResponseTimesObj = Object.fromEntries(playerAverageResponseTimes);
+
+      // Group player info by team: { teamId: { playerId: { name, profileImage, rank, points } }}
+      const playerInfoGrouped: Record<string, Record<string, { name: string; profileImage: string | null; rank: number; points: number }>> = {};
+      for (const [teamId, memberIds] of teams.entries()) {
+        playerInfoGrouped[teamId] = {};
+        for (const memberId of memberIds) {
+          const normalizedMemberId = this.normalizeId(memberId);
+          if (!normalizedMemberId) continue;
+          const pInfo = playerInfoMap.get(memberId) || { name: '', profileImage: null, points: 0 };
+          const rank = playerRankMap.get(memberId) || 0;
+          playerInfoGrouped[teamId][normalizedMemberId] = {
+            name: pInfo.name,
+            profileImage: pInfo.profileImage ?? null,
+            rank,
+            points: pInfo.points ?? 0,
+          };
+        }
+      }
+
+      // Build playerAnswers object keyed by normalized playerId, trimmed to desired fields
+      const playerAnswersObj: Record<string, Array<{ index: number; userAnswer: string; correctAnswer: string; isCorrect: boolean; responstime?: number }>> = {};
+      for (const playerId of players) {
+        const normalizedPlayerId = this.normalizeId(playerId);
+        if (!normalizedPlayerId) continue;
+        const answers = playerAnswers.get(playerId) || [];
+        playerAnswersObj[normalizedPlayerId] = answers.map((a) => ({
+          index: a.index,
+          userAnswer: a.userAnswer ?? '',
+          correctAnswer: a.correctAnswer,
+          isCorrect: a.isCorrect,
+          responstime: a.responstime,
+        }));
+      }
+
+      const gameOverData = {
         gameId,
-        roomId: gameState.roomId,
         totalQuestions: questions.length,
         startedAt: gameState.startedAt,
         endedAt: new Date(),
-        teamId: playerTeamId,
-        teamName: teamInfo.teamName,
         isCompleted: true,
-        myTeamResult: teamResult,
-        myTeamScore: teamScore,
-        myTeamPoints: myTeamPoints, // Points gained from this game (50 if won, 0 if lost/tied)
-        teamMemberCount: teamMemberCount, // Add team member count
-        myTeamResponseTimeSum: myTeamResponseTimeSum, // Add team response time sum
-        myAnswers: myAnswers,
-        playerScores: playerScore,
-        playerAccuracy: playerAccuracyValue,
-        playerAverageResponseTime: playerAverageResponseTime, // Add player average response time
-        playerPoints: playerPoints,
-        user: userField,
-        playerInfo: playerInfoObj, // All players with name, profileImage, rank, points
-        opponentTeams: opponentTeams, // Add opponent teams information
+
+        winnerTeamId: finalWinnerTeamId,
+        loserTeamIds,
+
+        teamScores: teamScoresObj,
+
+        teamAccuracy: teamAccuracyObj,
+
+        teamResponseTimeSums: teamResponseTimeSumsObj,
+
+        // MATCH-ONLY POINTS (NOT TOTAL)
+        teamPoints: teamMatchPointsObj,
+
+        playerAccuracy: playerAccuracyObj,
+
+        playerAverageResponseTimes: playerAverageResponseTimesObj,
+
+        // PLAYER INFO GROUPED BY TEAM
+        playerInfo: playerInfoGrouped,
+
+        playerAnswers: playerAnswersObj,
       };
 
-      // Emit to this specific member
-      const playerSocket = this.userSockets.get(normalizedPlayerId);
-      if (playerSocket) {
-        playerSocket.emit('gameOver', memberGameOverData);
+      if (normalizedInviterId) {
+        const hostSocket = this.userSockets.get(normalizedInviterId);
+        if (hostSocket) {
+          hostSocket.emit('teamGameOver', gameOverData);
+        }
       }
-    }
 
-    // Clean up
-    this.teamGames.delete(gameState.roomId);
+      // Send simplified game over data to each member (non-host players)
+      for (const playerId of players) {
+        const normalizedPlayerId = this.normalizeId(playerId);
+        if (!normalizedPlayerId || normalizedPlayerId === normalizedInviterId) {
+          continue; // Skip host
+        }
+
+        // Find player's team
+        let playerTeamId: string | null = null;
+        for (const [teamId, playerIds] of teams.entries()) {
+          if (playerIds.includes(normalizedPlayerId)) {
+            playerTeamId = teamId;
+            break;
+          }
+        }
+
+        if (!playerTeamId) {
+          continue; // Skip if player has no team
+        }
+
+        // Get team info (use BEFORE award points for display)
+        const teamInfoBefore = teamsInfoMapBeforeAward.get(playerTeamId) || { teamName: '', points: 0 };
+        const teamInfo = teamsInfoMap.get(playerTeamId) || { teamName: '', points: 0 };
+        const teamScore = teamScores.get(playerTeamId) || 0;
+        const teamResult = getTeamResult(playerTeamId);
+
+        // Calculate points gained from this game: 50 if won, 0 if lost/tied
+        const myTeamPoints = teamResult === 'win' ? 50 : 0;
+
+        // (team member ids will be collected below)
+
+        // Get player's answers
+        const myAnswers = playerAnswers.get(normalizedPlayerId) || [];
+        
+        // Get player's individual score and accuracy
+        const playerScore = myAnswers.filter((a) => a.isCorrect).length;
+        const playerAccuracyValue = playerAccuracies.get(normalizedPlayerId) || 0;
+
+        // Get player's average response time
+        const playerAverageResponseTime = playerAverageResponseTimes.get(normalizedPlayerId) || 0;
+
+        // Get player info with rank and points for members of this player's team only
+        const playerInfoObj: Record<string, { 
+          name: string; 
+          profileImage: string | null; 
+          rank: number; 
+          points: number;
+        }> = {};
+
+        // teamMemberIds contains original playerIds for this team
+        const teamMemberIds = teams.get(playerTeamId) || [];
+        const teamMemberCount = teamMemberIds.length;
+        teamMemberIds.forEach((memberId) => {
+          const normalizedMemberId = this.normalizeId(memberId);
+          if (!normalizedMemberId) return;
+          const pInfo = playerInfoMap.get(memberId) || { name: '', profileImage: null, points: 0 };
+          const rank = playerRankMap.get(memberId) || 0;
+          playerInfoObj[normalizedMemberId] = {
+            name: pInfo.name,
+            profileImage: pInfo.profileImage,
+            rank: rank,
+            points: pInfo.points,
+          };
+        });
+
+        // Get current player info for user field
+        const currentPlayerInfo = playerInfoMap.get(normalizedPlayerId) || { name: '', profileImage: null, points: 0 };
+        const userField = `${normalizedPlayerId}|${currentPlayerInfo.name}`;
+
+        // Get player points from the map
+        const playerPoints = currentPlayerInfo.points;
+
+        // Get team response time sum
+        const myTeamResponseTimeSum = teamResponseTimeSums.get(playerTeamId) || 0;
+
+        // Get opponent teams information (all teams except player's own team)
+        // Use points before award for consistency
+        const opponentTeams: Array<{
+          teamId: string;
+          teamName: string;
+          teamPoints: number;
+          teamScore: number;
+        }> = [];
+        
+        for (const [teamId, teamInfoData] of teamsInfoMapBeforeAward.entries()) {
+          if (teamId !== playerTeamId) {
+            const opponentTeamScore = teamScores.get(teamId) || 0;
+            // Calculate points gained from this game for opponent team
+            const opponentTeamResult = getTeamResult(teamId);
+            const opponentTeamPoints = opponentTeamResult === 'win' ? 50 : 0;
+            opponentTeams.push({
+              teamId: teamId,
+              teamName: teamInfoData.teamName,
+              teamPoints: opponentTeamPoints, // Points gained from this game
+              teamScore: opponentTeamScore,
+            });
+          }
+        }
+
+        // Create member game over data
+        const memberGameOverData = {
+          gameId,
+          roomId: gameState.roomId,
+          totalQuestions: questions.length,
+          startedAt: gameState.startedAt,
+          endedAt: new Date(),
+          teamId: playerTeamId,
+          teamName: teamInfo.teamName,
+          isCompleted: true,
+          myTeamResult: teamResult,
+          myTeamScore: teamScore,
+          myTeamPoints: myTeamPoints, // Points gained from this game (50 if won, 0 if lost/tied)
+          teamMemberCount: teamMemberCount, // Add team member count
+          myTeamResponseTimeSum: myTeamResponseTimeSum, // Add team response time sum
+          myAnswers: myAnswers,
+          playerScores: playerScore,
+          playerAccuracy: playerAccuracyValue,
+          playerAverageResponseTime: playerAverageResponseTime, // Add player average response time
+          playerPoints: playerPoints,
+          user: userField,
+          playerInfo: playerInfoObj, // All players with name, profileImage, rank, points
+          opponentTeams: opponentTeams, // Add opponent teams information
+        };
+
+        // Emit to this specific member
+        const playerSocket = this.userSockets.get(normalizedPlayerId);
+        if (playerSocket) {
+          playerSocket.emit('gameOver', memberGameOverData);
+        }
+      }
+
+      // Clean up
+      this.teamGames.delete(gameState.roomId);
+    } catch (error) {
+      console.error('[endTeamGame] Error occurred:', {
+        error: error.message,
+        stack: error.stack,
+      });
+    }
   }
 }
 

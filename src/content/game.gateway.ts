@@ -1071,101 +1071,126 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         participants: room.participants,
         hostId,
       });
-      await Promise.all(
-        room.participants.map(async (playerId) => {
-          const normalizedId = this.normalizeId(playerId);
-          if (!normalizedId) return;
-          try {
-            const player = await this.usersService.findById(normalizedId);
-            const coins =
-              player &&
-                typeof (player as any)?.coins === 'number' &&
-                Number.isFinite((player as any).coins)
-                ? (player as any).coins
-                : 0;
-            playerCoins[normalizedId] = coins;
 
-            // Get user name and profile image
-            const userName = (player as any)?.name || '';
-            const userProfileImage = (player as any)?.profileImage || null;
-            // Check if this player is the host (first participant)
-            const isHost = normalizedId === hostId;
-            playerInfo[normalizedId] = {
+      // Batch fetch all users and game progress
+      const participantIds = room.participants
+        .map(p => this.normalizeId(p))
+        .filter((id): id is string => !!id);
+
+      const userModel = this.contentService.getUserModel();
+      const gameProgressModel = this.contentService.getGameProgressModel();
+
+      // 1. Fetch all users in one query
+      const allUsers = await userModel
+        .find({ _id: { $in: participantIds } })
+        .lean()
+        .exec();
+
+      // 2. Fetch all game progress in one query
+      const allGameProgress = await gameProgressModel
+        .find({ userId: { $in: participantIds } })
+        .lean()
+        .exec();
+
+      // 3. Create maps
+      const usersMap = new Map(allUsers.map(u => [this.normalizeId(u._id) || '', u]));
+      const progressMap = new Map(
+        allGameProgress.map(gp => [this.normalizeId(gp.userId) || '', gp])
+      );
+
+      // 4. Process participants using maps (no queries)
+      participantIds.forEach((normalizedId) => {
+        const player = usersMap.get(normalizedId);
+        const gameProgress = progressMap.get(normalizedId);
+
+        try {
+          const coins =
+            player &&
+              typeof (player as any)?.coins === 'number' &&
+              Number.isFinite((player as any).coins)
+              ? (player as any).coins
+              : 0;
+          playerCoins[normalizedId] = coins;
+
+          // Get user name and profile image
+          const userName = (player as any)?.name || '';
+          const userProfileImage = (player as any)?.profileImage || null;
+          // Check if this player is the host (first participant)
+          const isHost = normalizedId === hostId;
+          playerInfo[normalizedId] = {
+            name: userName,
+            profileImage: userProfileImage,
+            isHost: isHost,
+          };
+
+          // Get GameProgress for points, level, and winner rate
+          if (gameProgress) {
+            // Points
+            const points = typeof gameProgress.points === 'number' && Number.isFinite(gameProgress.points)
+              ? gameProgress.points
+              : 0;
+            playerPoints[normalizedId] = points;
+
+            // Level name with name
+            const level = typeof gameProgress.level === 'number' && Number.isFinite(gameProgress.level)
+              ? gameProgress.level
+              : 1;
+            const levelName = this.contentService.getLevelNameForLevel(level);
+            playerLevel[normalizedId] = {
+              levelName: levelName,
               name: userName,
-              profileImage: userProfileImage,
-              isHost: isHost,
             };
 
-            // Get GameProgress for points, level, and winner rate
-            const gameProgress = await this.contentService.getGameProgress(normalizedId);
-            if (gameProgress) {
-              // Points
-              const points = typeof gameProgress.points === 'number' && Number.isFinite(gameProgress.points)
-                ? gameProgress.points
-                : 0;
-              playerPoints[normalizedId] = points;
-
-              // Level name with name
-              const level = typeof gameProgress.level === 'number' && Number.isFinite(gameProgress.level)
-                ? gameProgress.level
-                : 1;
-              const levelName = this.contentService.getLevelNameForLevel(level);
-              playerLevel[normalizedId] = {
-                levelName: levelName,
-                name: userName,
-              };
-
-              // Winner rate: totalWins / totalGamesPlayed
-              const totalWins = typeof gameProgress.totalWins === 'number' && Number.isFinite(gameProgress.totalWins)
-                ? gameProgress.totalWins
-                : 0;
-              const totalGamesPlayed = typeof gameProgress.totalGamesPlayed === 'number' && Number.isFinite(gameProgress.totalGamesPlayed)
-                ? gameProgress.totalGamesPlayed
-                : 0;
-              const calculatedWinnerRate = totalGamesPlayed > 0 ? (totalWins / totalGamesPlayed) : 0;
-              // Round to 2 decimal places
-              winnerRate[normalizedId] = Math.round(calculatedWinnerRate * 100) / 100;
-            } else {
-              // Default values if GameProgress not found
-              playerPoints[normalizedId] = 0;
-              playerLevel[normalizedId] = {
-                levelName: 'Awakened', // Default level name for level 1
-                name: userName,
-              };
-              winnerRate[normalizedId] = 0;
-            }
-
-            console.log('[createGame] Player info fetched:', {
-              playerId: normalizedId,
-              coins,
-              name: userName,
-              hasProfileImage: !!userProfileImage,
-              points: playerPoints[normalizedId],
-              levelName: playerLevel[normalizedId]?.levelName,
-              winnerRate: winnerRate[normalizedId],
-            });
-          } catch (error) {
-            console.warn('[createGame] Failed to fetch player info:', {
-              playerId: normalizedId,
-              error: error.message,
-            });
-            playerCoins[normalizedId] = 0;
-            // Check if this player is the host (first participant)
-            const isHost = normalizedId === hostId;
-            playerInfo[normalizedId] = {
-              name: '',
-              profileImage: null,
-              isHost: isHost,
-            };
+            // Winner rate: totalWins / totalGamesPlayed
+            const totalWins = typeof gameProgress.totalWins === 'number' && Number.isFinite(gameProgress.totalWins)
+              ? gameProgress.totalWins
+              : 0;
+            const totalGamesPlayed = typeof gameProgress.totalGamesPlayed === 'number' && Number.isFinite(gameProgress.totalGamesPlayed)
+              ? gameProgress.totalGamesPlayed
+              : 0;
+            const calculatedWinnerRate = totalGamesPlayed > 0 ? (totalWins / totalGamesPlayed) : 0;
+            // Round to 2 decimal places
+            winnerRate[normalizedId] = Math.round(calculatedWinnerRate * 100) / 100;
+          } else {
+            // Default values if GameProgress not found
             playerPoints[normalizedId] = 0;
             playerLevel[normalizedId] = {
               levelName: 'Awakened', // Default level name for level 1
-              name: '',
+              name: userName,
             };
             winnerRate[normalizedId] = 0;
           }
-        }),
-      );
+
+          console.log('[createGame] Player info fetched:', {
+            playerId: normalizedId,
+            coins,
+            name: userName,
+            hasProfileImage: !!userProfileImage,
+            points: playerPoints[normalizedId],
+            levelName: playerLevel[normalizedId]?.levelName,
+            winnerRate: winnerRate[normalizedId],
+          });
+        } catch (error) {
+          console.warn('[createGame] Failed to fetch player info:', {
+            playerId: normalizedId,
+            error: error.message,
+          });
+          playerCoins[normalizedId] = 0;
+          // Check if this player is the host (first participant)
+          const isHost = normalizedId === hostId;
+          playerInfo[normalizedId] = {
+            name: '',
+            profileImage: null,
+            isHost: isHost,
+          };
+          playerPoints[normalizedId] = 0;
+          playerLevel[normalizedId] = {
+            levelName: 'Awakened', // Default level name for level 1
+            name: '',
+          };
+          winnerRate[normalizedId] = 0;
+        }
+      });
       console.log('[createGame] Player coins and info collected:', {
         playerCoins,
         playerInfo,
@@ -1566,101 +1591,126 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         finalPlayersList,
         hostId,
       });
-      await Promise.all(
-        finalPlayersList.map(async (playerId) => {
-          const normalizedId = this.normalizeId(playerId);
-          if (!normalizedId) return;
-          try {
-            const player = await this.usersService.findById(normalizedId);
-            const coins =
-              player &&
-                typeof (player as any)?.coins === 'number' &&
-                Number.isFinite((player as any).coins)
-                ? (player as any).coins
-                : 0;
-            playerCoins[normalizedId] = coins;
 
-            // Get user name and profile image
-            const userName = (player as any)?.name || '';
-            const userProfileImage = (player as any)?.profileImage || null;
-            // Check if this player is the host (first participant)
-            const isHost = normalizedId === hostId;
-            playerInfo[normalizedId] = {
+      // Batch fetch all users and game progress
+      const participantIds = finalPlayersList
+        .map(p => this.normalizeId(p))
+        .filter((id): id is string => !!id);
+
+      const userModel = this.contentService.getUserModel();
+      const gameProgressModel = this.contentService.getGameProgressModel();
+
+      // 1. Fetch all users in one query
+      const allUsers = await userModel
+        .find({ _id: { $in: participantIds } })
+        .lean()
+        .exec();
+
+      // 2. Fetch all game progress in one query
+      const allGameProgress = await gameProgressModel
+        .find({ userId: { $in: participantIds } })
+        .lean()
+        .exec();
+
+      // 3. Create maps
+      const usersMap = new Map(allUsers.map(u => [this.normalizeId(u._id) || '', u]));
+      const progressMap = new Map(
+        allGameProgress.map(gp => [this.normalizeId(gp.userId) || '', gp])
+      );
+
+      // 4. Process participants using maps (no queries)
+      participantIds.forEach((normalizedId) => {
+        const player = usersMap.get(normalizedId);
+        const gameProgress = progressMap.get(normalizedId);
+
+        try {
+          const coins =
+            player &&
+              typeof (player as any)?.coins === 'number' &&
+              Number.isFinite((player as any).coins)
+              ? (player as any).coins
+              : 0;
+          playerCoins[normalizedId] = coins;
+
+          // Get user name and profile image
+          const userName = (player as any)?.name || '';
+          const userProfileImage = (player as any)?.profileImage || null;
+          // Check if this player is the host (first participant)
+          const isHost = normalizedId === hostId;
+          playerInfo[normalizedId] = {
+            name: userName,
+            profileImage: userProfileImage,
+            isHost: isHost,
+          };
+
+          // Get GameProgress for points, level, and winner rate
+          if (gameProgress) {
+            // Points
+            const points = typeof gameProgress.points === 'number' && Number.isFinite(gameProgress.points)
+              ? gameProgress.points
+              : 0;
+            playerPoints[normalizedId] = points;
+
+            // Level name with name
+            const level = typeof gameProgress.level === 'number' && Number.isFinite(gameProgress.level)
+              ? gameProgress.level
+              : 1;
+            const levelName = this.contentService.getLevelNameForLevel(level);
+            playerLevel[normalizedId] = {
+              levelName: levelName,
               name: userName,
-              profileImage: userProfileImage,
-              isHost: isHost,
             };
 
-            // Get GameProgress for points, level, and winner rate
-            const gameProgress = await this.contentService.getGameProgress(normalizedId);
-            if (gameProgress) {
-              // Points
-              const points = typeof gameProgress.points === 'number' && Number.isFinite(gameProgress.points)
-                ? gameProgress.points
-                : 0;
-              playerPoints[normalizedId] = points;
-
-              // Level name with name
-              const level = typeof gameProgress.level === 'number' && Number.isFinite(gameProgress.level)
-                ? gameProgress.level
-                : 1;
-              const levelName = this.contentService.getLevelNameForLevel(level);
-              playerLevel[normalizedId] = {
-                levelName: levelName,
-                name: userName,
-              };
-
-              // Winner rate: totalWins / totalGamesPlayed
-              const totalWins = typeof gameProgress.totalWins === 'number' && Number.isFinite(gameProgress.totalWins)
-                ? gameProgress.totalWins
-                : 0;
-              const totalGamesPlayed = typeof gameProgress.totalGamesPlayed === 'number' && Number.isFinite(gameProgress.totalGamesPlayed)
-                ? gameProgress.totalGamesPlayed
-                : 0;
-              const calculatedWinnerRate = totalGamesPlayed > 0 ? (totalWins / totalGamesPlayed) : 0;
-              // Round to 2 decimal places
-              winnerRate[normalizedId] = Math.round(calculatedWinnerRate * 100) / 100;
-            } else {
-              // Default values if GameProgress not found
-              playerPoints[normalizedId] = 0;
-              playerLevel[normalizedId] = {
-                levelName: 'Awakened', // Default level name for level 1
-                name: userName,
-              };
-              winnerRate[normalizedId] = 0;
-            }
-
-            console.log('[restartGame] Player info fetched:', {
-              playerId: normalizedId,
-              coins,
-              name: userName,
-              hasProfileImage: !!userProfileImage,
-              points: playerPoints[normalizedId],
-              levelName: playerLevel[normalizedId]?.levelName,
-              winnerRate: winnerRate[normalizedId],
-            });
-          } catch (error) {
-            console.warn('[restartGame] Failed to fetch player info:', {
-              playerId: normalizedId,
-              error: error.message,
-            });
-            playerCoins[normalizedId] = 0;
-            // Check if this player is the host (first participant)
-            const isHost = normalizedId === hostId;
-            playerInfo[normalizedId] = {
-              name: '',
-              profileImage: null,
-              isHost: isHost,
-            };
+            // Winner rate: totalWins / totalGamesPlayed
+            const totalWins = typeof gameProgress.totalWins === 'number' && Number.isFinite(gameProgress.totalWins)
+              ? gameProgress.totalWins
+              : 0;
+            const totalGamesPlayed = typeof gameProgress.totalGamesPlayed === 'number' && Number.isFinite(gameProgress.totalGamesPlayed)
+              ? gameProgress.totalGamesPlayed
+              : 0;
+            const calculatedWinnerRate = totalGamesPlayed > 0 ? (totalWins / totalGamesPlayed) : 0;
+            // Round to 2 decimal places
+            winnerRate[normalizedId] = Math.round(calculatedWinnerRate * 100) / 100;
+          } else {
+            // Default values if GameProgress not found
             playerPoints[normalizedId] = 0;
             playerLevel[normalizedId] = {
               levelName: 'Awakened', // Default level name for level 1
-              name: '',
+              name: userName,
             };
             winnerRate[normalizedId] = 0;
           }
-        }),
-      );
+
+          console.log('[restartGame] Player info fetched:', {
+            playerId: normalizedId,
+            coins,
+            name: userName,
+            hasProfileImage: !!userProfileImage,
+            points: playerPoints[normalizedId],
+            levelName: playerLevel[normalizedId]?.levelName,
+            winnerRate: winnerRate[normalizedId],
+          });
+        } catch (error) {
+          console.warn('[restartGame] Failed to fetch player info:', {
+            playerId: normalizedId,
+            error: error.message,
+          });
+          playerCoins[normalizedId] = 0;
+          // Check if this player is the host (first participant)
+          const isHost = normalizedId === hostId;
+          playerInfo[normalizedId] = {
+            name: '',
+            profileImage: null,
+            isHost: isHost,
+          };
+          playerPoints[normalizedId] = 0;
+          playerLevel[normalizedId] = {
+            levelName: 'Awakened', // Default level name for level 1
+            name: '',
+          };
+          winnerRate[normalizedId] = 0;
+        }
+      });
       console.log('[restartGame] Player coins and info collected:', {
         playerCoins,
         playerInfo,
@@ -2373,24 +2423,26 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Only broadcast all user answers when ALL participants have answered
     if (allAnswered) {
       // Collect all answers for current question from all players
-      const allUserAnswers: Array<{
-        userId: string;
-        userAnswer: string | null;
-        isCorrect: boolean;
-        score: number;
-      }> = [];
-      for (const playerId of gameState.players) {
-        const playerAnswers = gameState.playerAnswers.get(playerId) || [];
-        const currentQuestionAnswer = playerAnswers.find((a) => a.index === currentIndex);
-        if (currentQuestionAnswer) {
-          allUserAnswers.push({
-            userId: playerId,
-            userAnswer: currentQuestionAnswer.userAnswer,
-            isCorrect: currentQuestionAnswer.isCorrect,
-            score: gameState.playerScores.get(playerId) || 0,
-          });
-        }
-      }
+      const allUserAnswers = gameState.players
+        .map((playerId) => {
+          const playerAnswers = gameState.playerAnswers.get(playerId) || [];
+          const currentQuestionAnswer = playerAnswers.find((a) => a.index === currentIndex);
+          if (currentQuestionAnswer) {
+            return {
+              userId: playerId,
+              userAnswer: currentQuestionAnswer.userAnswer,
+              isCorrect: currentQuestionAnswer.isCorrect,
+              score: gameState.playerScores.get(playerId) || 0,
+            };
+          }
+          return null;
+        })
+        .filter((answer): answer is {
+          userId: string;
+          userAnswer: string | null;
+          isCorrect: boolean;
+          score: number;
+        } => answer !== null);
 
       // Broadcast all user answers to all participants in the room
       this.server.to(gameState.roomId).emit('alluseranswerresult', {
@@ -2526,24 +2578,26 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     // Collect all answers for current question from all players (including timeout answers)
-    const allUserAnswers: Array<{
-      userId: string;
-      userAnswer: string | null;
-      isCorrect: boolean;
-      score: number;
-    }> = [];
-    for (const playerId of gameState.players) {
-      const playerAnswers = gameState.playerAnswers.get(playerId) || [];
-      const currentQuestionAnswer = playerAnswers.find((a) => a.index === currentIndex);
-      if (currentQuestionAnswer) {
-        allUserAnswers.push({
-          userId: playerId,
-          userAnswer: currentQuestionAnswer.userAnswer,
-          isCorrect: currentQuestionAnswer.isCorrect,
-          score: gameState.playerScores.get(playerId) || 0,
-        });
-      }
-    }
+    const allUserAnswers = gameState.players
+      .map((playerId) => {
+        const playerAnswers = gameState.playerAnswers.get(playerId) || [];
+        const currentQuestionAnswer = playerAnswers.find((a) => a.index === currentIndex);
+        if (currentQuestionAnswer) {
+          return {
+            userId: playerId,
+            userAnswer: currentQuestionAnswer.userAnswer,
+            isCorrect: currentQuestionAnswer.isCorrect,
+            score: gameState.playerScores.get(playerId) || 0,
+          };
+        }
+        return null;
+      })
+      .filter((answer): answer is {
+        userId: string;
+        userAnswer: string | null;
+        isCorrect: boolean;
+        score: number;
+      } => answer !== null);
 
     // Broadcast all user answers to all participants in the room
     this.server.to(gameState.roomId).emit('alluseranswerresult', {
@@ -2861,18 +2915,54 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Get daily streak info for all players
       const playerDailyStreaks: Record<string, any> = {};
+      
+      // Collect players that need fallback query
+      const playersNeedingFallback: string[] = [];
+      
       for (let i = 0; i < players.length; i++) {
         const playerId = players[i];
         const streakUpdate = streakUpdates[i];
-        const streakInfo = streakUpdate
-          ? {
+        if (streakUpdate) {
+          playerDailyStreaks[playerId] = {
             currentDailyStreak: streakUpdate.currentDailyStreak || 0,
             longestDailyStreak: streakUpdate.longestDailyStreak || 0,
             dailyStreakIcons: streakUpdate.dailyStreakIcons || [],
-          }
-          : await this.contentService.getDailyStreak(playerId);
-        playerDailyStreaks[playerId] = streakInfo;
+          };
+        } else {
+          playersNeedingFallback.push(playerId);
+        }
       }
+      
+      // Batch query daily streaks for players that need fallback
+      if (playersNeedingFallback.length > 0) {
+        const fallbackStreaks = await Promise.all(
+          playersNeedingFallback.map((playerId) =>
+            this.contentService.getDailyStreak(playerId),
+          ),
+        );
+        
+        // Map fallback results back to players
+        for (let j = 0; j < playersNeedingFallback.length; j++) {
+          const playerId = playersNeedingFallback[j];
+          playerDailyStreaks[playerId] = fallbackStreaks[j];
+        }
+      }
+
+      // Batch fetch all users
+      const playerIds = players
+        .map(p => this.normalizeId(p))
+        .filter((id): id is string => !!id);
+
+      const userModel = this.contentService.getUserModel();
+
+      // Fetch all users in one query
+      const allUsers = await userModel
+        .find({ _id: { $in: playerIds } })
+        .lean()
+        .exec();
+
+      // Create map
+      const usersMap = new Map(allUsers.map(u => [this.normalizeId(u._id) || '', u]));
 
       // Send personalized gameOver to each player
       await Promise.all(
@@ -2893,7 +2983,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
               profileImage: null,
             };
             try {
-              const user = await this.usersService.findById(playerId);
+              const normalizedPlayerId = this.normalizeId(playerId);
+              const user = normalizedPlayerId ? usersMap.get(normalizedPlayerId) : null;
               const userName = (user as any)?.name || (user as any)?.username || '';
               userInfo = `${playerId}|${userName}`;
               // Get current player's info only
@@ -2938,6 +3029,22 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }),
       );
     } else {
+      // Batch fetch all users
+      const playerIds = players
+        .map(p => this.normalizeId(p))
+        .filter((id): id is string => !!id);
+
+      const userModel = this.contentService.getUserModel();
+
+      // Fetch all users in one query
+      const allUsers = await userModel
+        .find({ _id: { $in: playerIds } })
+        .lean()
+        .exec();
+
+      // Create map
+      const usersMap = new Map(allUsers.map(u => [this.normalizeId(u._id) || '', u]));
+
       // Send personalized gameOver to each player (without streak updates)
       await Promise.all(
         players.map(async (playerId) => {
@@ -2956,7 +3063,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
               profileImage: null,
             };
             try {
-              const user = await this.usersService.findById(playerId);
+              const normalizedPlayerId = this.normalizeId(playerId);
+              const user = normalizedPlayerId ? usersMap.get(normalizedPlayerId) : null;
               const userName = (user as any)?.name || (user as any)?.username || '';
               userInfo = `${playerId}|${userName}`;
               // Get current player's info only
@@ -3520,87 +3628,112 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             const winnerRate: Record<string, number> = {};
             // Get host ID (first participant)
             const hostId = this.normalizeId(activeRoom.participants[0]);
-            await Promise.all(
-              activeRoom.participants.map(async (playerId) => {
-                const normalizedId = this.normalizeId(playerId);
-                if (!normalizedId) return;
-                try {
-                  const player = await this.usersService.findById(normalizedId);
-                  const coins =
-                    player &&
-                      typeof (player as any)?.coins === 'number' &&
-                      Number.isFinite((player as any).coins)
-                      ? (player as any).coins
-                      : 0;
-                  playerCoins[normalizedId] = coins;
 
-                  // Get user name and profile image
-                  const userName = (player as any)?.name || '';
-                  const userProfileImage = (player as any)?.profileImage || null;
-                  // Check if this player is the host (first participant)
-                  const isHost = normalizedId === hostId;
-                  playerInfo[normalizedId] = {
+            // Batch fetch all users and game progress
+            const participantIds = activeRoom.participants
+              .map(p => this.normalizeId(p))
+              .filter((id): id is string => !!id);
+
+            const userModel = this.contentService.getUserModel();
+            const gameProgressModel = this.contentService.getGameProgressModel();
+
+            // 1. Fetch all users in one query
+            const allUsers = await userModel
+              .find({ _id: { $in: participantIds } })
+              .lean()
+              .exec();
+
+            // 2. Fetch all game progress in one query
+            const allGameProgress = await gameProgressModel
+              .find({ userId: { $in: participantIds } })
+              .lean()
+              .exec();
+
+            // 3. Create maps
+            const usersMap = new Map(allUsers.map(u => [this.normalizeId(u._id) || '', u]));
+            const progressMap = new Map(
+              allGameProgress.map(gp => [this.normalizeId(gp.userId) || '', gp])
+            );
+
+            // 4. Process participants using maps (no queries)
+            participantIds.forEach((normalizedId) => {
+              const player = usersMap.get(normalizedId);
+              const gameProgress = progressMap.get(normalizedId);
+
+              try {
+                const coins =
+                  player &&
+                    typeof (player as any)?.coins === 'number' &&
+                    Number.isFinite((player as any).coins)
+                    ? (player as any).coins
+                    : 0;
+                playerCoins[normalizedId] = coins;
+
+                // Get user name and profile image
+                const userName = (player as any)?.name || '';
+                const userProfileImage = (player as any)?.profileImage || null;
+                // Check if this player is the host (first participant)
+                const isHost = normalizedId === hostId;
+                playerInfo[normalizedId] = {
+                  name: userName,
+                  profileImage: userProfileImage,
+                  isHost: isHost,
+                };
+
+                // Get GameProgress for points, level, and winner rate
+                if (gameProgress) {
+                  // Points
+                  const points = typeof gameProgress.points === 'number' && Number.isFinite(gameProgress.points)
+                    ? gameProgress.points
+                    : 0;
+                  playerPoints[normalizedId] = points;
+
+                  // Level name with name
+                  const level = typeof gameProgress.level === 'number' && Number.isFinite(gameProgress.level)
+                    ? gameProgress.level
+                    : 1;
+                  const levelName = this.contentService.getLevelNameForLevel(level);
+                  playerLevel[normalizedId] = {
+                    levelName: levelName,
                     name: userName,
-                    profileImage: userProfileImage,
-                    isHost: isHost,
                   };
 
-                  // Get GameProgress for points, level, and winner rate
-                  const gameProgress = await this.contentService.getGameProgress(normalizedId);
-                  if (gameProgress) {
-                    // Points
-                    const points = typeof gameProgress.points === 'number' && Number.isFinite(gameProgress.points)
-                      ? gameProgress.points
-                      : 0;
-                    playerPoints[normalizedId] = points;
-
-                    // Level name with name
-                    const level = typeof gameProgress.level === 'number' && Number.isFinite(gameProgress.level)
-                      ? gameProgress.level
-                      : 1;
-                    const levelName = this.contentService.getLevelNameForLevel(level);
-                    playerLevel[normalizedId] = {
-                      levelName: levelName,
-                      name: userName,
-                    };
-
-                    // Winner rate: totalWins / totalGamesPlayed
-                    const totalWins = typeof gameProgress.totalWins === 'number' && Number.isFinite(gameProgress.totalWins)
-                      ? gameProgress.totalWins
-                      : 0;
-                    const totalGamesPlayed = typeof gameProgress.totalGamesPlayed === 'number' && Number.isFinite(gameProgress.totalGamesPlayed)
-                      ? gameProgress.totalGamesPlayed
-                      : 0;
-                    const calculatedWinnerRate = totalGamesPlayed > 0 ? (totalWins / totalGamesPlayed) : 0;
-                    // Round to 2 decimal places
-                    winnerRate[normalizedId] = Math.round(calculatedWinnerRate * 100) / 100;
-                  } else {
-                    // Default values if GameProgress not found
-                    playerPoints[normalizedId] = 0;
-                    playerLevel[normalizedId] = {
-                      levelName: 'Awakened', // Default level name for level 1
-                      name: userName,
-                    };
-                    winnerRate[normalizedId] = 0;
-                  }
-                } catch {
-                  playerCoins[normalizedId] = 0;
-                  // Check if this player is the host (first participant)
-                  const isHost = normalizedId === hostId;
-                  playerInfo[normalizedId] = {
-                    name: '',
-                    profileImage: null,
-                    isHost: isHost,
-                  };
+                  // Winner rate: totalWins / totalGamesPlayed
+                  const totalWins = typeof gameProgress.totalWins === 'number' && Number.isFinite(gameProgress.totalWins)
+                    ? gameProgress.totalWins
+                    : 0;
+                  const totalGamesPlayed = typeof gameProgress.totalGamesPlayed === 'number' && Number.isFinite(gameProgress.totalGamesPlayed)
+                    ? gameProgress.totalGamesPlayed
+                    : 0;
+                  const calculatedWinnerRate = totalGamesPlayed > 0 ? (totalWins / totalGamesPlayed) : 0;
+                  // Round to 2 decimal places
+                  winnerRate[normalizedId] = Math.round(calculatedWinnerRate * 100) / 100;
+                } else {
+                  // Default values if GameProgress not found
                   playerPoints[normalizedId] = 0;
                   playerLevel[normalizedId] = {
                     levelName: 'Awakened', // Default level name for level 1
-                    name: '',
+                    name: userName,
                   };
                   winnerRate[normalizedId] = 0;
                 }
-              }),
-            );
+              } catch {
+                playerCoins[normalizedId] = 0;
+                // Check if this player is the host (first participant)
+                const isHost = normalizedId === hostId;
+                playerInfo[normalizedId] = {
+                  name: '',
+                  profileImage: null,
+                  isHost: isHost,
+                };
+                playerPoints[normalizedId] = 0;
+                playerLevel[normalizedId] = {
+                  levelName: 'Awakened', // Default level name for level 1
+                  name: '',
+                };
+                winnerRate[normalizedId] = 0;
+              }
+            });
 
             // Notify all players that game is created with ALL data (no separate gameStart needed)
             // This matches the createGame pattern where gameCreated contains everything
@@ -3646,19 +3779,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
       }
 
-      // Get acceptor's name and profile image for inviter to see who accepted
-      let acceptorName = '';
-      let acceptorProfileImage: string | null = null;
-      try {
-        const acceptor = await this.usersService.findById(acceptorId);
-        acceptorName = (acceptor as any)?.name || (acceptor as any)?.username || '';
-        acceptorProfileImage = (acceptor as any)?.profileImage || null;
-      } catch (error) {
-        // If unable to get name/profile image, leave it empty
-        acceptorName = '';
-        acceptorProfileImage = null;
-      }
-
       // Get host ID (first participant)
       const hostId = this.normalizeId(participants[0]);
 
@@ -3670,45 +3790,64 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         isHost: boolean;
       }> = [];
 
-      await Promise.all(
-        participants.map(async (participantId) => {
-          const normalizedId = this.normalizeId(participantId);
-          if (!normalizedId) return;
+      // Batch fetch all users
+      const participantIds = participants
+        .map(p => this.normalizeId(p))
+        .filter((id): id is string => !!id);
 
-          try {
-            const participant = await this.usersService.findById(normalizedId);
-            const userName = (participant as any)?.name || (participant as any)?.username || '';
-            const userProfileImage = (participant as any)?.profileImage || null;
-            const isHost = normalizedId === hostId;
+      const userModel = this.contentService.getUserModel();
 
-            participantDetails.push({
-              userId: normalizedId,
-              name: userName,
-              profileImage: userProfileImage,
-              isHost: isHost,
-            });
+      // Fetch all users in one query
+      const allUsers = await userModel
+        .find({ _id: { $in: participantIds } })
+        .lean()
+        .exec();
 
-            console.log('[acceptInvite] Participant details fetched:', {
-              userId: normalizedId,
-              name: userName,
-              hasProfileImage: !!userProfileImage,
-              isHost,
-            });
-          } catch (error) {
-            console.warn('[acceptInvite] Failed to fetch participant info:', {
-              participantId: normalizedId,
-              error: error.message,
-            });
-            // Add participant with default values
-            participantDetails.push({
-              userId: normalizedId,
-              name: '',
-              profileImage: null,
-              isHost: normalizedId === hostId,
-            });
-          }
-        }),
-      );
+      // Create map
+      const usersMap = new Map(allUsers.map(u => [this.normalizeId(u._id) || '', u]));
+
+      // Get acceptor's name and profile image from batch query result
+      const normalizedAcceptorId = this.normalizeId(acceptorId);
+      const acceptor = normalizedAcceptorId ? usersMap.get(normalizedAcceptorId) : null;
+      const acceptorName = (acceptor as any)?.name || (acceptor as any)?.username || '';
+      const acceptorProfileImage = (acceptor as any)?.profileImage || null;
+
+      // Process participants using map (no queries)
+      participantIds.forEach((normalizedId) => {
+        const participant = usersMap.get(normalizedId);
+
+        try {
+          const userName = (participant as any)?.name || (participant as any)?.username || '';
+          const userProfileImage = (participant as any)?.profileImage || null;
+          const isHost = normalizedId === hostId;
+
+          participantDetails.push({
+            userId: normalizedId,
+            name: userName,
+            profileImage: userProfileImage,
+            isHost: isHost,
+          });
+
+          console.log('[acceptInvite] Participant details fetched:', {
+            userId: normalizedId,
+            name: userName,
+            hasProfileImage: !!userProfileImage,
+            isHost,
+          });
+        } catch (error) {
+          console.warn('[acceptInvite] Failed to fetch participant info:', {
+            participantId: normalizedId,
+            error: error.message,
+          });
+          // Add participant with default values
+          participantDetails.push({
+            userId: normalizedId,
+            name: '',
+            profileImage: null,
+            isHost: normalizedId === hostId,
+          });
+        }
+      });
 
       // Notify all participants in room that invite was accepted
       const inviteAcceptedPayload = {

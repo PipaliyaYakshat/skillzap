@@ -18,7 +18,6 @@ export class TeamOnlyGuard implements CanActivate {
     }
 
     const userDoc = await this.userModel.findById(user.id);
-    console.log('userDoc', userDoc?.userType);
     return userDoc?.userType === 'superAdmin';
   }
 } 

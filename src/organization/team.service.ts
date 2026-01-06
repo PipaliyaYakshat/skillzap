@@ -775,141 +775,6 @@ export class TeamService {
   //  * Dashboard helper: return organizations, teams, and team members for the authenticated user.
   //  * Uses the user's organization, organizations they created, and any teams they belong to.
   //  */
-  // async getDashboardOverview(userId: string) {
-  //   const normalizedUserId = this.normalizeId(userId);
-  //   if (!normalizedUserId) {
-  //     throw new BadRequestException('User ID is required');
-  //   }
-
-  //   const user = await this.userModel.findById(normalizedUserId).lean();
-  //   if (!user) {
-  //     throw new NotFoundException('User not found');
-  //   }
-
-  //   const organizationIds = new Set<string>();
-  //   const userOrganizationId = this.normalizeId((user as any).organization);
-  //   if (userOrganizationId) {
-  //     organizationIds.add(userOrganizationId);
-  //   }
-
-  //   // Organizations created by the user (superAdmin/admin)
-  //   const createdOrganizations = await this.organizationModel
-  //     .find({ creatorId: normalizedUserId })
-  //     .select('_id')
-  //     .lean()
-  //     .exec();
-  //   createdOrganizations.forEach((org) => {
-  //     const orgId = this.normalizeId(org._id);
-  //     if (orgId) {
-  //       organizationIds.add(orgId);
-  //     }
-  //   });
-
-  //   // Organizations derived from team membership
-  //   const membershipOrgs = await this.teamMemberModel
-  //     .find({ user: normalizedUserId })
-  //     .populate('team', 'organization')
-  //     .select('organization team')
-  //     .lean()
-  //     .exec();
-
-  //   membershipOrgs.forEach((membership: any) => {
-  //     const orgIdFromMembership =
-  //       this.normalizeId(membership.organization) ||
-  //       (membership.team
-  //         ? this.normalizeId((membership.team as any).organization)
-  //         : null);
-  //     if (orgIdFromMembership) {
-  //       organizationIds.add(orgIdFromMembership);
-  //     }
-  //   });
-
-  //   if (organizationIds.size === 0) {
-  //     return { organizations: [] };
-  //   }
-
-  //   const orgIdsArray = Array.from(organizationIds);
-
-  //   const organizations = await this.organizationModel
-  //     .find({ _id: { $in: orgIdsArray } })
-  //     .lean()
-  //     .exec();
-  //   const orgMap = new Map<string, any>();
-  //   organizations.forEach((org) => {
-  //     const id = this.normalizeId(org._id);
-  //     if (id) {
-  //       orgMap.set(id, org);
-  //     }
-  //   });
-
-  //   const teams = await this.teamModel
-  //     .find({ organization: { $in: orgIdsArray } })
-  //     .lean()
-  //     .exec();
-  //   const teamIds = teams
-  //     .map((team) => this.normalizeId(team._id))
-  //     .filter((id): id is string => !!id);
-
-  //   const membersByTeam = new Map<string, any[]>();
-  //   if (teamIds.length > 0) {
-  //     const members = await this.teamMemberModel
-  //       .find({ team: { $in: teamIds } })
-  //       .populate('user', 'name email profileImage')
-  //       .lean()
-  //       .exec();
-
-  //     members.forEach((member: any) => {
-  //       const teamId = this.normalizeId(member.team);
-  //       if (!teamId) {
-  //         return;
-  //       }
-  //       const list = membersByTeam.get(teamId) || [];
-  //       list.push({
-  //         id: this.normalizeId(member._id),
-  //         userId: member.user?._id
-  //           ? this.normalizeId(member.user._id)
-  //           : null,
-  //         name: member.user?.name ?? null,
-  //         email: member.user?.email ?? member.email ?? null,
-  //         profileImage: member.user?.profileImage ?? null,
-  //         isAdmin: member.isAdmin ?? false,
-  //         status: member.status ?? null,
-  //         joinedAt: member.joinedAt ?? null,
-  //       });
-  //       membersByTeam.set(teamId, list);
-  //     });
-  //   }
-
-  //   const teamsByOrg = new Map<string, any[]>();
-  //   teams.forEach((team) => {
-  //     const orgId = this.normalizeId(team.organization);
-  //     const teamId = this.normalizeId(team._id);
-  //     if (!orgId || !teamId) {
-  //       return;
-  //     }
-  //     const orgTeams = teamsByOrg.get(orgId) || [];
-  //     orgTeams.push({
-  //       id: teamId,
-  //       name: team.teamName,
-  //       memberCount: team.memberCount ?? 0,
-  //       members: membersByTeam.get(teamId) ?? [],
-  //     });
-  //     teamsByOrg.set(orgId, orgTeams);
-  //   });
-
-  //   const organizationsPayload = orgIdsArray.map((orgId) => {
-  //     const org = orgMap.get(orgId);
-  //     return {
-  //       id: orgId,
-  //       name: org?.name ?? null,
-  //       logo: org?.logo ?? null,
-  //       teams: teamsByOrg.get(orgId) ?? [],
-  //     };
-  //   });
-
-  //   return { organizations: organizationsPayload };
-  // }
-
   async getTeamMembers(teamId: string) {
     try {
       const members = await this.teamMemberModel
@@ -944,91 +809,6 @@ export class TeamService {
     }
   }
 
-  // async getTeamMembersWithDetails(teamId: string, organizationId: string, userId: string) {
-  //   try {
-  //     // Step 0: Validate inputs
-  //     if (!isValidObjectId(teamId)) {
-  //       throw new BadRequestException('Invalid team ID');
-  //     }
-
-  //     if (!isValidObjectId(organizationId)) {
-  //       throw new BadRequestException('Invalid organization ID');
-  //     }
-
-  //     if (!isValidObjectId(userId)) {
-  //       throw new BadRequestException('Invalid user ID');
-  //     }
-
-  //     // Step 1: Validate Team
-  //     const team = await this.teamModel.findById(teamId);
-  //     if (!team) {
-  //       throw new NotFoundException('Team not found');
-  //     }
-
-  //     // Step 2: Validate Organization
-  //     const organization = await this.organizationModel.findById(organizationId);
-  //     if (!organization) {
-  //       throw new NotFoundException('Organization not found');
-  //     }
-
-  //     // Step 3: Validate User
-  //     const user = await this.userModel.findById(userId);
-  //     if (!user) {
-  //       throw new NotFoundException('User not found');
-  //     }
-
-  //     // Step 4: Check authorization - user must be superAdmin or admin of this org
-  //     const isSuperAdmin = user.userType === 'superAdmin';
-  //     const isAdminOfOrg = user.userType === 'admin' && 
-  //       user.organization && 
-  //       user.organization.toString() === organizationId;
-
-  //     if (!isSuperAdmin && !isAdminOfOrg) {
-  //       throw new ForbiddenException('Not authorized to view members of this team');
-  //     }
-
-  //     // Step 5: Validate that team belongs to the organization
-  //     if (team.organization.toString() !== organizationId) {
-  //       throw new BadRequestException('Team does not belong to the specified organization');
-  //     }
-
-  //     // Step 6: Get team members
-  //     const members = await this.getTeamMembers(teamId);
-
-  //     // Step 7: Sync memberCount (count only non-creator members)
-  //     const actualMemberCount = await this.syncTeamMemberCount(teamId);
-  //     const updatedTeam = await this.teamModel.findById(teamId);
-
-  //     return {
-  //       statusCode: HttpStatus.OK,
-  //       message: 'Team members retrieved successfully',
-  //       data: {
-  //         team: {
-  //           id: team._id,
-  //           name: team.teamName,
-  //           organization: organizationId,
-  //           memberCount: updatedTeam?.memberCount || actualMemberCount,
-  //           isActive: team.isActive,
-  //           createdAt: team.createdAt,
-  //         },
-  //         members: members,
-  //         totalMembers: members.length
-  //       }
-  //     };
-  //   } catch (error) {
-  //     if (
-  //       error instanceof ForbiddenException ||
-  //       error instanceof BadRequestException ||
-  //       error instanceof NotFoundException
-  //     ) {
-  //       throw error;
-  //     }
-  //     throw new HttpException(
-  //       error.message || 'Failed to retrieve team members',
-  //       HttpStatus.INTERNAL_SERVER_ERROR,
-  //     );
-  //   }
-  // }
 
   async createTeamAndAddMember(
     creatorId: string,
@@ -1588,7 +1368,7 @@ export class TeamService {
 `
 
       try {
-        await this.sendMail(
+         this.sendMail(
           memberEmail,
           'You have been invited to join a team',
           html
@@ -2916,102 +2696,142 @@ export class TeamService {
         .limit(limit)
         .exec();
 
-      // Step 7: Format the response with userPercentage calculation
-      const formattedDecks = await Promise.all(
-        decks.map(async (deck: any) => {
-          let creator: any = null;
-          if (deck.userId && typeof deck.userId === 'object' && deck.userId._id) {
-            creator = {
-              id: deck.userId._id.toString(),
-              name: deck.userId.name || null,
-              email: deck.userId.email || null,
-              userType: deck.userId.userType || null
-            };
-          }
+      // Step 7: Fetch all topics and TopicProgress records upfront for optimization
+      const allContentIds = decks.flatMap(d => d.contentIds || []);
+      
+      // Fetch all topics in a single query
+      const allTopics = await this.topicModel
+        .find({ _id: { $in: allContentIds } })
+        .select('subTopics')
+        .lean()
+        .exec();
 
-          // Calculate userPercentage
-          let userPercentage = 0;
-          const contentIds = deck.contentIds || [];
+      // Create a map for quick topic lookup by ID
+      const topicsMap = new Map<string, any>();
+      allTopics.forEach((topic: any) => {
+        const topicId = this.normalizeId(topic._id);
+        if (topicId) {
+          topicsMap.set(topicId, topic);
+        }
+      });
+
+      // Fetch all TopicProgress records for this user and all topics in a single query
+      const allTopicProgressRecords = await this.topicProgressModel
+        .find({
+          userId: userId,
+          topicId: { $in: allContentIds }
+        })
+        .select('topicId completedSubTopicIds')
+        .lean()
+        .exec();
+
+      // Create a map of completed subtopic IDs by topic ID
+      const completedSubTopicsByTopic = new Map<string, Set<string>>();
+      allTopicProgressRecords.forEach((progress: any) => {
+        const topicId = this.normalizeId(progress.topicId);
+        if (!topicId) return;
+
+        if (!completedSubTopicsByTopic.has(topicId)) {
+          completedSubTopicsByTopic.set(topicId, new Set<string>());
+        }
+
+        const completedSet = completedSubTopicsByTopic.get(topicId);
+        if (progress.completedSubTopicIds && Array.isArray(progress.completedSubTopicIds)) {
+          progress.completedSubTopicIds.forEach((subTopicId: any) => {
+            const normalizedId = this.normalizeId(subTopicId);
+            if (normalizedId) {
+              completedSet!.add(normalizedId);
+            }
+          });
+        }
+      });
+
+      // Step 8: Format the response with userPercentage calculation
+      const formattedDecks = decks.map((deck: any) => {
+        let creator: any = null;
+        if (deck.userId && typeof deck.userId === 'object' && deck.userId._id) {
+          creator = {
+            id: deck.userId._id.toString(),
+            name: deck.userId.name || null,
+            email: deck.userId.email || null,
+            userType: deck.userId.userType || null
+          };
+        }
+
+        // Calculate userPercentage
+        let userPercentage = 0;
+        const contentIds = deck.contentIds || [];
+        
+        if (contentIds.length > 0) {
+          // Get topics for this deck from the pre-fetched map
+          const deckTopics = contentIds
+            .map((id: any) => {
+              const normalizedId = this.normalizeId(id);
+              return normalizedId ? topicsMap.get(normalizedId) : null;
+            })
+            .filter((topic: any) => topic !== null);
+
+          // Count total subtopics across all topics
+          let totalSubtopics = 0;
+          const allSubtopicIds: string[] = [];
           
-          if (contentIds.length > 0) {
-            // Get all topics for this deck
-            const topics = await this.topicModel
-              .find({ _id: { $in: contentIds } })
-              .select('subTopics')
-              .lean()
-              .exec();
+          deckTopics.forEach((topic: any) => {
+            if (topic.subTopics && Array.isArray(topic.subTopics)) {
+              const subtopicIds = topic.subTopics.map((id: any) => 
+                this.normalizeId(id)
+              ).filter((id: string | null): id is string => !!id);
+              allSubtopicIds.push(...subtopicIds);
+              totalSubtopics += subtopicIds.length;
+            }
+          });
 
-            // Count total subtopics across all topics
-            let totalSubtopics = 0;
-            const allSubtopicIds: string[] = [];
-            
-            topics.forEach((topic: any) => {
-              if (topic.subTopics && Array.isArray(topic.subTopics)) {
-                const subtopicIds = topic.subTopics.map((id: any) => 
-                  this.normalizeId(id)
-                ).filter((id: string | null): id is string => !!id);
-                allSubtopicIds.push(...subtopicIds);
-                totalSubtopics += subtopicIds.length;
+          // Count completed subtopics for this user
+          let completedSubtopics = 0;
+          if (totalSubtopics > 0 && allSubtopicIds.length > 0) {
+            // Collect all completed subtopic IDs from pre-fetched data
+            const completedSubTopicIds = new Set<string>();
+            contentIds.forEach((topicId: any) => {
+              const normalizedTopicId = this.normalizeId(topicId);
+              if (normalizedTopicId) {
+                const completedSet = completedSubTopicsByTopic.get(normalizedTopicId);
+                if (completedSet) {
+                  completedSet.forEach((subTopicId) => {
+                    completedSubTopicIds.add(subTopicId);
+                  });
+                }
               }
             });
 
-            // Count completed subtopics for this user
-            let completedSubtopics = 0;
-            if (totalSubtopics > 0 && allSubtopicIds.length > 0) {
-              // Get all TopicProgress records for this user and these topics
-              const topicProgressRecords = await this.topicProgressModel
-                .find({
-                  userId: userId,
-                  topicId: { $in: contentIds }
-                })
-                .select('completedSubTopicIds')
-                .lean()
-                .exec();
+            // Count how many of the deck's subtopics are completed
+            allSubtopicIds.forEach((subTopicId) => {
+              if (completedSubTopicIds.has(subTopicId)) {
+                completedSubtopics++;
+              }
+            });
 
-              // Collect all completed subtopic IDs
-              const completedSubTopicIds = new Set<string>();
-              topicProgressRecords.forEach((progress: any) => {
-                if (progress.completedSubTopicIds && Array.isArray(progress.completedSubTopicIds)) {
-                  progress.completedSubTopicIds.forEach((subTopicId: any) => {
-                    const normalizedId = this.normalizeId(subTopicId);
-                    if (normalizedId) {
-                      completedSubTopicIds.add(normalizedId);
-                    }
-                  });
-                }
-              });
-
-              // Count how many of the deck's subtopics are completed
-              allSubtopicIds.forEach((subTopicId) => {
-                if (completedSubTopicIds.has(subTopicId)) {
-                  completedSubtopics++;
-                }
-              });
-
-              // Calculate percentage
-              userPercentage = totalSubtopics > 0
-                ? Math.round((completedSubtopics / totalSubtopics) * 100 * 100) / 100
-                : 0;
-            }
+            // Calculate percentage
+            userPercentage = totalSubtopics > 0
+              ? Math.round((completedSubtopics / totalSubtopics) * 100 * 100) / 100
+              : 0;
           }
+        }
 
-          return {
-            id: deck._id,
-            name: deck.name,
-            description: deck.description,
-            category: deck.category,
-            status: deck.status,
-            isDefault: deck.isDefault,
-            isPublic: deck.isPublic,
-            contentIds: deck.contentIds,
-            contentCount: deck.contentIds?.length || 0,
-            creator: creator,
-            userPercentage: userPercentage,
-            createdAt: deck.createdAt,
-            updatedAt: deck.updatedAt
-          };
-        })
-      );
+        return {
+          id: deck._id,
+          name: deck.name,
+          description: deck.description,
+          category: deck.category,
+          status: deck.status,
+          isDefault: deck.isDefault,
+          isPublic: deck.isPublic,
+          contentIds: deck.contentIds,
+          contentCount: deck.contentIds?.length || 0,
+          creator: creator,
+          userPercentage: userPercentage,
+          createdAt: deck.createdAt,
+          updatedAt: deck.updatedAt
+        };
+      });
 
       // Step 8: Get organization details for response
       const organizations = await this.organizationModel
@@ -3457,44 +3277,58 @@ export class TeamService {
                   .lean()
                   .exec();
 
-                const membersWithPoints = await Promise.all(
-                  allTeamMembers.map(async (member: any) => {
-                    let totalPoints = 0;
-                    const memberUserId = member.user && typeof member.user === 'object' && member.user._id
-                      ? this.normalizeId(member.user._id)
-                      : null;
+                // Collect all valid user IDs
+                const memberUserIds = allTeamMembers
+                  .map((m: any) => m.user && typeof m.user === 'object' && m.user._id
+                    ? this.normalizeId(m.user._id)
+                    : null)
+                  .filter((id: string | null): id is string => id !== null && isValidObjectId(id))
+                  .map((id: string) => new Types.ObjectId(id));
 
-                    if (memberUserId && isValidObjectId(memberUserId)) {
-                      try {
-                        const pointsAggregation = await this.teamGameScoreModel.aggregate([
-                          {
-                            $match: {
-                              userId: new Types.ObjectId(memberUserId),
-                              teamId: new Types.ObjectId(teamId)
-                            }
-                          },
-                          {
-                            $group: {
-                              _id: null,
-                              totalPoints: { $sum: '$points' }
-                            }
-                          }
-                        ]);
-
-                        if (pointsAggregation.length > 0) {
-                          totalPoints = pointsAggregation[0].totalPoints || 0;
+                // Single aggregation query for all members
+                let allPoints: any[] = [];
+                if (memberUserIds.length > 0) {
+                  try {
+                    allPoints = await this.teamGameScoreModel.aggregate([
+                      {
+                        $match: {
+                          userId: { $in: memberUserIds },
+                          teamId: new Types.ObjectId(teamId)
                         }
-                      } catch (err) {
-                        console.error('Error calculating points for member:', err);
+                      },
+                      {
+                        $group: {
+                          _id: '$userId',
+                          totalPoints: { $sum: '$points' }
+                        }
                       }
-                    }
+                    ]);
+                  } catch (err) {
+                    console.error('Error calculating points for members:', err);
+                  }
+                }
 
-                    return {
-                      userId: memberUserId,
-                      totalPoints: totalPoints
-                    };
-                  })
-                );
+                // Create a map of userId to totalPoints
+                const pointsMap = new Map<string, number>();
+                allPoints.forEach((result: any) => {
+                  const userId = this.normalizeId(result._id);
+                  if (userId) {
+                    pointsMap.set(userId, result.totalPoints || 0);
+                  }
+                });
+
+                // Map members with their points
+                const membersWithPoints = allTeamMembers.map((member: any) => {
+                  const memberUserId = member.user && typeof member.user === 'object' && member.user._id
+                    ? this.normalizeId(member.user._id)
+                    : null;
+                  const totalPoints = memberUserId ? (pointsMap.get(memberUserId) || 0) : 0;
+
+                  return {
+                    userId: memberUserId,
+                    totalPoints: totalPoints
+                  };
+                });
 
                 membersWithPoints.sort((a, b) => b.totalPoints - a.totalPoints);
                 
@@ -3552,62 +3386,127 @@ export class TeamService {
         averageResponseTime = 0;
       }
 
-      // Process decks and build topic-wise accuracy from topics table
-      const responseDecks = await Promise.all(
-        decks.map(async (deck: any) => {
-          // Get all topics for this deck
-          const topicIds = (deck.contentIds || []).filter((id: any) => id);
+      // Process decks and build topic-wise accuracy from topics table (optimization: batch fetch all topics)
+      // 1. Collect all unique topic IDs from all decks
+      const allTopicIdsSet = new Set<string>();
+      decks.forEach((deck: any) => {
+        const topicIds = (deck.contentIds || []).filter((id: any) => id);
+        topicIds.forEach((id: any) => {
+          const normalizedId = this.normalizeId(id);
+          if (normalizedId) {
+            allTopicIdsSet.add(normalizedId);
+          }
+        });
+      });
+
+      const allTopicIds = Array.from(allTopicIdsSet);
+
+      // 2. Batch fetch all topics at once
+      const allTopics = await this.topicModel
+        .find({ _id: { $in: allTopicIds } })
+        .select('_id title subTopics flashcardAccuracies battleAccuracies')
+        .lean()
+        .exec();
+
+      // 3. Create a map of topics by ID
+      const topicsMap = new Map<string, any>();
+      allTopics.forEach((topic: any) => {
+        const topicId = this.normalizeId(topic._id);
+        if (topicId) {
+          topicsMap.set(topicId, topic);
+        }
+      });
+
+      // 3.5. OPTIMIZATION: Pre-process all accuracy arrays into Maps for O(1) lookup
+      // Create Maps: key = `${topicId}:${userId}`, value = accuracy
+      const flashcardAccuracyMap = new Map<string, number>();
+      const battleAccuracyMap = new Map<string, number>();
+      
+      allTopics.forEach((topic: any) => {
+        const topicId = this.normalizeId(topic._id);
+        if (!topicId) return;
+
+        // Process flashcard accuracies
+        if (topic.flashcardAccuracies && Array.isArray(topic.flashcardAccuracies)) {
+          topic.flashcardAccuracies.forEach((entry: any) => {
+            const userId = this.normalizeId(entry.userId);
+            if (userId) {
+              const key = `${topicId}:${userId}`;
+              flashcardAccuracyMap.set(key, entry.accuracy || 0);
+            }
+          });
+        }
+
+        // Process battle accuracies
+        if (topic.battleAccuracies && Array.isArray(topic.battleAccuracies)) {
+          topic.battleAccuracies.forEach((entry: any) => {
+            const userId = this.normalizeId(entry.userId);
+            if (userId) {
+              const key = `${topicId}:${userId}`;
+              battleAccuracyMap.set(key, entry.accuracy || 0);
+            }
+          });
+        }
+      });
+
+      // 4. Process decks and map topics from the pre-fetched map
+      const responseDecks = decks.map((deck: any) => {
+        // Get all topics for this deck
+        const topicIds = (deck.contentIds || []).filter((id: any) => id);
+        
+        // Build topics array with accuracy per topic from pre-fetched topics map
+        const topicsWithAccuracy = topicIds.map((topicId: any) => {
+          const normalizedTopicId = this.normalizeId(topicId);
+          if (!normalizedTopicId) {
+            return {
+              topicId: null,
+              title: null,
+              flashcardAccuracy: 0,
+              battleAccuracy: 0,
+              improvementPercentage: 0,
+            };
+          }
+
+          const topic = topicsMap.get(normalizedTopicId);
+          if (!topic) {
+            return {
+              topicId: normalizedTopicId,
+              title: null,
+              flashcardAccuracy: 0,
+              battleAccuracy: 0,
+              improvementPercentage: 0,
+            };
+          }
           
-          // Fetch topic details with flashcard and battle accuracies
-          const topics = await this.topicModel
-            .find({ _id: { $in: topicIds } })
-            .select('_id title subTopics flashcardAccuracies battleAccuracies')
-            .lean()
-            .exec();
+          // OPTIMIZATION: Use Map.get() instead of array.find() - O(1) vs O(n)
+          const accuracyKey = `${normalizedTopicId}:${effectiveUserId}`;
+          const flashAccuracy = flashcardAccuracyMap.get(accuracyKey) ?? 0;
+          const battleAccuracy = battleAccuracyMap.get(accuracyKey) ?? 0;
 
-          // Build topics array with accuracy per topic from topics table
-          const topicsWithAccuracy = await Promise.all(
-            topics.map(async (topic: any) => {
-              const topicId = this.normalizeId(topic._id);
-              
-              // Get flashcard accuracy for this user from topic table
-              const flashEntry = (topic.flashcardAccuracies || []).find(
-                (entry: any) => this.normalizeId(entry.userId) === effectiveUserId,
-              );
-              const flashAccuracy = flashEntry?.accuracy ?? 0;
-
-              // Get battle accuracy for this user from topic table
-              const battleEntry = (topic.battleAccuracies || []).find(
-                (entry: any) => this.normalizeId(entry.userId) === effectiveUserId,
-              );
-              const battleAccuracy = battleEntry?.accuracy ?? 0;
-
-              // Calculate improvement percentage (battleAccuracy/flashcardAccuracy * 100)
-              let improvementPercentage = 0;
-              if (flashAccuracy > 0) {
-                improvementPercentage = Math.round((battleAccuracy / flashAccuracy) * 100 * 100) / 100;
-              }
-              
-              return {
-                topicId: topicId,
-                title: topic.title || null,
-                flashcardAccuracy: flashAccuracy,
-                battleAccuracy: battleAccuracy,
-                improvementPercentage: improvementPercentage,
-              };
-            })
-          );
-
+          // Calculate improvement percentage (battleAccuracy/flashcardAccuracy * 100)
+          let improvementPercentage = 0;
+          if (flashAccuracy > 0) {
+            improvementPercentage = Math.round((battleAccuracy / flashAccuracy) * 100 * 100) / 100;
+          }
+          
           return {
-            deckId: this.normalizeId(deck._id),
-            name: deck.name,
-            description: deck.description ?? null,
-            category: deck.category ?? null,
-            topics: topicsWithAccuracy,
-            averageResponseTime: averageResponseTime,
+            topicId: normalizedTopicId,
+            title: topic.title || null,
+            flashcardAccuracy: flashAccuracy,
+            battleAccuracy: battleAccuracy,
+            improvementPercentage: improvementPercentage,
           };
-        })
-      );
+        });
+
+        return {
+          deckId: this.normalizeId(deck._id),
+          name: deck.name,
+          description: deck.description ?? null,
+          category: deck.category ?? null,
+          topics: topicsWithAccuracy,
+          averageResponseTime: averageResponseTime,
+        };
+      });
 
       // Calculate user accuracy from TeamMember's gameAccuracy field
       let userAccuracy = 0;
@@ -3642,47 +3541,59 @@ export class TeamService {
                 .lean()
                 .exec();
 
-              // Calculate points for each member and sort by points
-              const membersWithPoints = await Promise.all(
-                allTeamMembers.map(async (member: any) => {
-                  let totalPoints = 0;
-                  const memberUserId = member.user && typeof member.user === 'object' && member.user._id
-                    ? this.normalizeId(member.user._id)
-                    : null;
+              // Collect all valid user IDs
+              const memberUserIds = allTeamMembers
+                .map((m: any) => m.user && typeof m.user === 'object' && m.user._id
+                  ? this.normalizeId(m.user._id)
+                  : null)
+                .filter((id: string | null): id is string => id !== null && isValidObjectId(id))
+                .map((id: string) => new Types.ObjectId(id));
 
-                  if (memberUserId && isValidObjectId(memberUserId)) {
-                    try {
-                      // Aggregate total points for this user in this team
-                      const pointsAggregation = await this.teamGameScoreModel.aggregate([
-                        {
-                          $match: {
-                            userId: new Types.ObjectId(memberUserId),
-                            teamId: new Types.ObjectId(teamId)
-                          }
-                        },
-                        {
-                          $group: {
-                            _id: null,
-                            totalPoints: { $sum: '$points' }
-                          }
-                        }
-                      ]);
-
-                      if (pointsAggregation.length > 0) {
-                        totalPoints = pointsAggregation[0].totalPoints || 0;
+              // Single aggregation query for all members
+              let allPoints: any[] = [];
+              if (memberUserIds.length > 0) {
+                try {
+                  allPoints = await this.teamGameScoreModel.aggregate([
+                    {
+                      $match: {
+                        userId: { $in: memberUserIds },
+                        teamId: new Types.ObjectId(teamId)
                       }
-                    } catch (err) {
-                      // If aggregation fails, totalPoints remains 0
-                      console.error('Error calculating points for member:', err);
+                    },
+                    {
+                      $group: {
+                        _id: '$userId',
+                        totalPoints: { $sum: '$points' }
+                      }
                     }
-                  }
+                  ]);
+                } catch (err) {
+                  // If aggregation fails, allPoints remains empty
+                  console.error('Error calculating points for members:', err);
+                }
+              }
 
-                  return {
-                    userId: memberUserId,
-                    totalPoints: totalPoints
-                  };
-                })
-              );
+              // Create a map of userId to totalPoints
+              const pointsMap = new Map<string, number>();
+              allPoints.forEach((result: any) => {
+                const userId = this.normalizeId(result._id);
+                if (userId) {
+                  pointsMap.set(userId, result.totalPoints || 0);
+                }
+              });
+
+              // Map members with their points
+              const membersWithPoints = allTeamMembers.map((member: any) => {
+                const memberUserId = member.user && typeof member.user === 'object' && member.user._id
+                  ? this.normalizeId(member.user._id)
+                  : null;
+                const totalPoints = memberUserId ? (pointsMap.get(memberUserId) || 0) : 0;
+
+                return {
+                  userId: memberUserId,
+                  totalPoints: totalPoints
+                };
+              });
 
               // Sort by points (descending) and assign rank
               membersWithPoints.sort((a, b) => b.totalPoints - a.totalPoints);
@@ -3764,49 +3675,69 @@ export class TeamService {
         .lean()
         .exec();
 
-      // Step 5: For each member with a user, calculate total points from TeamGameScore
-      const membersWithPoints = await Promise.all(
-        members.map(async (member: any) => {
-          let totalPoints = 0;
-          let userId = null;
+      // Step 5: Collect all valid user IDs and calculate total points from TeamGameScore
+      const memberUserIds = members
+        .map((m: any) => m.user && typeof m.user === 'object' && m.user._id
+          ? new Types.ObjectId(m.user._id)
+          : null)
+        .filter((id: Types.ObjectId | null): id is Types.ObjectId => id !== null);
 
-          if (member.user && typeof member.user === 'object' && member.user._id) {
-            userId = member.user._id;
-            // Aggregate total points for this user in this team
-            const pointsAggregation = await this.teamGameScoreModel.aggregate([
-              {
-                $match: {
-                  userId: userId,
-                  teamId: team._id
-                }
-              },
-              {
-                $group: {
-                  _id: null,
-                  totalPoints: { $sum: '$points' }
-                }
+      // Single aggregation query for all members
+      let allPoints: any[] = [];
+      if (memberUserIds.length > 0) {
+        try {
+          allPoints = await this.teamGameScoreModel.aggregate([
+            {
+              $match: {
+                userId: { $in: memberUserIds },
+                teamId: team._id
               }
-            ]);
-
-            if (pointsAggregation.length > 0) {
-              totalPoints = pointsAggregation[0].totalPoints || 0;
+            },
+            {
+              $group: {
+                _id: '$userId',
+                totalPoints: { $sum: '$points' }
+              }
             }
-          }
+          ]);
+        } catch (err) {
+          console.error('Error calculating points for members:', err);
+        }
+      }
 
-          return {
-            id: this.normalizeId(member._id),
-            userId: userId ? this.normalizeId(userId) : null,
-            name: member.user?.name ?? null,
-            email: member.user?.email ?? member.email ?? null,
-            profileImage: member.user?.profileImage ?? null,
-            isAdmin: member.isAdmin ?? false,
-            status: member.status ?? null,
-            joinedAt: member.joinedAt ?? null,
-            points: totalPoints,
-            isOnline: member.user?.isOnline ?? false
-          };
-        })
-      );
+      // Create a map of userId to totalPoints
+      const pointsMap = new Map<string, number>();
+      allPoints.forEach((result: any) => {
+        const userId = this.normalizeId(result._id);
+        if (userId) {
+          pointsMap.set(userId, result.totalPoints || 0);
+        }
+      });
+
+      // Map members with their points
+      const membersWithPoints = members.map((member: any) => {
+        let userId = null;
+        let totalPoints = 0;
+
+        if (member.user && typeof member.user === 'object' && member.user._id) {
+          userId = member.user._id;
+          const normalizedUserId = this.normalizeId(userId);
+          totalPoints = normalizedUserId ? (pointsMap.get(normalizedUserId) || 0) : 0;
+        }
+
+        return {
+          id: this.normalizeId(member._id),
+          userId: userId ? this.normalizeId(userId) : null,
+          name: member.user?.name ?? null,
+          email: member.user?.email ?? member.email ?? null,
+          profileImage: member.user?.profileImage ?? null,
+          isAdmin: member.isAdmin ?? false,
+          status: member.status ?? null,
+          joinedAt: member.joinedAt ?? null,
+          points: totalPoints,
+          isOnline: member.user?.isOnline ?? false
+        };
+      });
 
       // Step 6: Sort members by points (highest first, lowest last)
       membersWithPoints.sort((a, b) => {
@@ -3955,108 +3886,199 @@ export class TeamService {
         .lean()
         .exec();
 
-      // Step 5: For each team, get members with details
-      const teamsWithMembers = await Promise.all(
-        teams.map(async (team: any) => {
-          // Get organization details for this team
-          const teamOrg = organizations.find(
-            org => org._id.toString() === team.organization.toString()
-          );
+      // Step 5: Batch fetch all data at once (optimization)
+      const teamIds = teams.map((t: any) => t._id);
+      const creatorIds = teams.map((t: any) => t.creator).filter((id: any) => id);
 
-          // Get creator details
-          const creator = await this.userModel.findById(team.creator);
-          
-          // Get team members filtered by status
-          const members = await this.teamMemberModel
-            .find({ 
-              team: team._id,
-              status: { $in: statusFilter }
-            })
-            .populate('user', 'name email profileImage')
-            .lean()
-            .exec();
+      // 1. Batch fetch all creators
+      const allCreators = await this.userModel
+        .find({ _id: { $in: creatorIds } })
+        .select('_id name email')
+        .lean()
+        .exec();
+      
+      const creatorsMap = new Map<string, any>();
+      allCreators.forEach((creator: any) => {
+        const creatorId = this.normalizeId(creator._id);
+        if (creatorId) {
+          creatorsMap.set(creatorId, creator);
+        }
+      });
 
-          // Process members with points calculation
-          const membersWithPoints = await Promise.all(
-            members.map(async (member: any) => {
-              let totalPoints = 0;
-              let userId = null;
+      // 2. Batch fetch all members for all teams (with status filter for display)
+      const allMembers = await this.teamMemberModel
+        .find({
+          team: { $in: teamIds },
+          status: { $in: statusFilter }
+        })
+        .populate('user', 'name email profileImage')
+        .lean()
+        .exec();
 
-              // Only calculate points for approved members with user accounts
-              if (member.user && typeof member.user === 'object' && member.user._id && member.status === 'approved') {
-                userId = member.user._id;
-                // Aggregate total points for this user in this team
-                const pointsAggregation = await this.teamGameScoreModel.aggregate([
-                  {
-                    $match: {
-                      userId: userId,
-                      teamId: team._id
-                    }
-                  },
-                  {
-                    $group: {
-                      _id: null,
-                      totalPoints: { $sum: '$points' }
-                    }
-                  }
-                ]);
+      // Also get total counts for each team (for memberCount - includes all statuses)
+      const memberCountsByTeam = await this.teamMemberModel.aggregate([
+        {
+          $match: {
+            team: { $in: teamIds }
+          }
+        },
+        {
+          $group: {
+            _id: '$team',
+            totalCount: { $sum: 1 }
+          }
+        }
+      ]);
 
-                if (pointsAggregation.length > 0) {
-                  totalPoints = pointsAggregation[0].totalPoints || 0;
-                }
+      const memberCountMap = new Map<string, number>();
+      memberCountsByTeam.forEach((result: any) => {
+        const teamId = this.normalizeId(result._id);
+        if (teamId) {
+          memberCountMap.set(teamId, result.totalCount || 0);
+        }
+      });
+
+      // Group members by team
+      const membersByTeam = new Map<string, any[]>();
+      allMembers.forEach((member: any) => {
+        const teamId = this.normalizeId(member.team);
+        if (teamId) {
+          if (!membersByTeam.has(teamId)) {
+            membersByTeam.set(teamId, []);
+          }
+          membersByTeam.get(teamId)!.push(member);
+        }
+      });
+
+      // 3. Collect all valid user IDs for approved members only (for points aggregation)
+      const allApprovedMemberUserIds = allMembers
+        .filter((m: any) => m.user && typeof m.user === 'object' && m.user._id && m.status === 'approved')
+        .map((m: any) => new Types.ObjectId(m.user._id));
+
+      // 4. Single aggregation query for all points (grouped by userId and teamId)
+      let allPointsAggregation: any[] = [];
+      if (allApprovedMemberUserIds.length > 0 && teamIds.length > 0) {
+        try {
+          allPointsAggregation = await this.teamGameScoreModel.aggregate([
+            {
+              $match: {
+                userId: { $in: allApprovedMemberUserIds },
+                teamId: { $in: teamIds }
               }
+            },
+            {
+              $group: {
+                _id: {
+                  userId: '$userId',
+                  teamId: '$teamId'
+                },
+                totalPoints: { $sum: '$points' }
+              }
+            }
+          ]);
+        } catch (err) {
+          console.error('Error calculating points for members:', err);
+        }
+      }
 
-              return {
-                id: this.normalizeId(member._id),
-                userId: userId ? this.normalizeId(userId) : null,
-                name: member.user?.name ?? null,
-                email: member.user?.email ?? member.email ?? null,
-                profileImage: member.user?.profileImage ?? null,
-                isAdmin: member.isAdmin ?? false,
-                status: member.status ?? null,
-                joinedAt: member.joinedAt ?? null,
-                points: totalPoints
-              };
-            })
-          );
+      // Create a map of (userId, teamId) to totalPoints
+      const pointsMap = new Map<string, number>();
+      allPointsAggregation.forEach((result: any) => {
+        const userId = this.normalizeId(result._id.userId);
+        const teamId = this.normalizeId(result._id.teamId);
+        if (userId && teamId) {
+          const key = `${teamId}:${userId}`;
+          pointsMap.set(key, result.totalPoints || 0);
+        }
+      });
 
-          // Sort members: approved first (by points desc), then pending
-          membersWithPoints.sort((a, b) => {
-            // First, sort by status: approved comes before pending
-            if (a.status === 'approved' && b.status === 'pending') return -1;
-            if (a.status === 'pending' && b.status === 'approved') return 1;
-            // If same status, sort by points (highest first)
-            return b.points - a.points;
-          });
+      // Step 5: Process teams with members
+      const teamsWithMembers = teams.map((team: any) => {
+        // Get organization details for this team
+        const teamOrg = organizations.find(
+          org => org._id.toString() === team.organization.toString()
+        );
 
-          // Assign rank
-          membersWithPoints.forEach((member, index) => {
-            (member as any).rank = index + 1;
-          });
+        // Get creator from map
+        const teamCreatorId = this.normalizeId(team.creator);
+        const creator = teamCreatorId ? creatorsMap.get(teamCreatorId) : null;
 
-          // Sync memberCount
-          const actualMemberCount = await this.syncTeamMemberCount(team._id.toString());
-          const updatedTeam = await this.teamModel.findById(team._id);
+        // Get members for this team
+        const teamIdStr = team._id.toString();
+        const members = membersByTeam.get(teamIdStr) || [];
+
+        // Process members with points calculation
+        const membersWithPoints = members.map((member: any) => {
+          let totalPoints = 0;
+          let userId = null;
+
+          // Only calculate points for approved members with user accounts
+          if (member.user && typeof member.user === 'object' && member.user._id && member.status === 'approved') {
+            userId = member.user._id;
+            const normalizedUserId = this.normalizeId(userId);
+            if (normalizedUserId) {
+              const key = `${teamIdStr}:${normalizedUserId}`;
+              totalPoints = pointsMap.get(key) || 0;
+            }
+          }
 
           return {
-            id: team._id.toString(),
-            name: team.teamName,
-            creator: creator ? {
-              id: creator._id.toString(),
-              email: creator.email,
-              name: creator.name
-            } : null,
-            organization: teamOrg ? {
-              id: teamOrg._id.toString(),
-              name: teamOrg.name,
-              logo: teamOrg.logo
-            } : null,
-            memberCount: updatedTeam?.memberCount || actualMemberCount,
-            isActive: team.isActive,
-            createdAt: team.createdAt,
-            members: membersWithPoints,
-            totalMembers: membersWithPoints.length
+            id: this.normalizeId(member._id),
+            userId: userId ? this.normalizeId(userId) : null,
+            name: member.user?.name ?? null,
+            email: member.user?.email ?? member.email ?? null,
+            profileImage: member.user?.profileImage ?? null,
+            isAdmin: member.isAdmin ?? false,
+            status: member.status ?? null,
+            joinedAt: member.joinedAt ?? null,
+            points: totalPoints
           };
+        });
+
+        // Sort members: approved first (by points desc), then pending
+        membersWithPoints.sort((a, b) => {
+          // First, sort by status: approved comes before pending
+          if (a.status === 'approved' && b.status === 'pending') return -1;
+          if (a.status === 'pending' && b.status === 'approved') return 1;
+          // If same status, sort by points (highest first)
+          return b.points - a.points;
+        });
+
+        // Assign rank
+        membersWithPoints.forEach((member, index) => {
+          (member as any).rank = index + 1;
+        });
+
+        // Get synced memberCount (total count of all members regardless of status filter)
+        const actualMemberCount = memberCountMap.get(teamIdStr) || 0;
+
+        return {
+          id: team._id.toString(),
+          name: team.teamName,
+          creator: creator ? {
+            id: creator._id.toString(),
+            email: creator.email,
+            name: creator.name
+          } : null,
+          organization: teamOrg ? {
+            id: teamOrg._id.toString(),
+            name: teamOrg.name,
+            logo: teamOrg.logo
+          } : null,
+          memberCount: actualMemberCount,
+          isActive: team.isActive,
+          createdAt: team.createdAt,
+          members: membersWithPoints,
+          totalMembers: membersWithPoints.length
+        };
+      });
+
+      // Sync member counts for all teams (update database with calculated counts)
+      await Promise.all(
+        teams.map(async (team: any) => {
+          const teamIdStr = team._id.toString();
+          const count = memberCountMap.get(teamIdStr) || 0;
+          await this.teamModel.findByIdAndUpdate(teamIdStr, { memberCount: count });
         })
       );
 
@@ -4166,248 +4188,338 @@ export class TeamService {
         .lean()
         .exec();
 
-      // Step 4: Build dashboard data for each team
-      const teamsData = await Promise.all(
-        teams.map(async (team) => {
-          // Get team's total points from team table
-          const teamTotalPoints = team.points || 0;
+      // Step 4: Batch fetch all data at once (optimization)
+      const teamIds = teams.map((t: any) => t._id);
 
-          // Get all approved members of this team
-          const members = await this.teamMemberModel
-            .find({ team: team._id, status: 'approved' })
-            .populate('user', 'name email profileImage')
-            .lean()
-            .exec();
+      // 1. Batch fetch all approved members for all teams
+      const allMembers = await this.teamMemberModel
+        .find({
+          team: { $in: teamIds },
+          status: 'approved'
+        })
+        .populate('user', 'name email profileImage')
+        .lean()
+        .exec();
 
-          // Process each member
-          const membersData = await Promise.all(
-            members.map(async (member: any) => {
-              if (!member.user || !member.user._id) {
-                // Member without user account (pending)
-                return {
-                  ...member,
-                  scores: [],
-                  totalPoints: teamTotalPoints, // Use team's total points
-                  accuracy: '0.00',
-                  totalGamesPlayed: 0,
-                  totalQuestionsAnswered: 0,
-                  correctAnswers: 0
-                };
-              }
+      // Group members by team
+      const membersByTeam = new Map<string, any[]>();
+      allMembers.forEach((member: any) => {
+        const teamId = this.normalizeId(member.team);
+        if (teamId) {
+          if (!membersByTeam.has(teamId)) {
+            membersByTeam.set(teamId, []);
+          }
+          membersByTeam.get(teamId)!.push(member);
+        }
+      });
 
-              const memberUserId = member.user._id.toString();
+      // 2. Collect all member user IDs
+      const allMemberUserIds = allMembers
+        .filter((m: any) => m.user && typeof m.user === 'object' && m.user._id)
+        .map((m: any) => this.normalizeId(m.user._id))
+        .filter((id): id is string => id !== null && isValidObjectId(id));
 
-              // Get TeamGameScore for this user and team
-              const teamGameScores = await this.teamGameScoreModel
-                .find({
-                  userId: memberUserId,
-                  teamId: team._id
-                })
-                .lean()
-                .exec();
+      // 3. Batch fetch all GameProgress records
+      const allGameProgress = await this.gameProgressModel
+        .find({ userId: { $in: allMemberUserIds } })
+        .lean()
+        .exec();
 
-              // Get GameProgress for this user
-              const gameProgress = await this.gameProgressModel
-                .findOne({ userId: memberUserId })
-                .lean()
-                .exec();
+      const gameProgressMap = new Map<string, any>();
+      allGameProgress.forEach((gp: any) => {
+        const userId = this.normalizeId(gp.userId);
+        if (userId) {
+          gameProgressMap.set(userId, gp);
+        }
+      });
 
-              // Get game stats from GameProgress
-              const totalGamesPlayed = gameProgress?.totalGamesPlayed || 0;
-              const totalQuestionsAnswered = gameProgress?.totalQuestions || 0;
-              const correctAnswers = gameProgress?.totalCorrectAnswers || 0;
+      // 4. Batch fetch all TeamGameScore records
+      const allTeamGameScores = await this.teamGameScoreModel
+        .find({
+          userId: { $in: allMemberUserIds },
+          teamId: { $in: teamIds }
+        })
+        .lean()
+        .exec();
 
-              // Get accuracy from TeamMember's gameAccuracy field
-              const accuracy = member.gameAccuracy || 0;
+      // Group TeamGameScores by (teamId, userId) and get latest for each combination
+      const latestTeamGameScoresMap = new Map<string, any>();
+      allTeamGameScores.forEach((score: any) => {
+        const userId = this.normalizeId(score.userId);
+        const teamId = this.normalizeId(score.teamId);
+        if (userId && teamId) {
+          const key = `${teamId}:${userId}`;
+          const existing = latestTeamGameScoresMap.get(key);
+          if (!existing) {
+            latestTeamGameScoresMap.set(key, score);
+          } else {
+            // Keep the latest one based on updatedAt
+            const existingDate = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+            const scoreDate = score.updatedAt ? new Date(score.updatedAt).getTime() : 0;
+            if (scoreDate > existingDate) {
+              latestTeamGameScoresMap.set(key, score);
+            }
+          }
+        }
+      });
 
-              // Helper function to build subjectModeStats for specific topic IDs (from topics table)
-              const buildSubjectModeStats = async (topicIds: string[]): Promise<Record<string, any>> => {
-                const subjectModeStats: Record<string, any> = {};
-                
-                if (topicIds.length === 0) {
-                  return subjectModeStats;
-                }
+      // 5. Fetch org admins once (not in loop)
+      const orgAdmins = await this.userModel
+        .find({
+          $or: [
+            { organization: organizationId, userType: 'admin' },
+            { userType: 'superAdmin' }
+          ]
+        })
+        .select('_id')
+        .lean()
+        .exec();
 
-                // Get only the relevant topics
-                const topics = await this.topicModel
-                  .find({ _id: { $in: topicIds } })
-                  .lean()
-                  .exec();
+      const adminUserIds = orgAdmins.map((admin) =>
+        this.normalizeId(admin._id),
+      ).filter((id): id is string => id !== null);
 
-                for (const topic of topics) {
-                  const topicId = topic._id.toString();
-                  
-                  // Find flashcard accuracy for this user in this topic
-                  const flashcardAccuracyEntry = topic.flashcardAccuracies?.find(
-                    (acc: any) => acc.userId && acc.userId.toString() === memberUserId
-                  );
-                  const flashcardAccuracy = flashcardAccuracyEntry?.accuracy || 0;
+      // 6. Fetch all decks once (not in loop)
+      const orgDecks = await this.deckModel
+        .find({ userId: { $in: adminUserIds } })
+        .select('contentIds')
+        .lean()
+        .exec();
 
-                  // Find battle accuracy for this user in this topic
-                  const battleAccuracyEntry = topic.battleAccuracies?.find(
-                    (acc: any) => acc.userId && acc.userId.toString() === memberUserId
-                  );
-                  const battleAccuracy = battleAccuracyEntry?.accuracy || 0;
+      // 7. Collect all topic IDs from these decks
+      const topicIdsForStats: string[] = [];
+      orgDecks.forEach((deck: any) => {
+        if (deck.contentIds && Array.isArray(deck.contentIds)) {
+          deck.contentIds.forEach((contentId: any) => {
+            const normalizedId = this.normalizeId(contentId);
+            if (normalizedId && !topicIdsForStats.includes(normalizedId)) {
+              topicIdsForStats.push(normalizedId);
+            }
+          });
+        }
+      });
 
-                  // Calculate improvement (flashcardAccuracy/battleAccuracy * 100, handle division by zero)
-                  const improvement = battleAccuracy > 0 
-                    ? (flashcardAccuracy / battleAccuracy) * 100 
-                    : 0;
+      // 8. Batch fetch all topics once (not in loop)
+      const allTopics = await this.topicModel
+        .find({ _id: { $in: topicIdsForStats } })
+        .lean()
+        .exec();
 
-                  subjectModeStats[topicId] = {
-                    flashcardAccuracy: flashcardAccuracy || 0,
-                    battleAccuracy: battleAccuracy || 0,
-                    Improvement: Math.round(improvement * 100) / 100 || 0
-                  };
-                }
+      const topicsMap = new Map<string, any>();
+      allTopics.forEach((topic: any) => {
+        const topicId = this.normalizeId(topic._id);
+        if (topicId) {
+          topicsMap.set(topicId, topic);
+        }
+      });
 
-                // Also include any topic IDs that were requested but not found in the query
-                for (const topicId of topicIds) {
-                  if (!subjectModeStats[topicId]) {
-                    subjectModeStats[topicId] = {
-                      flashcardAccuracy: 0,
-                      battleAccuracy: 0,
-                      Improvement: 0
-                    };
-                  }
-                }
+      // OPTIMIZATION: Pre-process all accuracy arrays into Maps for O(1) lookup
+      // Create Maps: key = `${topicId}:${userId}`, value = accuracy
+      const flashcardAccuracyMap = new Map<string, number>();
+      const battleAccuracyMap = new Map<string, number>();
+      
+      allTopics.forEach((topic: any) => {
+        const topicId = this.normalizeId(topic._id);
+        if (!topicId) return;
 
-                return subjectModeStats;
-              };
+        // Process flashcard accuracies
+        if (topic.flashcardAccuracies && Array.isArray(topic.flashcardAccuracies)) {
+          topic.flashcardAccuracies.forEach((entry: any) => {
+            const userId = this.normalizeId(entry.userId);
+            if (userId) {
+              const key = `${topicId}:${userId}`;
+              flashcardAccuracyMap.set(key, entry.accuracy || 0);
+            }
+          });
+        }
 
-              // Process scores - use the latest score or aggregate if multiple exist
-              let scoresData: any[] = [];
-              let memberPoints = 0;
-              
-              if (teamGameScores.length > 0) {
-                // Sort by updatedAt descending to get the latest first
-                const sortedScores = [...teamGameScores].sort((a: any, b: any) => {
-                  const dateA = (a as any).updatedAt ? new Date((a as any).updatedAt).getTime() : 0;
-                  const dateB = (b as any).updatedAt ? new Date((b as any).updatedAt).getTime() : 0;
-                  return dateB - dateA;
-                });
+        // Process battle accuracies
+        if (topic.battleAccuracies && Array.isArray(topic.battleAccuracies)) {
+          topic.battleAccuracies.forEach((entry: any) => {
+            const userId = this.normalizeId(entry.userId);
+            if (userId) {
+              const key = `${topicId}:${userId}`;
+              battleAccuracyMap.set(key, entry.accuracy || 0);
+            }
+          });
+        }
+      });
 
-                // Use the latest score (first after sorting)
-                const latestScore = sortedScores[0];
-                memberPoints = latestScore.points || 0;
-                
-                // Get all topics from organization's decks
-                // Find all admins/superAdmins in the organization
-                const orgAdmins = await this.userModel
-                  .find({
-                    $or: [
-                      { organization: organizationId, userType: 'admin' },
-                      { userType: 'superAdmin' }
-                    ]
-                  })
-                  .select('_id')
-                  .lean()
-                  .exec();
+      // Helper function to build subjectModeStats (now using pre-fetched Maps - O(1) lookup)
+      const buildSubjectModeStats = (topicIds: string[], memberUserId: string): Record<string, any> => {
+        const subjectModeStats: Record<string, any> = {};
+        
+        if (topicIds.length === 0) {
+          return subjectModeStats;
+        }
 
-                const adminUserIds = orgAdmins.map((admin) =>
-                  this.normalizeId(admin._id),
-                ).filter((id): id is string => id !== null);
+        for (const topicId of topicIds) {
+          const topic = topicsMap.get(topicId);
+          if (!topic) {
+            subjectModeStats[topicId] = {
+              flashcardAccuracy: 0,
+              battleAccuracy: 0,
+              Improvement: 0
+            };
+            continue;
+          }
+          
+          // OPTIMIZATION: Use Map.get() instead of array.find() - O(1) vs O(n)
+          const accuracyKey = `${topicId}:${memberUserId}`;
+          const flashcardAccuracy = flashcardAccuracyMap.get(accuracyKey) || 0;
+          const battleAccuracy = battleAccuracyMap.get(accuracyKey) || 0;
 
-                // Get all decks created by organization's admins/superAdmins
-                const orgDecks = await this.deckModel
-                  .find({ userId: { $in: adminUserIds } })
-                  .select('contentIds')
-                  .lean()
-                  .exec();
+          // Calculate improvement (flashcardAccuracy/battleAccuracy * 100, handle division by zero)
+          const improvement = battleAccuracy > 0 
+            ? (flashcardAccuracy / battleAccuracy) * 100 
+            : 0;
 
-                // Collect all topic IDs from these decks
-                const topicIdsForStats: string[] = [];
-                orgDecks.forEach((deck: any) => {
-                  if (deck.contentIds && Array.isArray(deck.contentIds)) {
-                    deck.contentIds.forEach((contentId: any) => {
-                      const normalizedId = this.normalizeId(contentId);
-                      if (normalizedId && !topicIdsForStats.includes(normalizedId)) {
-                        topicIdsForStats.push(normalizedId);
-                      }
-                    });
-                  }
-                });
-                
-                // Build subjectModeStats for those topic IDs
-                const subjectModeStats = await buildSubjectModeStats(topicIdsForStats);
+          subjectModeStats[topicId] = {
+            flashcardAccuracy: flashcardAccuracy,
+            battleAccuracy: battleAccuracy,
+            Improvement: Math.round(improvement * 100) / 100 || 0
+          };
+        }
 
-                scoresData = [{
-                  _id: latestScore._id,
-                  teamId: latestScore.teamId?.toString() || team._id.toString(),
-                  userId: latestScore.userId?.toString() || memberUserId,
-                  points: latestScore.points || 0,
-                  accuracy: accuracy, // Use gameAccuracy from TeamMember
-                  totalGamesPlayed: totalGamesPlayed,
-                  totalQuestionsAnswered: totalQuestionsAnswered,
-                  correctAnswers: correctAnswers,
-                  averageResponseTime: latestScore.averageResponseTime || 0,
-                  subjectModeStats: subjectModeStats,
-                  createdAt: (latestScore as any).createdAt || new Date(),
-                  updatedAt: (latestScore as any).updatedAt || new Date(),
-                  __v: latestScore.__v || 0
-                }];
-              } else {
-                // If no TeamGameScore exists, create a default one with GameProgress data
-                // Return empty subjectModeStats when no score exists
-                scoresData = [{
-                  _id: null,
-                  teamId: team._id.toString(),
-                  userId: memberUserId,
-                  points: 0,
-                  accuracy: accuracy, // Use gameAccuracy from TeamMember
-                  totalGamesPlayed: totalGamesPlayed,
-                  totalQuestionsAnswered: totalQuestionsAnswered,
-                  correctAnswers: correctAnswers,
-                  averageResponseTime: 0,
-                  subjectModeStats: {},
-                  createdAt: new Date(),
-                  updatedAt: new Date(),
-                  __v: 0
-                }];
-              }
+        return subjectModeStats;
+      };
 
-              return {
-                _id: member._id,
-                team: member.team?.toString() || team._id.toString(),
-                organization: member.organization?.toString() || organizationId,
-                email: member.email || member.user?.email || null,
-                isAdmin: member.isAdmin || false,
-                status: member.status || 'approved',
-                joinedAt: member.joinedAt || new Date(),
-                __v: member.__v || 0,
-                user: {
-                  _id: member.user._id,
-                  name: member.user.name || null,
-                  email: member.user.email || null,
-                  profileImage: member.user.profileImage || null
-                },
-                scores: scoresData,
-                  totalPoints: memberPoints, // Member-specific points for ranking
-                accuracy: accuracy.toFixed(2),
-                totalGamesPlayed: totalGamesPlayed,
-                totalQuestionsAnswered: totalQuestionsAnswered,
-                correctAnswers: correctAnswers
-              };
-            })
-          );
+      // Step 5: Process teams with members
+      const teamsData = teams.map((team: any) => {
+        // Get team's total points from team table
+        const teamTotalPoints = team.points || 0;
+        const teamIdStr = team._id.toString();
 
-          // Add rank per member within this team based on points (desc)
-          const membersWithRank = [...membersData]
-            .sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0))
-            .map((member, index) => ({
+        // Get members for this team
+        const members = membersByTeam.get(teamIdStr) || [];
+
+        // Process each member
+        const membersData = members.map((member: any) => {
+          if (!member.user || !member.user._id) {
+            // Member without user account (pending)
+            return {
               ...member,
-              rank: index + 1,
-            }));
+              scores: [],
+              totalPoints: teamTotalPoints, // Use team's total points
+              accuracy: '0.00',
+              totalGamesPlayed: 0,
+              totalQuestionsAnswered: 0,
+              correctAnswers: 0
+            };
+          }
+
+          const memberUserId = this.normalizeId(member.user._id);
+          if (!memberUserId) {
+            return {
+              ...member,
+              scores: [],
+              totalPoints: 0,
+              accuracy: '0.00',
+              totalGamesPlayed: 0,
+              totalQuestionsAnswered: 0,
+              correctAnswers: 0
+            };
+          }
+
+          // Get GameProgress from map
+          const gameProgress = gameProgressMap.get(memberUserId);
+
+          // Get game stats from GameProgress
+          const totalGamesPlayed = gameProgress?.totalGamesPlayed || 0;
+          const totalQuestionsAnswered = gameProgress?.totalQuestions || 0;
+          const correctAnswers = gameProgress?.totalCorrectAnswers || 0;
+
+          // Get accuracy from TeamMember's gameAccuracy field
+          const accuracy = member.gameAccuracy || 0;
+
+          // Get latest TeamGameScore from map
+          const scoreKey = `${teamIdStr}:${memberUserId}`;
+          const latestScore = latestTeamGameScoresMap.get(scoreKey);
+
+          // Process scores - use the latest score or create default
+          let scoresData: any[] = [];
+          let memberPoints = 0;
+          
+          if (latestScore) {
+            memberPoints = latestScore.points || 0;
+            
+            // Build subjectModeStats using pre-fetched topics
+            const subjectModeStats = buildSubjectModeStats(topicIdsForStats, memberUserId);
+
+            scoresData = [{
+              _id: latestScore._id,
+              teamId: latestScore.teamId?.toString() || teamIdStr,
+              userId: latestScore.userId?.toString() || memberUserId,
+              points: latestScore.points || 0,
+              accuracy: accuracy,
+              totalGamesPlayed: totalGamesPlayed,
+              totalQuestionsAnswered: totalQuestionsAnswered,
+              correctAnswers: correctAnswers,
+              averageResponseTime: latestScore.averageResponseTime || 0,
+              subjectModeStats: subjectModeStats,
+              createdAt: latestScore.createdAt || new Date(),
+              updatedAt: latestScore.updatedAt || new Date(),
+              __v: latestScore.__v || 0
+            }];
+          } else {
+            // If no TeamGameScore exists, create a default one with GameProgress data
+            scoresData = [{
+              _id: null,
+              teamId: teamIdStr,
+              userId: memberUserId,
+              points: 0,
+              accuracy: accuracy,
+              totalGamesPlayed: totalGamesPlayed,
+              totalQuestionsAnswered: totalQuestionsAnswered,
+              correctAnswers: correctAnswers,
+              averageResponseTime: 0,
+              subjectModeStats: {},
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              __v: 0
+            }];
+          }
 
           return {
-            teamId: team._id.toString(),
-            teamName: team.teamName,
-            totalPoints: teamTotalPoints,
-            memberCount: membersWithRank.length,
-            members: membersWithRank
+            _id: member._id,
+            team: member.team?.toString() || teamIdStr,
+            organization: member.organization?.toString() || organizationId,
+            email: member.email || member.user?.email || null,
+            isAdmin: member.isAdmin || false,
+            status: member.status || 'approved',
+            joinedAt: member.joinedAt || new Date(),
+            __v: member.__v || 0,
+            user: {
+              _id: member.user._id,
+              name: member.user.name || null,
+              email: member.user.email || null,
+              profileImage: member.user.profileImage || null
+            },
+            scores: scoresData,
+            totalPoints: memberPoints, // Member-specific points for ranking
+            accuracy: accuracy.toFixed(2),
+            totalGamesPlayed: totalGamesPlayed,
+            totalQuestionsAnswered: totalQuestionsAnswered,
+            correctAnswers: correctAnswers
           };
-        })
-      );
+        });
+
+        // Add rank per member within this team based on points (desc)
+        const membersWithRank = [...membersData]
+          .sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0))
+          .map((member, index) => ({
+            ...member,
+            rank: index + 1,
+          }));
+
+        return {
+          teamId: team._id.toString(),
+          teamName: team.teamName,
+          totalPoints: teamTotalPoints,
+          memberCount: membersWithRank.length,
+          members: membersWithRank
+        };
+      });
 
       return {
         message: 'Dashboard data fetched successfully',
@@ -4428,46 +4540,6 @@ export class TeamService {
       );
     }
   }
-
-  // async updateDeckName(deckId: string, userId: string, name: string) {
-  //     // await this.assertIndividualUser(userId);
-      
-  //     if (!deckId) {
-  //       throw new BadRequestException('Deck ID is required');
-  //     }
-  //     if (!userId) {
-  //       throw new BadRequestException('User ID is required');
-  //     }
-  //     const trimmedName = name?.trim();
-  //     if (!trimmedName) {
-  //       throw new BadRequestException('Deck name is required');
-  //     }
-  
-  //     const normalizedDeckId = this.normalizeId(deckId);
-  //     const normalizedUserId = this.normalizeId(userId);
-  
-  //     if (!normalizedDeckId) {
-  //       throw new BadRequestException('Invalid deck ID');
-  //     }
-  //     if (!normalizedUserId) {
-  //       throw new BadRequestException('Invalid user ID');
-  //     }
-  
-  //     const deck = await this.deckModel.findById(normalizedDeckId);
-  //     if (!deck) {
-  //       throw new NotFoundException('Deck not found');
-  //     }
-  
-  //     const deckOwnerId = this.normalizeId(deck.userId);
-  //     if (deckOwnerId !== normalizedUserId) {
-  //       throw new BadRequestException('You can only update decks you created');
-  //     }
-  
-  //     deck.name = trimmedName;
-  //     await deck.save();
-  
-  //     return deck.toObject();
-  //   }
 
   async updateDeckName(deckId: string, userId: string, name: string) {
   if (!deckId) {
@@ -4656,59 +4728,75 @@ export class TeamService {
         .lean()
         .exec();
 
-      // Step 4: Get team information for each user
-      const formattedUsers = await Promise.all(
-        onlineUsers.map(async (user: any) => {
-          const normalizedUserId = this.normalizeId(user._id);
-          const normalizedOrgId = user.organization && typeof user.organization === 'object' 
-            ? this.normalizeId(user.organization._id) 
-            : this.normalizeId(user.organization);
+      // Step 4: Get team information for each user (optimization: batch fetch team members)
+      // 1. Collect all member user IDs
+      const memberUserIds = onlineUsers
+        .filter((user: any) => user.userType === 'member')
+        .map((user: any) => this.normalizeId(user._id))
+        .filter((id): id is string => id !== null && isValidObjectId(id));
 
-          // Initialize teamId and teamName
-          let teamId: string | null = null;
-          let teamName: string | null = null;
+      // 2. Batch fetch all team members for member users
+      const allTeamMembers = await this.teamMemberModel
+        .find({
+          user: { $in: memberUserIds },
+          status: 'approved' // Only approved members
+        })
+        .populate('team', 'teamName _id')
+        .lean()
+        .exec();
 
-          // Only get team information for members (superAdmin and admin should have null)
-          if (user.userType === 'member' && normalizedUserId) {
-            const teamMember = await this.teamMemberModel
-              .findOne({ 
-                user: normalizedUserId,
-                status: 'approved' // Only approved members
-              })
-              .populate('team', 'teamName _id')
-              .lean()
-              .exec();
+      // 3. Create a map of userId to team member (with team info)
+      const teamMemberMap = new Map<string, any>();
+      allTeamMembers.forEach((teamMember: any) => {
+        const userId = this.normalizeId(teamMember.user);
+        if (userId) {
+          teamMemberMap.set(userId, teamMember);
+        }
+      });
 
-            if (teamMember && teamMember.team) {
-              const team = teamMember.team as any;
-              if (team && typeof team === 'object' && team._id) {
-                teamId = this.normalizeId(team._id);
-                teamName = team.teamName || null;
-              }
+      // 4. Format users with team information from the map
+      const formattedUsers = onlineUsers.map((user: any) => {
+        const normalizedUserId = this.normalizeId(user._id);
+        const normalizedOrgId = user.organization && typeof user.organization === 'object' 
+          ? this.normalizeId(user.organization._id) 
+          : this.normalizeId(user.organization);
+
+        // Initialize teamId and teamName
+        let teamId: string | null = null;
+        let teamName: string | null = null;
+
+        // Only get team information for members (superAdmin and admin should have null)
+        if (user.userType === 'member' && normalizedUserId) {
+          const teamMember = teamMemberMap.get(normalizedUserId);
+          if (teamMember && teamMember.team) {
+            const team = teamMember.team as any;
+            if (team && typeof team === 'object' && team._id) {
+              teamId = this.normalizeId(team._id);
+              teamName = team.teamName || null;
             }
           }
-          // For superAdmin and admin, teamId and teamName remain null
+        }
+        // For superAdmin and admin, teamId and teamName remain null
 
-          return {
-            id: normalizedUserId,
-            name: user.name || null,
-            email: user.email || null,
-            userType: user.userType || null,
-            isOnline: user.isOnline || false,
-            profileImage: user.profileImage || null,
-            lastSeen: user.lastSeen || null,
-            teamId: teamId,
-            teamName: teamName,
-            organization: user.organization && typeof user.organization === 'object'
-              ? {
-                  id: normalizedOrgId,
-                  name: user.organization.name || null,
-                  logo: user.organization.logo || null
-                }
-              : null
-          };
-        })
-      );
+        return {
+          id: normalizedUserId,
+          name: user.name || null,
+          email: user.email || null,
+          userType: user.userType || null,
+          isOnline: user.isOnline || false,
+          profileImage: user.profileImage || null,
+          lastSeen: user.lastSeen || null,
+          teamId: teamId,
+          teamName: teamName,
+          organization: user.organization && typeof user.organization === 'object'
+            ? {
+                id: normalizedOrgId,
+                name: user.organization.name || null,
+                logo: user.organization.logo || null
+              }
+            : null
+        };
+      });
 
       return {
         statusCode: HttpStatus.OK,
