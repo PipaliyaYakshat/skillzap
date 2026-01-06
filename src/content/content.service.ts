@@ -1945,33 +1945,16 @@ export class ContentService {
     let foundInvite: PendingInvite | null = null;
     let foundInviteId: string | null = null;
 
-    // First, try to find invite using the helper method
-    foundInvite = this.findPendingInviteForUser(acceptorId, data?.gameId);
-    
-    // If found invite doesn't match inviter ID, or no invite found, do a full search
-    if (!foundInvite || (normalizedInviterId && foundInvite.fromUserId !== normalizedInviterId)) {
-      foundInvite = null;
-      foundInviteId = null;
+    // Single optimized search with all criteria - captures both invite and inviteId in one pass
+    for (const [inviteId, invite] of this.pendingInvites.entries()) {
+      const matchesAcceptor = invite.toUserId === normalizedAcceptorId;
+      const matchesInviter = !normalizedInviterId || invite.fromUserId === normalizedInviterId;
+      const matchesGameId = !data.gameId || invite.gameId === data.gameId;
       
-      // Single optimized search with all criteria
-      for (const [inviteId, invite] of this.pendingInvites.entries()) {
-        const matchesAcceptor = invite.toUserId === normalizedAcceptorId;
-        const matchesInviter = !normalizedInviterId || invite.fromUserId === normalizedInviterId;
-        const matchesGameId = !data.gameId || invite.gameId === data.gameId;
-        
-        if (matchesAcceptor && matchesInviter && matchesGameId) {
-          foundInvite = invite;
-          foundInviteId = inviteId;
-          break; // Early exit when found
-        }
-      }
-    } else {
-      // Found invite matches - find its ID for deletion
-      for (const [inviteId, invite] of this.pendingInvites.entries()) {
-        if (invite.inviteId === foundInvite.inviteId) {
-          foundInviteId = inviteId;
-          break;
-        }
+      if (matchesAcceptor && matchesInviter && matchesGameId) {
+        foundInvite = invite;
+        foundInviteId = inviteId;
+        break; // Early exit when found
       }
     }
     
