@@ -1940,44 +1940,44 @@ export class ContentService {
 
     // For team games, allow accepting even if inviter is offline (they're just the host/viewer)
     // Check if this is a team game by looking at the pending invite
-    let foundInvite = this.findPendingInviteForUser(acceptorId, data?.gameId);
+    // ✅ OPTIMIZATION: Single pass through pendingInvites instead of multiple loops
+    // This reduces worst-case time complexity from O(3n) to O(n)
+    let foundInvite: PendingInvite | null = null;
+    let foundInviteId: string | null = null;
+
+    // First, try to find invite using the helper method
+    foundInvite = this.findPendingInviteForUser(acceptorId, data?.gameId);
     
-    // Verify the found invite matches the inviter ID (if we have one)
-    if (foundInvite && normalizedInviterId && foundInvite.fromUserId !== normalizedInviterId) {
-      // Invite found but doesn't match the provided inviter ID - search again with full criteria
+    // If found invite doesn't match inviter ID, or no invite found, do a full search
+    if (!foundInvite || (normalizedInviterId && foundInvite.fromUserId !== normalizedInviterId)) {
       foundInvite = null;
+      foundInviteId = null;
+      
+      // Single optimized search with all criteria
       for (const [inviteId, invite] of this.pendingInvites.entries()) {
-        if (
-          invite.fromUserId === normalizedInviterId &&
-          invite.toUserId === normalizedAcceptorId &&
-          (!data.gameId || invite.gameId === data.gameId)
-        ) {
+        const matchesAcceptor = invite.toUserId === normalizedAcceptorId;
+        const matchesInviter = !normalizedInviterId || invite.fromUserId === normalizedInviterId;
+        const matchesGameId = !data.gameId || invite.gameId === data.gameId;
+        
+        if (matchesAcceptor && matchesInviter && matchesGameId) {
           foundInvite = invite;
-          this.pendingInvites.delete(inviteId);
-          break;
-        }
-      }
-    } else if (foundInvite) {
-      // Found invite matches - remove it from pending invites
-      for (const [inviteId, invite] of this.pendingInvites.entries()) {
-        if (invite.inviteId === foundInvite.inviteId) {
-          this.pendingInvites.delete(inviteId);
-          break;
+          foundInviteId = inviteId;
+          break; // Early exit when found
         }
       }
     } else {
-      // No invite found with just acceptor ID - search with full criteria
+      // Found invite matches - find its ID for deletion
       for (const [inviteId, invite] of this.pendingInvites.entries()) {
-        if (
-          invite.fromUserId === normalizedInviterId &&
-          invite.toUserId === normalizedAcceptorId &&
-          (!data.gameId || invite.gameId === data.gameId)
-        ) {
-          foundInvite = invite;
-          this.pendingInvites.delete(inviteId);
+        if (invite.inviteId === foundInvite.inviteId) {
+          foundInviteId = inviteId;
           break;
         }
       }
+    }
+    
+    // Remove found invite from pending invites
+    if (foundInviteId) {
+      this.pendingInvites.delete(foundInviteId);
     }
     
     const isTeamGame = foundInvite?.gameMode === 'Regular' || foundInvite?.gameMode === 'Knockout';

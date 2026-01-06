@@ -4092,14 +4092,18 @@ export class TeamService {
         };
       });
 
-      // Sync member counts for all teams (update database with calculated counts)
-      await Promise.all(
-        teams.map(async (team: any) => {
-          const teamIdStr = team._id.toString();
-          const count = memberCountMap.get(teamIdStr) || 0;
-          await this.teamModel.findByIdAndUpdate(teamIdStr, { memberCount: count });
-        })
-      );
+      // ✅ OPTIMIZATION: Use bulkWrite instead of multiple individual updates
+      // This reduces database round trips from N to 1, significantly improving performance
+      if (teams.length > 0) {
+        const bulkOps = teams.map((team: any) => ({
+          updateOne: {
+            filter: { _id: team._id },
+            update: { $set: { memberCount: memberCountMap.get(team._id.toString()) || 0 } },
+          },
+        }));
+        
+        await this.teamModel.bulkWrite(bulkOps);
+      }
 
       // Step 6: Format response with organizations and their teams
       const organizationsWithTeams = organizations.map(org => {

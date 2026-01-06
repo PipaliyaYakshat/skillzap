@@ -2705,18 +2705,16 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     gameState.playerAnswers.delete(normalizedLeavingUserId);
     gameState.playerScores.delete(normalizedLeavingUserId);
 
-    // Update game in database - remove player from players array
+    // ✅ OPTIMIZATION: Combine both updates into single database call
+    // This reduces database round trips from 2 to 1
     const gameModel = this.contentService.getGameModel();
     await gameModel.updateOne(
       { gameId: gameState.gameId },
       {
-        $pull: { players: normalizedLeavingUserId },
-      },
-    );
-    await gameModel.updateOne(
-      { gameId: gameState.gameId },
-      {
-        $pull: { acceptedPlayers: normalizedLeavingUserId },
+        $pull: {
+          players: normalizedLeavingUserId,
+          acceptedPlayers: normalizedLeavingUserId,
+        },
       },
     );
 
@@ -2783,7 +2781,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const playerPoints: Map<string, number> = new Map();
     const playerResults: Map<string, 'win' | 'loss' | 'draw' | 'eliminated'> = new Map();
 
-    // Determine result for each player and award points/coins
+    // Determine result for each player (without awarding points yet)
     for (const playerId of players) {
       const playerScore = playerCorrectCounts.get(playerId) || 0;
 
@@ -2792,9 +2790,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         // Eliminated player
         playerResults.set(playerId, 'eliminated');
         playerPoints.set(playerId, 0);
-        if (!skipPointsAndCoins) {
-          await this.contentService.awardPointsAndCoins(playerId, 0, 0);
-        }
         continue; // Skip win/loss/draw logic for eliminated players
       }
 
@@ -2814,34 +2809,40 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         if (isDraw && winners.includes(playerId)) {
           // Multiple players tied for highest score = draw
           playerResults.set(playerId, 'draw');
-          if (!skipPointsAndCoins) {
-            // Award points for draw (5 points each)
-            playerPoints.set(playerId, 5);
-            await this.contentService.awardPointsAndCoins(playerId, 5, 5);
-          } else {
-            playerPoints.set(playerId, 0);
-          }
+          playerPoints.set(playerId, skipPointsAndCoins ? 0 : 5);
         } else if (winners.includes(playerId)) {
           // Single winner
           playerResults.set(playerId, 'win');
-          if (!skipPointsAndCoins) {
-            // Award points for win (10 points)
-            playerPoints.set(playerId, 10);
-            await this.contentService.awardPointsAndCoins(playerId, 10, 5);
-          } else {
-            playerPoints.set(playerId, 0);
-          }
+          playerPoints.set(playerId, skipPointsAndCoins ? 0 : 10);
         } else {
           // Loser
           playerResults.set(playerId, 'loss');
-          if (!skipPointsAndCoins) {
-            playerPoints.set(playerId, 0);
-            await this.contentService.awardPointsAndCoins(playerId, 0, 0);
-          } else {
-            playerPoints.set(playerId, 0);
-          }
+          playerPoints.set(playerId, 0);
         }
       }
+    }
+
+    // ✅ OPTIMIZATION: Batch all award operations in parallel instead of sequential loop
+    // This fixes the N+1 query problem - all database calls happen in parallel
+    if (!skipPointsAndCoins) {
+      const awardPromises = players.map(async (playerId) => {
+        const points = playerPoints.get(playerId) || 0;
+        const result = playerResults.get(playerId);
+        
+        // Determine coins based on result
+        let coins = 0;
+        if (result === 'win') {
+          coins = 5;
+        } else if (result === 'draw') {
+          coins = 5;
+        } else {
+          coins = 0;
+        }
+        
+        return this.contentService.awardPointsAndCoins(playerId, points, coins);
+      });
+      
+      await Promise.all(awardPromises);
     }
 
     // Create result object for backward compatibility (DUEL mode)
