@@ -544,9 +544,11 @@ export class TeamService {
         ? `Hello ${name}, you've been invited to register as admin by ${adminCreator.email} for organization ${organization.name}`
         : `You've been invited to register as admin by ${adminCreator.email} for organization ${organization.name}`;
       
+      const verificationUrl = `http://localhost:3000/teams/signup?email=${encodeURIComponent(email)}`;
+
       this.sendAdminInvite(email, {
         // verificationUrl: `http://192.168.29.65:1212/api#/Auth%20Controller/AuthController_adminRegister`,
-        verificationUrl: `http://localhost:3000/teams/signup`,
+        verificationUrl,
         message: invitationMessage,
       });
 
@@ -936,21 +938,31 @@ export class TeamService {
       // Step 6: Optionally add multiple members by email
       const memberResults: any[] = [];
       if (memberEmails && Array.isArray(memberEmails) && memberEmails.length > 0) {
-        // Validate all emails are business emails (not free email domains)
-        for (const email of memberEmails) {
-          if (email && email !== creator.email) {
-            this.validateBusinessEmail(email);
-          }
+        // Clean and validate all emails are business emails (not free email domains)
+        const cleanedEmails = memberEmails
+          .filter(Boolean)
+          .map(email => email.trim().toLowerCase());
+
+        if (cleanedEmails.length === 0) {
+          throw new BadRequestException('No valid email addresses provided');
         }
 
+        // Normalize creator email for comparison
+        const creatorEmailNormalized = creator.email?.trim().toLowerCase();
+        cleanedEmails.forEach(email => {
+          if (email !== creatorEmailNormalized) {
+            this.validateBusinessEmail(email);
+          }
+        });
+
         // Validate: Maximum 10 members per request unless enterprise
-        if (!isEnterprisePlan && memberEmails.length > 10) {
+        if (!isEnterprisePlan && cleanedEmails.length > 10) {
           throw new BadRequestException('Maximum of 10 members can be invited in a single request. Please split the invitations into multiple requests.');
         }
 
         // Filter out creator's email and duplicates
-        const uniqueEmails = [...new Set(memberEmails)].filter(
-          email => email && email !== creator.email
+        const uniqueEmails = [...new Set(cleanedEmails)].filter(
+          email => email && email !== creatorEmailNormalized
         );
 
         const maxMembers = isEnterprisePlan ? Number.POSITIVE_INFINITY : 10;
@@ -1203,7 +1215,8 @@ export class TeamService {
       await this.teamModel.findByIdAndUpdate(teamId, { $inc: { memberCount: 1 } });
 
       // const frontendUrl = 'http://192.168.29.65:1212/api#/Auth%20Controller/AuthController_memberRegister';
-      const frontendUrl = 'http://localhost:3000/teams/signup'
+      const frontendUrl = 'http://localhost:3000/teams/signup';
+      const signupUrl = `${frontendUrl}?email=${encodeURIComponent(memberEmail)}`;
       // const html = `
       //   <div style="font-family: Arial, sans-serif; color: #333;">
       //     <h2>Team Invitation</h2>
@@ -1322,7 +1335,7 @@ export class TeamService {
                             <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 30px 0;">
                                 <tr>
                                     <td align="center">
-                                        <a href="http://localhost:3000/teams/signup/"
+                                        <a href="${signupUrl}"
                                             style="display: inline-block; padding: 16px 32px; background: #4CAF50; color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 600;">
                                             Join Now
                                         </a>
@@ -1333,8 +1346,8 @@ export class TeamService {
                             <!-- Alternate Link -->
                             <p style="font-size: 14px; color: #333;">
                                 If the button doesn't work, copy this link: 
-                                <a href="http://localhost:3000/teams/signup/" 
-                                   style="color: #4CAF50;">http://localhost:3000/teams/signup/</a>
+                                <a href="${signupUrl}" 
+                                   style="color: #4CAF50;">${signupUrl}</a>
                             </p>
 
                         </td>
@@ -1412,12 +1425,16 @@ export class TeamService {
         throw new BadRequestException('memberEmails must be a non-empty array');
       }
 
-      // Validate all emails are business emails (not free email domains)
-      for (const email of memberEmails) {
-        if (email) {
-          this.validateBusinessEmail(email);
-        }
+      // Clean and validate all emails are business emails (not free email domains)
+      const cleanedEmails = memberEmails
+        .filter(Boolean)
+        .map(email => email.trim().toLowerCase());
+
+      if (cleanedEmails.length === 0) {
+        throw new BadRequestException('No valid email addresses provided');
       }
+
+      cleanedEmails.forEach(email => this.validateBusinessEmail(email));
 
       // Step 1: Validate Team
       const team = await this.teamModel.findById(teamId);
@@ -1506,13 +1523,14 @@ export class TeamService {
       }
 
       // Validate: Maximum 10 members can be invited in a single API call unless enterprise
-      if (!allowUnlimitedMembers && memberEmails.length > 10) {
+      if (!allowUnlimitedMembers && cleanedEmails.length > 10) {
         throw new BadRequestException('Maximum of 10 members can be invited in a single request. Please split the invitations into multiple requests.');
       }
 
-      // Step 5: Filter out duplicates and admin's email
-      const uniqueEmails = [...new Set(memberEmails)].filter(
-        email => email && email !== adminUser.email
+      // Step 5: Filter out duplicates and admin's email (normalize admin email for comparison)
+      const adminEmailNormalized = adminUser.email?.trim().toLowerCase();
+      const uniqueEmails = [...new Set(cleanedEmails)].filter(
+        email => email && email !== adminEmailNormalized
       );
 
       if (uniqueEmails.length === 0) {
@@ -2136,29 +2154,30 @@ export class TeamService {
 
       // If not found in User table, check if it's a pending admin in AdminCreation table
       if (!adminUser) {
-        // First try to find by AdminCreation _id
-        pendingAdminCreation = await this.adminCreationModel.findOne({
-          _id: trimmedAdminUserId,
-          organization: effectiveOrganizationId,
-          status: 'pending'
-        });
+        // Try to find by AdminCreation _id using findById (more efficient)
+        if (isValidObjectId(trimmedAdminUserId)) {
+          pendingAdminCreation = await this.adminCreationModel.findById(trimmedAdminUserId);
+          
+          // Verify it's a pending admin for this organization
+          if (pendingAdminCreation && 
+              pendingAdminCreation.status === 'pending' &&
+              pendingAdminCreation.organization?.toString() === effectiveOrganizationId) {
+            isPendingAdmin = true;
+          } else {
+            pendingAdminCreation = null;
+          }
+        }
         
-        if (pendingAdminCreation) {
-          isPendingAdmin = true;
-        } else {
-          // Also check all pending admins to match by _id
-          const allPendingAdmins = await this.adminCreationModel.find({
+        // If still not found, try findOne with all conditions
+        if (!pendingAdminCreation) {
+          pendingAdminCreation = await this.adminCreationModel.findOne({
+            _id: trimmedAdminUserId,
             organization: effectiveOrganizationId,
             status: 'pending'
-          }).exec();
+          });
           
-          // Check if trimmedAdminUserId matches any AdminCreation _id
-          for (const pending of allPendingAdmins) {
-            if (pending._id.toString() === trimmedAdminUserId) {
-              pendingAdminCreation = pending;
-              isPendingAdmin = true;
-              break;
-            }
+          if (pendingAdminCreation) {
+            isPendingAdmin = true;
           }
         }
       }
@@ -2555,25 +2574,24 @@ export class TeamService {
       }
 
       // Step 2: Find all organizations where user is a member
-      const organizationIds: string[] = [];
+      let organizationIds: string[] = [];
 
       // Case 1: User is superAdmin - find all organizations they created
       if (user.userType === 'superAdmin') {
         const createdOrganizations = await this.organizationModel
           .find({ creatorId: userId })
           .select('_id')
+          .lean()
           .exec();
-        createdOrganizations.forEach(org => {
-          organizationIds.push(org._id.toString());
-        });
+        organizationIds = createdOrganizations.map(org => org._id.toString());
       }
 
       // Case 2: User is admin - find their organization
       if (user.userType === 'admin' && user.organization) {
         const orgId = user.organization.toString();
-        if (!organizationIds.includes(orgId)) {
-          organizationIds.push(orgId);
-        }
+        organizationIds = organizationIds.includes(orgId) 
+          ? organizationIds 
+          : [...organizationIds, orgId];
       }
 
       // Case 3: User is a team member - find all organizations they belong to via teams
@@ -2583,14 +2601,14 @@ export class TeamService {
           status: 'approved'
         })
         .select('organization')
+        .lean()
         .exec();
 
-      teamMemberships.forEach(membership => {
-        const orgId = membership.organization.toString();
-        if (!organizationIds.includes(orgId)) {
-          organizationIds.push(orgId);
-        }
-      });
+      const teamMemberOrgIds = teamMemberships
+        .map(membership => membership.organization.toString())
+        .filter(orgId => !organizationIds.includes(orgId));
+      
+      organizationIds = [...organizationIds, ...teamMemberOrgIds];
 
       if (organizationIds.length === 0) {
         return {
@@ -2614,37 +2632,45 @@ export class TeamService {
       }
 
       // Step 3: For each organization, find all SuperAdmin and Admin users
-      const allSuperAdminIds: string[] = [];
-      const allAdminIds: string[] = [];
+      // Batch fetch all organizations at once
+      const orgsForAdmins = await this.organizationModel
+        .find({ _id: { $in: organizationIds } })
+        .select('creatorId')
+        .lean()
+        .exec();
 
-      for (const orgId of organizationIds) {
-        const organization = await this.organizationModel.findById(orgId);
-        if (!organization) continue;
+      // Extract unique creator IDs
+      const creatorIds = orgsForAdmins
+        .map(org => this.normalizeId(org.creatorId))
+        .filter((id): id is string => id !== null && isValidObjectId(id));
 
-        // Get the organization creator (superAdmin)
-        if (organization.creatorId) {
-          const creator = await this.userModel.findById(organization.creatorId);
-          if (creator && creator.userType === 'superAdmin') {
-            const creatorId = creator._id.toString();
-            if (!allSuperAdminIds.includes(creatorId)) {
-              allSuperAdminIds.push(creatorId);
-            }
-          }
-        }
+      // Batch fetch all creators at once
+      const creators = await this.userModel
+        .find({ 
+          _id: { $in: creatorIds },
+          userType: 'superAdmin'
+        })
+        .select('_id')
+        .lean()
+        .exec();
 
-        // Get all admin users in this organization
-        const adminUsers = await this.userModel.find({
+      const allSuperAdminIds = creators
+        .map(creator => this.normalizeId(creator._id))
+        .filter((id): id is string => id !== null);
+
+      // Batch fetch all admin users for all organizations at once
+      const adminUsers = await this.userModel
+        .find({
           userType: 'admin',
-          organization: orgId
-        }).select('_id').exec();
+          organization: { $in: organizationIds }
+        })
+        .select('_id')
+        .lean()
+        .exec();
 
-        adminUsers.forEach(admin => {
-          const adminId = admin._id.toString();
-          if (!allAdminIds.includes(adminId)) {
-            allAdminIds.push(adminId);
-          }
-        });
-      }
+      const allAdminIds = adminUsers
+        .map(admin => this.normalizeId(admin._id))
+        .filter((id): id is string => id !== null);
 
       // Step 4: Combine all user IDs (SuperAdmin and Admin)
       const allUserIds = [...allSuperAdminIds, ...allAdminIds];
@@ -2707,13 +2733,13 @@ export class TeamService {
         .exec();
 
       // Create a map for quick topic lookup by ID
-      const topicsMap = new Map<string, any>();
-      allTopics.forEach((topic: any) => {
+      const topicsMap = allTopics.reduce((map, topic: any) => {
         const topicId = this.normalizeId(topic._id);
         if (topicId) {
-          topicsMap.set(topicId, topic);
+          map.set(topicId, topic);
         }
-      });
+        return map;
+      }, new Map<string, any>());
 
       // Fetch all TopicProgress records for this user and all topics in a single query
       const allTopicProgressRecords = await this.topicProgressModel
@@ -2726,25 +2752,27 @@ export class TeamService {
         .exec();
 
       // Create a map of completed subtopic IDs by topic ID
-      const completedSubTopicsByTopic = new Map<string, Set<string>>();
-      allTopicProgressRecords.forEach((progress: any) => {
+      const completedSubTopicsByTopic = allTopicProgressRecords.reduce((map, progress: any) => {
         const topicId = this.normalizeId(progress.topicId);
-        if (!topicId) return;
+        if (!topicId) return map;
 
-        if (!completedSubTopicsByTopic.has(topicId)) {
-          completedSubTopicsByTopic.set(topicId, new Set<string>());
+        if (!map.has(topicId)) {
+          map.set(topicId, new Set<string>());
         }
 
-        const completedSet = completedSubTopicsByTopic.get(topicId);
+        const completedSet = map.get(topicId);
         if (progress.completedSubTopicIds && Array.isArray(progress.completedSubTopicIds)) {
-          progress.completedSubTopicIds.forEach((subTopicId: any) => {
-            const normalizedId = this.normalizeId(subTopicId);
-            if (normalizedId) {
-              completedSet!.add(normalizedId);
-            }
-          });
+          const normalizedIds = progress.completedSubTopicIds
+            .map((subTopicId: any) => this.normalizeId(subTopicId))
+            .filter((id): id is string => id !== null);
+          
+          normalizedIds.reduce((set, id) => {
+            set.add(id);
+            return set;
+          }, completedSet!);
         }
-      });
+        return map;
+      }, new Map<string, Set<string>>());
 
       // Step 8: Format the response with userPercentage calculation
       const formattedDecks = decks.map((deck: any) => {
@@ -2772,42 +2800,35 @@ export class TeamService {
             .filter((topic: any) => topic !== null);
 
           // Count total subtopics across all topics
-          let totalSubtopics = 0;
-          const allSubtopicIds: string[] = [];
+          const allSubtopicIds = deckTopics
+            .filter((topic: any) => topic.subTopics && Array.isArray(topic.subTopics))
+            .flatMap((topic: any) => 
+              topic.subTopics
+                .map((id: any) => this.normalizeId(id))
+                .filter((id: string | null): id is string => !!id)
+            );
           
-          deckTopics.forEach((topic: any) => {
-            if (topic.subTopics && Array.isArray(topic.subTopics)) {
-              const subtopicIds = topic.subTopics.map((id: any) => 
-                this.normalizeId(id)
-              ).filter((id: string | null): id is string => !!id);
-              allSubtopicIds.push(...subtopicIds);
-              totalSubtopics += subtopicIds.length;
-            }
-          });
+          const totalSubtopics = allSubtopicIds.length;
 
           // Count completed subtopics for this user
           let completedSubtopics = 0;
           if (totalSubtopics > 0 && allSubtopicIds.length > 0) {
             // Collect all completed subtopic IDs from pre-fetched data
-            const completedSubTopicIds = new Set<string>();
-            contentIds.forEach((topicId: any) => {
-              const normalizedTopicId = this.normalizeId(topicId);
-              if (normalizedTopicId) {
+            const completedSubTopicIds = contentIds
+              .map((topicId: any) => this.normalizeId(topicId))
+              .filter((id): id is string => id !== null)
+              .reduce((set, normalizedTopicId) => {
                 const completedSet = completedSubTopicsByTopic.get(normalizedTopicId);
                 if (completedSet) {
-                  completedSet.forEach((subTopicId) => {
-                    completedSubTopicIds.add(subTopicId);
-                  });
+                  completedSet.forEach((subTopicId) => set.add(subTopicId));
                 }
-              }
-            });
+                return set;
+              }, new Set<string>());
 
             // Count how many of the deck's subtopics are completed
-            allSubtopicIds.forEach((subTopicId) => {
-              if (completedSubTopicIds.has(subTopicId)) {
-                completedSubtopics++;
-              }
-            });
+            completedSubtopics = allSubtopicIds.filter((subTopicId) => 
+              completedSubTopicIds.has(subTopicId)
+            ).length;
 
             // Calculate percentage
             userPercentage = totalSubtopics > 0
@@ -3827,9 +3848,8 @@ export class TeamService {
           .find({ creatorId: userId })
           .select('_id name logo')
           .exec();
-        createdOrganizations.forEach(org => {
-          organizationIds.push(org._id.toString());
-        });
+        const superAdminOrgIds = createdOrganizations.map(org => org._id.toString());
+        organizationIds.push(...superAdminOrgIds);
       }
 
       // Case 2: User is admin - find their organization
@@ -3849,12 +3869,10 @@ export class TeamService {
         .select('organization')
         .exec();
 
-      teamMemberships.forEach(membership => {
-        const orgId = membership.organization.toString();
-        if (!organizationIds.includes(orgId)) {
-          organizationIds.push(orgId);
-        }
-      });
+      const teamMemberOrgIds = teamMemberships
+        .map(membership => membership.organization.toString())
+        .filter(orgId => !organizationIds.includes(orgId));
+      organizationIds.push(...teamMemberOrgIds);
 
       if (organizationIds.length === 0) {
         return {
@@ -3897,13 +3915,13 @@ export class TeamService {
         .lean()
         .exec();
       
-      const creatorsMap = new Map<string, any>();
-      allCreators.forEach((creator: any) => {
+      const creatorsMap = allCreators.reduce((map, creator: any) => {
         const creatorId = this.normalizeId(creator._id);
         if (creatorId) {
-          creatorsMap.set(creatorId, creator);
+          map.set(creatorId, creator);
         }
-      });
+        return map;
+      }, new Map<string, any>());
 
       // 2. Batch fetch all members for all teams (with status filter for display)
       const allMembers = await this.teamMemberModel
@@ -3930,25 +3948,25 @@ export class TeamService {
         }
       ]);
 
-      const memberCountMap = new Map<string, number>();
-      memberCountsByTeam.forEach((result: any) => {
+      const memberCountMap = memberCountsByTeam.reduce((map, result: any) => {
         const teamId = this.normalizeId(result._id);
         if (teamId) {
-          memberCountMap.set(teamId, result.totalCount || 0);
+          map.set(teamId, result.totalCount || 0);
         }
-      });
+        return map;
+      }, new Map<string, number>());
 
       // Group members by team
-      const membersByTeam = new Map<string, any[]>();
-      allMembers.forEach((member: any) => {
+      const membersByTeam = allMembers.reduce((map, member: any) => {
         const teamId = this.normalizeId(member.team);
         if (teamId) {
-          if (!membersByTeam.has(teamId)) {
-            membersByTeam.set(teamId, []);
+          if (!map.has(teamId)) {
+            map.set(teamId, []);
           }
-          membersByTeam.get(teamId)!.push(member);
+          map.get(teamId)!.push(member);
         }
-      });
+        return map;
+      }, new Map<string, any[]>());
 
       // 3. Collect all valid user IDs for approved members only (for points aggregation)
       const allApprovedMemberUserIds = allMembers
@@ -3982,15 +4000,15 @@ export class TeamService {
       }
 
       // Create a map of (userId, teamId) to totalPoints
-      const pointsMap = new Map<string, number>();
-      allPointsAggregation.forEach((result: any) => {
+      const pointsMap = allPointsAggregation.reduce((map, result: any) => {
         const userId = this.normalizeId(result._id.userId);
         const teamId = this.normalizeId(result._id.teamId);
         if (userId && teamId) {
           const key = `${teamId}:${userId}`;
-          pointsMap.set(key, result.totalPoints || 0);
+          map.set(key, result.totalPoints || 0);
         }
-      });
+        return map;
+      }, new Map<string, number>());
 
       // Step 5: Process teams with members
       const teamsWithMembers = teams.map((team: any) => {
@@ -4036,7 +4054,7 @@ export class TeamService {
         });
 
         // Sort members: approved first (by points desc), then pending
-        membersWithPoints.sort((a, b) => {
+        const sortedMembers = membersWithPoints.sort((a, b) => {
           // First, sort by status: approved comes before pending
           if (a.status === 'approved' && b.status === 'pending') return -1;
           if (a.status === 'pending' && b.status === 'approved') return 1;
@@ -4045,9 +4063,10 @@ export class TeamService {
         });
 
         // Assign rank
-        membersWithPoints.forEach((member, index) => {
-          (member as any).rank = index + 1;
-        });
+        const membersWithRank = sortedMembers.map((member, index) => ({
+          ...member,
+          rank: index + 1
+        }));
 
         // Get synced memberCount (total count of all members regardless of status filter)
         const actualMemberCount = memberCountMap.get(teamIdStr) || 0;
@@ -4068,8 +4087,8 @@ export class TeamService {
           memberCount: actualMemberCount,
           isActive: team.isActive,
           createdAt: team.createdAt,
-          members: membersWithPoints,
-          totalMembers: membersWithPoints.length
+          members: membersWithRank,
+          totalMembers: membersWithRank.length
         };
       });
 
