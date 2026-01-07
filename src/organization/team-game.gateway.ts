@@ -67,14 +67,6 @@ type TeamMemberLean = {
   joinedAt?: Date;
 };
 
-type Invite = {
-  gameId?: string | null;
-  toUserId?: string | Types.ObjectId;
-  fromUserId?: string | Types.ObjectId;
-  gameMode?: string;
-  [key: string]: unknown; // Allow for other properties
-};
-
 type PendingInvite = {
   inviteId: string;
   fromUserId: string;
@@ -151,8 +143,6 @@ type AnswerRecord = {
 };
 
 const QUESTION_TIME_SECONDS = 10;
-const QUESTION_TIMEOUT_MS = QUESTION_TIME_SECONDS * 1000;
-
 type Difficulty = 'easy' | 'medium' | 'hard';
 
 type GameState = {

@@ -137,9 +137,6 @@ export class User extends Document {
   @Prop({ type: Date, required: false })
   nextLivesRefillAt: Date | null;
 
-  // @Prop({ type: Number, default: 5, required: false })
-  // maxLives: number;
-
   @Prop({ type: String, required: false, default: USER_ROLE[1] })
   role: string;
 

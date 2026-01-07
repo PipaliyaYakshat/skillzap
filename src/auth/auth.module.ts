@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PassportModule } from '@nestjs/passport';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './lib/jwt.strategy';
@@ -29,6 +30,7 @@ import {
 } from './schemas/temp-registration.schema';
 @Module({
   imports: [
+    ConfigModule,
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: AdminCreation.name, schema: AdminCreationSchema },
@@ -38,9 +40,18 @@ import {
       { name: TempRegistration.name, schema: TempRegistrationSchema },
     ]),
     PassportModule,
-    JwtModule.register({
-      secret: 'TOKEN',
-      signOptions: { expiresIn: '30d' },
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService): Promise<any> => {
+        const expiresIn = configService.get<string>('JWT_EXPIRES_IN') ?? '30d';
+        return {
+          secret: configService.get<string>('JWT_SECRET') ?? 'TOKEN',
+          signOptions: {
+            expiresIn: expiresIn,
+          },
+        };
+      },
+      inject: [ConfigService],
     }),
   ],
   controllers: [AuthController],

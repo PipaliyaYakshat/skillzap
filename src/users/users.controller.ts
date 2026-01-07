@@ -1,7 +1,6 @@
 import {
   Controller,
   Get,
-  Param,
   Delete,
   UseGuards,
   Patch,
@@ -10,25 +9,20 @@ import {
   Body,
   UseInterceptors,
   UploadedFile,
-  UploadedFiles,
-  Query,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import {
   ApiBearerAuth,
   ApiConsumes,
   ApiTags,
-  ApiQuery,
   ApiOperation,
   ApiResponse,
   ApiBody,
-  ApiParam,
 } from '@nestjs/swagger';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from 'src/auth/lib/jwt-auth.guard';
-import { Roles } from 'src/auth/lib/roles.decorator';
 import { RolesGuard } from 'src/auth/lib/roles.guard';
-import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { multerProfileImageOptions } from '../common/multer.service';
 import { BuyPlanDto } from './dto/buy-plan.dto';
 import { PurchaseLiveDto } from './dto/purchase-live.dto';

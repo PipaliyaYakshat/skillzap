@@ -1,48 +1,23 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 @Injectable()
 export class MailService {
   private transporter: nodemailer.Transporter;
 
-  constructor() {
+  constructor(private configService: ConfigService) {
     this.transporter = nodemailer.createTransport({
       service: 'gmail',
       pool: true,
       auth: {
-        user: 'pipaliyayakshat@gmail.com',
-        pass: 'ytjx exfu jnny ouyp',
+        user:
+          this.configService.get<string>('MAIL_USER') ??
+          'pipaliyayakshat@gmail.com',
+        pass:
+          this.configService.get<string>('MAIL_PASS') ?? 'ytjx exfu jnny ouyp',
       },
     });
   }
-
-  //   async sendOtpEmail(to: string, username: string, otp: number) {
-  //     const mailOptions = {
-  //       from: 'pipaliyayakshat@gmail.com',
-  //       to,
-  //       subject: 'Your One-Time Password (OTP) for Password Reset',
-  //       text: `Dear ${username},
-
-  // We received a request to reset your password. Please use the following One-Time Password (OTP) to proceed:
-
-  // OTP: ${otp}
-
-  // This OTP is valid for 2 minutes. For security reasons, do not share this code with anyone.
-
-  // If you did not request this password reset, please contact our support team immediately at support@example.com.
-
-  // Best regards,
-  // Your Company Team`,
-  //     };
-
-  //     try {
-  //       return await this.transporter.sendMail(mailOptions);
-  //     } catch (error) {
-  //       throw new HttpException(
-  //         error.message,
-  //         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
-  //       );
-  //     }
-  //   }
 
   async sendOtpEmail(to: string, username: string, otp: number) {
     const otpString = otp.toString().split('');
@@ -189,40 +164,6 @@ Skillzap System`,
       );
     }
   }
-
-  //   async sendEnterpriseApprovalEmail(
-  //     email: string,
-  //     firstName: string,
-  //     lastName: string,
-  //   ) {
-  //     const mailOptions = {
-  //       from: 'pipaliyayakshat@gmail.com',
-  //       to: email,
-  //       subject: 'Your Enterprise Account Has Been Approved',
-  //       text: `Dear ${firstName} ${lastName},
-
-  // Congratulations! Your enterprise user registration has been approved.
-
-  // You can now login to your account using the following credentials:
-
-  // Email: ${email}
-  // Password: Pass@123
-
-  // Please login and change your password after your first login for security purposes.
-
-  // Best regards,
-  // Skillzap Team`,
-  //     };
-
-  //     try {
-  //       return await this.transporter.sendMail(mailOptions);
-  //     } catch (error) {
-  //       throw new HttpException(
-  //         error.message,
-  //         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
-  //       );
-  //     }
-  //   }
 
   async sendEnterpriseApprovalEmail(
     email: string,

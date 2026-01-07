@@ -30,7 +30,7 @@ import {
   TempRegistrationDocument,
 } from './schemas/temp-registration.schema';
 import { generateJwtToken, OTP_FUNCTION, OTPGNARETE } from '../common/utils';
-import { USER_ROLE, USER_TYPE } from 'src/common/enum';
+import { USER_TYPE } from 'src/common/enum';
 
 @Injectable()
 export class AuthService {
@@ -215,18 +215,12 @@ export class AuthService {
         await existingTempRegistration.save();
 
         // Resend OTP email
-        try {
-          this.mailService.sendRegisteringEmail(
-            createUserDto.email,
-            createUserDto.name || createUserDto.email || 'User',
-            registrationOtp,
-          );
-        } catch (mailError) {
-          throw new BadRequestException(
-            'Failed to send OTP email. Please try again.',
-          );
-        }
 
+        this.mailService.sendRegisteringEmail(
+          createUserDto.email,
+          createUserDto.name || createUserDto.email || 'User',
+          registrationOtp,
+        );
         return {
           statusCode: HttpStatus.OK,
           message:

@@ -12,7 +12,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import { User, UserDocument } from './entities/user.entity';
 import { Model, isValidObjectId, Types } from 'mongoose';
 import type { UpdateUserDto } from './dto/update-user.dto';
-import * as fs from 'fs';
 import * as bcrypt from 'bcrypt';
 import {
   SubscriptionPlan,
@@ -53,13 +52,11 @@ export class UsersService {
     @InjectModel(SubscriptionPlan.name)
     private readonly subscriptionPlanModel: Model<SubscriptionPlanDocument>,
     @InjectModel(ContentFileData.name)
-    private readonly contentFileDataModel: Model<ContentFileData>,
     @InjectModel(GameProgress.name)
     private readonly gameProgressModel: Model<GameProgressDocument>,
     @InjectModel(Deck.name) private readonly deckModel: Model<DeckDocument>,
     @InjectModel(Organization.name)
     private readonly organizationModel: Model<OrganizationDocument>,
-    private readonly mailService: MailService,
     @Inject(forwardRef(() => ContentService))
     private readonly contentService: ContentService,
   ) {}

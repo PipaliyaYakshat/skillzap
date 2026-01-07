@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -15,11 +15,18 @@ import { AdminModule } from './admin/admin.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    MongooseModule.forRoot('mongodb://localhost:27017/skillzap', {
-      connectionFactory: (connection) => {
-        console.log('connected to mongodb');
-        return connection;
-      },
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        uri:
+          configService.get<string>('DATABASE_URL') ??
+          'mongodb://localhost:27017/skillzap',
+        connectionFactory: (connection) => {
+          console.log('connected to mongodb');
+          return connection;
+        },
+      }),
+      inject: [ConfigService],
     }),
     AuthModule,
     UsersModule,

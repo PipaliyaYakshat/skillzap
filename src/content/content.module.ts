@@ -47,10 +47,15 @@ import { FileTextExtractionService } from './file-text-extraction.service';
     ]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET') ?? 'TOKEN',
-        signOptions: { expiresIn: '30d' },
-      }),
+      useFactory: async (configService: ConfigService): Promise<any> => {
+        const expiresIn = configService.get<string>('JWT_EXPIRES_IN') ?? '30d';
+        return {
+          secret: configService.get<string>('JWT_SECRET') ?? 'TOKEN',
+          signOptions: {
+            expiresIn: expiresIn,
+          },
+        };
+      },
       inject: [ConfigService],
     }),
     forwardRef(() => UsersModule),

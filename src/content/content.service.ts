@@ -4,13 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Express } from 'express';
+import { ConfigService } from '@nestjs/config';
 import { CreateContentDto } from './dto/create-content.dto';
 import { UpdateContentDto } from './dto/update-content.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Game } from './schemas/game.schema';
 import { Document, FilterQuery, Model, Types } from 'mongoose';
-import { SubTopic, SubTopicDocument } from './schemas/subtopic.schema';
+import { SubTopic } from './schemas/subtopic.schema';
 import { Topic, TopicDocument } from './schemas/topic.schema';
 import { DeckAIService } from './deck-ai.service';
 import { Socket } from 'socket.io';
@@ -36,10 +36,10 @@ import { UpdateQuery } from 'mongoose';
 // Type for authenticated user object
 type AuthUser =
   | {
-      id?: string;
-      _id?: string | Types.ObjectId;
-      userId?: string;
-    }
+    id?: string;
+    _id?: string | Types.ObjectId;
+    userId?: string;
+  }
   | undefined;
 
 // Helper type for lean document results (when using .lean())
@@ -137,7 +137,8 @@ export class ContentService {
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     private aiService: DeckAIService,
     private readonly deviceAccessService: DeviceAccessService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) { }
 
   setUserSockets(sockets: Map<string, Socket>) {
     this.userSockets = sockets;
@@ -182,10 +183,6 @@ export class ContentService {
     return removed;
   }
 
-  private buildRoomKey(userA: string, userB: string) {
-    return [userA, userB].sort().join(':');
-  }
-
   getRoomByUserId(userId: string): ActiveRoom | null {
     const normalizedUserId = this.normalizeId(userId);
     if (!normalizedUserId) return null;
@@ -216,27 +213,6 @@ export class ContentService {
       return objWithToString.toString();
     }
     return String(value);
-  }
-
-  /**
-   * Check if user is Individual type - only Individual users can access content service APIs
-   */
-  private async assertIndividualUser(userId: string): Promise<void> {
-    const normalizedUserId = this.normalizeId(userId);
-    if (!normalizedUserId) {
-      throw new BadRequestException('Invalid user ID');
-    }
-
-    const user = await this.userModel.findById(normalizedUserId).lean().exec();
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    if (user.userType !== USER_TYPE[0]) {
-      throw new ForbiddenException(
-        'Only Individual users can access this service',
-      );
-    }
   }
 
   private normalizeSubTopicOrder(topic: TopicDocument): string[] {
@@ -305,8 +281,6 @@ export class ContentService {
   }
 
   async getUserTopicProgress(userId: string, topicId: string) {
-    // await this.assertIndividualUser(userId);
-
     const normalizedUserId = this.normalizeId(userId);
     const normalizedTopicId = this.normalizeId(topicId);
 
@@ -687,7 +661,7 @@ export class ContentService {
 
     const basePath = getUploadBasePath().replace(/\/+$/, '');
     const publicPrefix =
-      process.env.UPLOAD_PUBLIC_PREFIX ||
+      this.configService.get<string>('UPLOAD_PUBLIC_PREFIX') ||
       `/${basePath.split('/').filter(Boolean).pop() || ''}`;
     const normalizedPublicPrefix = publicPrefix.startsWith('/')
       ? publicPrefix
@@ -697,7 +671,9 @@ export class ContentService {
       .replace(/\\/g, '/')
       .replace(/\/{2,}/g, '/');
     const publicBaseUrl =
-      process.env.FILE_BASE_URL || process.env.APP_BASE_URL || '';
+      this.configService.get<string>('FILE_BASE_URL') ||
+      this.configService.get<string>('APP_BASE_URL') ||
+      '';
     const normalizedBaseUrl = publicBaseUrl
       ? publicBaseUrl.replace(/\/+$/, '')
       : '';
@@ -747,7 +723,7 @@ export class ContentService {
     if (
       mime === 'application/vnd.ms-powerpoint' ||
       mime ===
-        'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
       extension === '.ppt' ||
       extension === '.pptx'
     ) {
@@ -3275,16 +3251,16 @@ export class ContentService {
       }
       const aCreatedAt =
         a.createdAt &&
-        (a.createdAt instanceof Date ||
-          typeof a.createdAt === 'string' ||
-          typeof a.createdAt === 'number')
+          (a.createdAt instanceof Date ||
+            typeof a.createdAt === 'string' ||
+            typeof a.createdAt === 'number')
           ? new Date(a.createdAt).getTime()
           : 0;
       const bCreatedAt =
         b.createdAt &&
-        (b.createdAt instanceof Date ||
-          typeof b.createdAt === 'string' ||
-          typeof b.createdAt === 'number')
+          (b.createdAt instanceof Date ||
+            typeof b.createdAt === 'string' ||
+            typeof b.createdAt === 'number')
           ? new Date(b.createdAt).getTime()
           : 0;
       if (aCreatedAt !== bCreatedAt) {
@@ -3341,16 +3317,16 @@ export class ContentService {
         // If points are equal, earlier created user gets better rank
         const aCreatedAt =
           a.createdAt &&
-          (a.createdAt instanceof Date ||
-            typeof a.createdAt === 'string' ||
-            typeof a.createdAt === 'number')
+            (a.createdAt instanceof Date ||
+              typeof a.createdAt === 'string' ||
+              typeof a.createdAt === 'number')
             ? new Date(a.createdAt).getTime()
             : 0;
         const bCreatedAt =
           b.createdAt &&
-          (b.createdAt instanceof Date ||
-            typeof b.createdAt === 'string' ||
-            typeof b.createdAt === 'number')
+            (b.createdAt instanceof Date ||
+              typeof b.createdAt === 'string' ||
+              typeof b.createdAt === 'number')
             ? new Date(b.createdAt).getTime()
             : 0;
         if (aCreatedAt !== bCreatedAt) {
@@ -3449,16 +3425,16 @@ export class ContentService {
         // If points are equal, earlier created user gets better rank
         const aCreatedAt =
           a.createdAt &&
-          (a.createdAt instanceof Date ||
-            typeof a.createdAt === 'string' ||
-            typeof a.createdAt === 'number')
+            (a.createdAt instanceof Date ||
+              typeof a.createdAt === 'string' ||
+              typeof a.createdAt === 'number')
             ? new Date(a.createdAt).getTime()
             : 0;
         const bCreatedAt =
           b.createdAt &&
-          (b.createdAt instanceof Date ||
-            typeof b.createdAt === 'string' ||
-            typeof b.createdAt === 'number')
+            (b.createdAt instanceof Date ||
+              typeof b.createdAt === 'string' ||
+              typeof b.createdAt === 'number')
             ? new Date(b.createdAt).getTime()
             : 0;
         if (aCreatedAt !== bCreatedAt) {
