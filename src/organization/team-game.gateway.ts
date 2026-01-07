@@ -24,6 +24,57 @@ import { Deck, DeckDocument } from '../content/schemas/deck.schema';
 import { Topic, TopicDocument } from '../content/schemas/topic.schema';
 import { SubTopic, SubTopicDocument } from '../content/schemas/subtopic.schema';
 import { TeamGameScore, TeamGameScoreDocument } from './entities/team-game.entity';
+import { Types } from 'mongoose';
+
+// Type interfaces for proper typing
+type UserLean = {
+  _id: Types.ObjectId;
+  name?: string | null;
+  username?: string | null;
+  email?: string;
+  profileImage?: string | null;
+  coins?: number;
+  lives?: number;
+  isOnline?: boolean;
+  isBlocked?: boolean;
+  userType?: string;
+}
+
+type DeckLean = {
+  _id: Types.ObjectId;
+  name?: string;
+  contentIds?: Types.ObjectId[];
+}
+
+type TopicLean = {
+  _id: Types.ObjectId;
+  title?: string;
+  subTopics?: Types.ObjectId[];
+}
+
+type TeamLean = {
+  _id: Types.ObjectId;
+  teamName?: string;
+  points?: number;
+}
+
+type RoomWithMetadata = {
+  roomId: string;
+  participants: string[];
+  inviterId?: string;
+  inviteeId?: string;
+  deviceId?: string;
+  gameId?: string;
+  deckId?: Types.ObjectId | string;
+  topicId?: Types.ObjectId | string;
+  gameMode?: 'Regular' | 'Knockout' | string;
+  mode?: 'Regular' | 'Knockout' | string;
+}
+
+type GameMetadata = {
+  gameMode?: 'Regular' | 'Knockout';
+  [key: string]: unknown;
+}
 
 type Question = {
   question: string;
@@ -113,13 +164,15 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     @InjectModel(TeamGameScore.name) private readonly teamGameScoreModel: Model<TeamGameScoreDocument>,
   ) {}
 
-  private normalizeId<T = any>(value: T): string | null {
+  private normalizeId<T = unknown>(value: T): string | null {
     if (value === undefined || value === null) {
       return null;
     }
-    return value && typeof value === 'object' && 'toString' in value
-      ? (value as any).toString()
-      : String(value);
+    if (value && typeof value === 'object' && 'toString' in value) {
+      const objWithToString = value as { toString(): string };
+      return objWithToString.toString();
+    }
+    return String(value);
   }
 
   // Helper method to check if user is online
@@ -615,9 +668,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       }
 
       // Safely read user's current coin balance (if available)
+      const userTyped = user as unknown as UserLean;
       const userCoins =
-        typeof (user as any)?.coins === 'number' && Number.isFinite((user as any).coins)
-          ? (user as any).coins
+        typeof userTyped?.coins === 'number' && Number.isFinite(userTyped.coins)
+          ? userTyped.coins
           : 0;
 
       const gameState: GameState = {
@@ -893,8 +947,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       let userProfileImage: string | null = null;
       const user = await this.usersService.findById(normalizedUserId);
       if (user) {
-        userName = (user as any)?.name || (user as any)?.username || '';
-        userProfileImage = (user as any)?.profileImage || null;
+        const userTyped = user as unknown as UserLean;
+        userName = userTyped?.name || userTyped?.username || '';
+        userProfileImage = userTyped?.profileImage || null;
       }
 
       const payload = {
@@ -1149,7 +1204,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       // Get inviter's name
       let inviterName = '';
-      inviterName = (inviter as any)?.name || (inviter as any)?.username || '';
+      const inviterTyped = inviter as unknown as UserLean;
+      inviterName = inviterTyped?.name || inviterTyped?.username || '';
 
       // Fetch deck and topic names if deckId and topicId are provided
       let deckName: string | null = null;
@@ -1160,7 +1216,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         if (normalizedDeckId) {
           const deck = await this.deckModel.findById(normalizedDeckId).select('name').lean().exec();
           if (deck) {
-            deckName = (deck as any)?.name || null;
+            deckName = (deck as unknown as DeckLean)?.name || null;
           }
         }
       }
@@ -1170,7 +1226,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         if (normalizedTopicId) {
           const topic = await this.topicModel.findById(normalizedTopicId).select('title').lean().exec();
           if (topic) {
-            topicName = (topic as any)?.title || null;
+            topicName = (topic as unknown as TopicLean)?.title || null;
           }
         }
       }
@@ -1288,8 +1344,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       let acceptorName = '';
       let acceptorProfileImage: string | null = null;
       const acceptor = await this.usersService.findById(acceptorId);
-      acceptorName = (acceptor as any)?.name || (acceptor as any)?.username || '';
-      acceptorProfileImage = (acceptor as any)?.profileImage || null;
+      const acceptorTyped = acceptor as unknown as UserLean;
+      acceptorName = acceptorTyped?.name || acceptorTyped?.username || '';
+      acceptorProfileImage = acceptorTyped?.profileImage || null;
 
       // Get host ID (first participant)
       const hostId = this.normalizeId(participants[0]);
@@ -1334,7 +1391,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           if (teamId) {
             teamsInfoMap.set(teamId, {
               teamId: teamId,
-              teamName: (team as any)?.teamName || '',
+              teamName: (team as unknown as TeamLean)?.teamName || '',
             });
           }
         });
@@ -1382,8 +1439,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         const participant = participantsMap.get(normalizedId);
         
         if (participant) {
-          const userName = (participant as any)?.name || (participant as any)?.username || '';
-          const userProfileImage = (participant as any)?.profileImage || null;
+          const participantTyped = participant as unknown as UserLean;
+          const userName = participantTyped?.name || participantTyped?.username || '';
+          const userProfileImage = participantTyped?.profileImage || null;
           const isHost = normalizedId === hostId;
 
           // Get team information for this participant
@@ -1482,15 +1540,16 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       
       
       if (activeRoom) {
-        const roomDeckId = (activeRoom as any).deckId;
-        const roomTopicId = (activeRoom as any).topicId;
+        const roomTyped = activeRoom as unknown as RoomWithMetadata;
+        const roomDeckId = roomTyped.deckId;
+        const roomTopicId = roomTyped.topicId;
         
         if (roomDeckId) {
           deckId = this.normalizeId(roomDeckId) || undefined;
           if (deckId) {
             const deck = await this.deckModel.findById(deckId).select('name').lean().exec();
             if (deck) {
-              deckName = (deck as any)?.name || undefined;
+              deckName = (deck as unknown as DeckLean)?.name || undefined;
             }
           }
         }
@@ -1500,7 +1559,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           if (topicId) {
             const topic = await this.topicModel.findById(topicId).select('title').lean().exec();
             if (topic) {
-              topicName = (topic as any)?.title || undefined;
+              topicName = (topic as unknown as TopicLean)?.title || undefined;
             }
           }
         }
@@ -1510,8 +1569,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Format matches the specification: invitsendId, invitaccpetedId
       // Reuse normalizedInviterId and normalizedAcceptorId from above
       // Determine mode (Regular | Knockout) from active room or room object if available
-      const mode = (activeRoom && ((activeRoom as any).gameMode || (activeRoom as any).mode)) ||
-        ((room as any)?.gameMode || (room as any)?.mode) || undefined;
+      const activeRoomTyped = activeRoom ? (activeRoom as unknown as RoomWithMetadata) : null;
+      const roomTyped = room as unknown as RoomWithMetadata;
+      const mode = (activeRoomTyped?.gameMode || activeRoomTyped?.mode) ||
+        (roomTyped?.gameMode || roomTyped?.mode) || undefined;
 
       const roomDetailsPayload: any = {
         roomId: room.roomId,
@@ -1657,7 +1718,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
               if (teamId) {
                 teamsInfoMap.set(teamId, {
                   teamId: teamId,
-                  teamName: (team as any)?.teamName || '',
+                  teamName: (team as unknown as TeamLean)?.teamName || '',
                 });
               }
             });
@@ -1708,8 +1769,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
             const participant = participantsMap.get(normalizedId);
             
             if (participant) {
-              const userName = (participant as any)?.name || (participant as any)?.username || '';
-              const userProfileImage = (participant as any)?.profileImage || null;
+              const participantTyped = participant as unknown as UserLean;
+              const userName = participantTyped?.name || participantTyped?.username || '';
+              const userProfileImage = participantTyped?.profileImage || null;
               const isHost = normalizedId === hostId;
 
               // Get team information for this participant
@@ -1747,15 +1809,16 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           let topicId: string | undefined = undefined;
           let topicName: string | undefined = undefined;
           
-          const roomDeckId = (activeRoom as any).deckId;
-          const roomTopicId = (activeRoom as any).topicId;
+          const activeRoomTyped = activeRoom as unknown as RoomWithMetadata;
+          const roomDeckId = activeRoomTyped.deckId;
+          const roomTopicId = activeRoomTyped.topicId;
           
           if (roomDeckId) {
             deckId = this.normalizeId(roomDeckId) || undefined;
             if (deckId) {
               const deck = await this.deckModel.findById(deckId).select('name').lean().exec();
               if (deck) {
-                deckName = (deck as any)?.name || undefined;
+                deckName = (deck as unknown as DeckLean)?.name || undefined;
               }
             }
           }
@@ -1765,7 +1828,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
             if (topicId) {
               const topic = await this.topicModel.findById(topicId).select('title').lean().exec();
               if (topic) {
-                topicName = (topic as any)?.title || undefined;
+                topicName = (topic as unknown as TopicLean)?.title || undefined;
               }
             }
           }
@@ -1794,8 +1857,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
             roomDetailsPayload.topicName = topicName;
           }
 
-          // Include mode if available on activeRoom
-          const cancelMode = ((activeRoom as any)?.gameMode || (activeRoom as any)?.mode) || undefined;
+          // Include mode if available on activeRoom (reuse activeRoomTyped from above)
+          const cancelMode = activeRoomTyped?.gameMode || activeRoomTyped?.mode || undefined;
           if (cancelMode) {
             roomDetailsPayload.mode = cancelMode;
           }
@@ -2192,7 +2255,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         teamScores: new Map(),
         playerWrongAnswers: new Map(),
         eliminatedPlayers: new Set(),
-        gameMode: (game.metadata as any)?.gameMode as 'Regular' | 'Knockout' | undefined,
+        gameMode: (game.metadata as unknown as GameMetadata)?.gameMode as 'Regular' | 'Knockout' | undefined,
         inviterId: inviterId,
         startedAt: new Date(),
         questionStartTimes: new Map(),
@@ -2239,8 +2302,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         const participant = participantsMap.get(normalizedId);
         
         if (participant) {
-          const userName = (participant as any)?.name || (participant as any)?.username || '';
-          const userProfileImage = (participant as any)?.profileImage || null;
+          const participantTyped = participant as unknown as UserLean;
+          const userName = participantTyped?.name || participantTyped?.username || '';
+          const userProfileImage = participantTyped?.profileImage || null;
           const isHost = normalizedId === hostId;
           playerInfo[normalizedId] = {
             name: userName,
@@ -2274,7 +2338,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           if (teamId) {
             teampoint[teamId] = typeof team.points === 'number' && Number.isFinite(team.points) ? team.points : 0;
             teamsInfo[teamId] = {
-              teamName: (team as any)?.teamName || '',
+              teamName: (team as unknown as TeamLean)?.teamName || '',
             };
             // Get count of accepted players for this team
             const playerIds = teamValidation.teams.get(teamId) || [];
@@ -2288,7 +2352,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       if (result.deckId) {
         const deck = await this.deckModel.findById(result.deckId).select('name').lean().exec();
         if (deck) {
-          deckName = (deck as any)?.name || null;
+          deckName = (deck as unknown as DeckLean)?.name || null;
         }
       }
 
@@ -3440,7 +3504,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           const teamId = this.normalizeId(team._id);
           if (teamId) {
             teamsInfoMapBeforeAward.set(teamId, {
-              teamName: (team as any)?.teamName || '',
+              teamName: (team as unknown as TeamLean)?.teamName || '',
               points: typeof team.points === 'number' && Number.isFinite(team.points) ? team.points : 0,
             });
           }
@@ -3522,7 +3586,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           const teamId = this.normalizeId(team._id);
           if (teamId) {
             teamsInfoMap.set(teamId, {
-              teamName: (team as any)?.teamName || '',
+              teamName: (team as unknown as TeamLean)?.teamName || '',
               points: typeof team.points === 'number' && Number.isFinite(team.points) ? team.points : 0,
             });
           }
@@ -3656,8 +3720,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         if (playerId) {
           const points = playerPointsMap.get(playerId) || 0;
           playerInfoMap.set(playerId, {
-            name: (player as any)?.name || (player as any)?.username || '',
-            profileImage: (player as any)?.profileImage || null,
+            name: (player as unknown as UserLean)?.name || (player as unknown as UserLean)?.username || '',
+            profileImage: (player as unknown as UserLean)?.profileImage || null,
             points: points,
           });
         }

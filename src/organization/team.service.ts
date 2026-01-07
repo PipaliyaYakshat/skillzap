@@ -26,6 +26,75 @@ import { Topic, TopicDocument } from '../content/schemas/topic.schema';
 import { SubTopic, SubTopicDocument } from '../content/schemas/subtopic.schema';
 import { TopicProgress, TopicProgressDocument } from '../content/schemas/topic-progress.schema';
 import { Game, GameDocument } from '../content/schemas/game.schema';
+import { TeamMemberDocument } from './entities/team-member.entity';
+
+// Type interfaces for proper typing (using type aliases to avoid conflicts)
+type UserWithTeamPlan = UserDocument & {
+  teamPlan?: string | null;
+  purchasePlanId?: Types.ObjectId | null;
+}
+
+type PopulatedUserInfo = {
+  _id: Types.ObjectId;
+  name?: string | null;
+  email?: string;
+  profileImage?: string | null;
+  isOnline?: boolean;
+}
+
+type PopulatedTeamInfo = {
+  _id: Types.ObjectId;
+  teamName?: string;
+}
+
+type PopulatedOrgInfo = {
+  _id: Types.ObjectId;
+  name?: string;
+}
+
+type PopulatedTeamMemberLean = {
+  _id: Types.ObjectId;
+  team: Types.ObjectId | PopulatedTeamInfo;
+  user?: Types.ObjectId | PopulatedUserInfo | null;
+  organization: Types.ObjectId | PopulatedOrgInfo;
+  email?: string;
+  isAdmin?: boolean;
+  status?: string;
+  joinedAt?: Date;
+  creator?: Types.ObjectId;
+  flashcardAccuracy?: number;
+  battleAccuracy?: number;
+  gameAccuracy?: number;
+}
+
+type PopulatedOrganizationLean = {
+  _id: Types.ObjectId;
+  name?: string;
+  logo?: string;
+  creatorId?: Types.ObjectId;
+}
+
+type MemberWithRank = {
+  id: string | null;
+  userId: string | null;
+  name: string | null;
+  email: string | null;
+  profileImage: string | null;
+  isAdmin: boolean;
+  status: string | null;
+  joinedAt: Date | null;
+  points: number;
+  isOnline?: boolean;
+  rank?: number;
+}
+
+type TopicWithAccuracies = {
+  _id: Types.ObjectId;
+  title?: string;
+  subTopics?: Types.ObjectId[];
+  flashcardAccuracies?: Array<{ userId: Types.ObjectId; accuracy: number }>;
+  battleAccuracies?: Array<{ userId: Types.ObjectId; accuracy: number }>;
+}
 
 @Injectable()
 export class TeamService {
@@ -67,13 +136,15 @@ export class TeamService {
     }
   }
 
-  private normalizeId<T = any>(value: T): string | null {
+  private normalizeId<T = unknown>(value: T): string | null {
     if (value === undefined || value === null) {
       return null;
     }
-    return value && typeof value === 'object' && 'toString' in value
-      ? (value as any).toString()
-      : String(value);
+    if (value && typeof value === 'object' && 'toString' in value) {
+      const objWithToString = value as { toString(): string };
+      return objWithToString.toString();
+    }
+    return String(value);
   }
 
   /**
@@ -451,8 +522,9 @@ export class TeamService {
       }
 
       // Normalize teamPlan string for fallback checks
-      const userTeamPlan = (subscriptionOwner as any).teamPlan
-        ? String((subscriptionOwner as any).teamPlan).toLowerCase()
+      const ownerWithTeamPlan = subscriptionOwner as UserWithTeamPlan;
+      const userTeamPlan = ownerWithTeamPlan.teamPlan
+        ? String(ownerWithTeamPlan.teamPlan).toLowerCase()
         : null;
 
       // Treat explicit teamPlan=enterprise as enterprise access even if no active subscription dates are present.
@@ -906,8 +978,9 @@ export class TeamService {
       }
 
       const planName = subscriptionPlan.name?.toLowerCase?.() || '';
-      const userTeamPlan = (subscriptionOwner as any).teamPlan
-        ? String((subscriptionOwner as any).teamPlan).toLowerCase()
+      const ownerWithTeamPlan = subscriptionOwner as UserWithTeamPlan;
+      const userTeamPlan = ownerWithTeamPlan.teamPlan
+        ? String(ownerWithTeamPlan.teamPlan).toLowerCase()
         : null;
       const isEnterprisePlan = planName === 'enterprise' || userTeamPlan === 'enterprise';
 
@@ -1502,14 +1575,15 @@ export class TeamService {
           }
         }
 
-        const userTeamPlan = (subscriptionOwner as any).teamPlan
-          ? String((subscriptionOwner as any).teamPlan).toLowerCase()
+        const ownerWithTeamPlan = subscriptionOwner as UserWithTeamPlan;
+        const userTeamPlan = ownerWithTeamPlan.teamPlan
+          ? String(ownerWithTeamPlan.teamPlan).toLowerCase()
           : null;
 
         let subscriptionPlan: SubscriptionPlanDocument | null = null;
-        if ((subscriptionOwner as any).purchasePlanId) {
+        if (ownerWithTeamPlan.purchasePlanId) {
           subscriptionPlan = await this.subscriptionPlanModel.findById(
-            (subscriptionOwner as any).purchasePlanId,
+            ownerWithTeamPlan.purchasePlanId,
           );
           if (subscriptionPlan?.isDeleted) {
             subscriptionPlan = null;
@@ -1938,8 +2012,9 @@ export class TeamService {
         }
 
         // Check for enterprise plan via subscriptionPlan or teamPlan field
-        const userTeamPlan = (subscriptionOwner as any).teamPlan
-          ? String((subscriptionOwner as any).teamPlan).toLowerCase()
+        const ownerWithTeamPlan = subscriptionOwner as UserWithTeamPlan;
+        const userTeamPlan = ownerWithTeamPlan.teamPlan
+          ? String(ownerWithTeamPlan.teamPlan).toLowerCase()
           : null;
 
         let subscriptionPlan: SubscriptionPlanDocument | null = null;
@@ -3204,7 +3279,12 @@ export class TeamService {
         .exec();
 
       teamMemberships.forEach((membership) => {
-        const orgId = this.normalizeId((membership as any).organization);
+        const membershipTyped = membership as unknown as PopulatedTeamMemberLean;
+        const orgId = this.normalizeId(
+          typeof membershipTyped.organization === 'object' && membershipTyped.organization && '_id' in membershipTyped.organization
+            ? membershipTyped.organization._id
+            : membershipTyped.organization
+        );
         if (orgId && !organizationIds.includes(orgId)) {
           organizationIds.push(orgId);
         }
@@ -3242,8 +3322,9 @@ export class TeamService {
         if (!orgId) continue;
 
         // Organization creator (superAdmin)
+        const orgTyped = org as unknown as PopulatedOrganizationLean;
         const creator = await this.userModel
-          .findById((org as any).creatorId)
+          .findById(orgTyped.creatorId)
           .select('_id userType')
           .lean();
         if (creator && creator.userType === 'superAdmin') {
@@ -3285,9 +3366,14 @@ export class TeamService {
               .exec();
 
             if (teamMember) {
-              userAccuracy = (teamMember as any).gameAccuracy || 0;
+              const teamMemberTyped = teamMember as unknown as PopulatedTeamMemberLean;
+              userAccuracy = teamMemberTyped.gameAccuracy || 0;
 
-              const teamId = this.normalizeId((teamMember as any).team);
+              const teamId = this.normalizeId(
+                typeof teamMemberTyped.team === 'object' && teamMemberTyped.team && '_id' in teamMemberTyped.team
+                  ? teamMemberTyped.team._id
+                  : teamMemberTyped.team
+              );
               if (teamId && isValidObjectId(teamId)) {
                 const allTeamMembers = await this.teamMemberModel
                   .find({ 
@@ -3374,7 +3460,7 @@ export class TeamService {
           message: 'Knowledge improvement decks fetched successfully',
           usertype: user.userType,
           organizationId: this.normalizeId(primaryOrg?._id),
-          organizationName: (primaryOrg as any)?.name || null,
+          organizationName: (primaryOrg as unknown as PopulatedOrganizationLean)?.name || null,
           searchTerm: searchTerm ?? null,
           accuracy: userAccuracy.toFixed(2),
           rank: userRank,
@@ -3547,10 +3633,15 @@ export class TeamService {
 
           if (teamMember) {
             // Get accuracy from TeamMember's gameAccuracy field
-            userAccuracy = (teamMember as any).gameAccuracy || 0;
+            const teamMemberTyped = teamMember as unknown as PopulatedTeamMemberLean;
+            userAccuracy = teamMemberTyped.gameAccuracy || 0;
 
             // Get the team for this member
-            const teamId = this.normalizeId((teamMember as any).team);
+            const teamId = this.normalizeId(
+              typeof teamMemberTyped.team === 'object' && teamMemberTyped.team && '_id' in teamMemberTyped.team
+                ? teamMemberTyped.team._id
+                : teamMemberTyped.team
+            );
             if (teamId && isValidObjectId(teamId)) {
               // Get all approved members of this team
               const allTeamMembers = await this.teamMemberModel
@@ -3642,7 +3733,7 @@ export class TeamService {
         message: 'Knowledge improvement decks fetched successfully',
         usertype: user.userType,
         organizationId: this.normalizeId(primaryOrg?._id),
-        organizationName: (primaryOrg as any)?.name || null,
+        organizationName: (primaryOrg as unknown as PopulatedOrganizationLean)?.name || null,
         searchTerm: searchTerm ?? null,
         accuracy: userAccuracy.toFixed(2),
         rank: userRank,
@@ -3768,7 +3859,7 @@ export class TeamService {
 
       // Step 6.5: Assign rank based on sorted order (1 = highest points)
       membersWithPoints.forEach((member, index) => {
-        (member as any).rank = index + 1;
+        (member as MemberWithRank).rank = index + 1;
       });
 
       // Step 7: Sync memberCount and return response
@@ -4792,10 +4883,13 @@ export class TeamService {
         if (user.userType === 'member' && normalizedUserId) {
           const teamMember = teamMemberMap.get(normalizedUserId);
           if (teamMember && teamMember.team) {
-            const team = teamMember.team as any;
-            if (team && typeof team === 'object' && team._id) {
+            const teamMemberTyped = teamMember as unknown as PopulatedTeamMemberLean;
+            if (typeof teamMemberTyped.team === 'object' && teamMemberTyped.team && '_id' in teamMemberTyped.team) {
+              const team = teamMemberTyped.team as PopulatedTeamInfo;
               teamId = this.normalizeId(team._id);
               teamName = team.teamName || null;
+            } else {
+              teamId = this.normalizeId(teamMemberTyped.team as Types.ObjectId);
             }
           }
         }
@@ -4845,6 +4939,3 @@ export class TeamService {
   }
 
 }
-
-
-

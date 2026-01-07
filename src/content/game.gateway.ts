@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { UseFilters } from '@nestjs/common';
 import { CustomWsExceptionFilter } from 'src/common/CustomWsExceptionFilter';
 import { randomUUID } from 'crypto';
+import { Types } from 'mongoose';
 
 type Difficulty = 'easy' | 'medium' | 'hard';
 
@@ -97,6 +98,29 @@ type MultiplayerGameState = {
   isCompleted: boolean;
 };
 
+// Type interfaces for lean documents and populated objects
+interface UserLean {
+  _id: Types.ObjectId;
+  name?: string | null;
+  username?: string | null;
+  profileImage?: string | null;
+  coins?: number;
+  userType?: string;
+}
+
+interface GameMetadata {
+  gameMode?: 'Regular' | 'Knockout';
+  member?: number;
+}
+
+interface GameLean {
+  _id: Types.ObjectId;
+  gameId?: string;
+  metadata?: GameMetadata | unknown;
+  eliminatedPlayers?: Array<Types.ObjectId | string>;
+  round?: number;
+}
+
 @UseFilters(new CustomWsExceptionFilter())
 @WebSocketGateway({ cors: { origin: '*' } })
 export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -137,13 +161,15 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.userSockets = sockets;
   }
 
-  private normalizeId<T = any>(value: T): string | null {
+  private normalizeId<T = unknown>(value: T): string | null {
     if (value === undefined || value === null) {
       return null;
     }
-    return value && typeof value === 'object' && 'toString' in value
-      ? (value as any).toString()
-      : String(value);
+    if (typeof value === 'object' && value !== null && 'toString' in value) {
+      const objValue = value as { toString: () => string };
+      return objValue.toString();
+    }
+    return String(value);
   }
 
   // Helper method to check if user is online
@@ -598,9 +624,10 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       // Safely read user's current coin balance (if available)
+      const userTyped = user as unknown as UserLean;
       const userCoins =
-        typeof (user as any)?.coins === 'number' && Number.isFinite((user as any).coins)
-          ? (user as any).coins
+        typeof userTyped?.coins === 'number' && Number.isFinite(userTyped.coins)
+          ? userTyped.coins
           : 0;
 
       const gameState: GameState = {
@@ -996,7 +1023,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         playerScores: new Map(),
         playerWrongAnswers: new Map(),
         eliminatedPlayers: new Set(),
-        gameMode: (game.metadata as any)?.gameMode as 'Regular' | 'Knockout' | undefined,
+        gameMode: (game.metadata as unknown as GameMetadata)?.gameMode as 'Regular' | 'Knockout' | undefined,
         startedAt: new Date(),
         isCompleted: false,
       };
@@ -1104,17 +1131,18 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         const gameProgress = progressMap.get(normalizedId);
 
         try {
+          const playerTyped = player as unknown as UserLean;
           const coins =
             player &&
-              typeof (player as any)?.coins === 'number' &&
-              Number.isFinite((player as any).coins)
-              ? (player as any).coins
+            typeof playerTyped?.coins === 'number' &&
+            Number.isFinite(playerTyped.coins)
+              ? playerTyped.coins
               : 0;
           playerCoins[normalizedId] = coins;
 
           // Get user name and profile image
-          const userName = (player as any)?.name || '';
-          const userProfileImage = (player as any)?.profileImage || null;
+          const userName = playerTyped?.name || playerTyped?.username || '';
+          const userProfileImage = playerTyped?.profileImage || null;
           // Check if this player is the host (first participant)
           const isHost = normalizedId === hostId;
           playerInfo[normalizedId] = {
@@ -1390,8 +1418,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       // Get eliminated players from previous game (from database or game state)
-      const eliminatedPlayersFromDB: string[] = Array.isArray((existingGame as any).eliminatedPlayers)
-        ? (existingGame as any).eliminatedPlayers.map((id: any) => this.normalizeId(id)).filter((id): id is string => !!id)
+      const existingGameTyped = existingGame as unknown as GameLean;
+      const eliminatedPlayersFromDB: string[] = Array.isArray(existingGameTyped.eliminatedPlayers)
+        ? existingGameTyped.eliminatedPlayers.map((id) => this.normalizeId(id)).filter((id): id is string => !!id)
         : [];
 
       const eliminatedPlayersFromState = existingState
@@ -1452,16 +1481,17 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         this.multiplayerGames.delete(roomId);
       }
 
-      // Extract game parameters from existing game
+      // Extract game parameters from existing game (reuse existingGameTyped from above)
       const mode = existingGame.gameMode?.toUpperCase() as 'DUEL' | 'BRAWL' || 'DUEL';
       const topicType = existingGame.deckSelectionMethod || 'random';
       const deckId = existingGame.selectedDeckId || undefined;
-      const gameMode = (existingGame.metadata as any)?.gameMode as 'Regular' | 'Knockout' | undefined;
-      const member = (existingGame.metadata as any)?.member as number | undefined;
+      const gameMetadata = existingGameTyped.metadata as unknown as GameMetadata;
+      const gameMode = gameMetadata?.gameMode as 'Regular' | 'Knockout' | undefined;
+      const member = gameMetadata?.member as number | undefined;
 
       // Get previous round and increment it
-      const previousRound = typeof (existingGame as any)?.round === 'number'
-        ? (existingGame as any).round
+      const previousRound = typeof existingGameTyped.round === 'number'
+        ? existingGameTyped.round
         : 1;
       const newRound = previousRound + 1;
       console.log('[restartGame] Round calculation:', {
@@ -1541,6 +1571,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       console.log('[restartGame] Game updated in database with round:', newRound);
 
       // Create multiplayer game state
+      const newGameTyped = newGame as unknown as GameLean;
+      const newGameMetadata = newGameTyped.metadata as unknown as GameMetadata;
       const multiplayerState: MultiplayerGameState = {
         gameId: result.gameId,
         roomId: room.roomId,
@@ -1552,7 +1584,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         playerScores: new Map(),
         playerWrongAnswers: new Map(),
         eliminatedPlayers: new Set(),
-        gameMode: (newGame.metadata as any)?.gameMode as 'Regular' | 'Knockout' | undefined,
+        gameMode: newGameMetadata?.gameMode as 'Regular' | 'Knockout' | undefined,
         startedAt: new Date(),
         isCompleted: false,
       };
@@ -1624,17 +1656,18 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         const gameProgress = progressMap.get(normalizedId);
 
         try {
+          const playerTyped = player as unknown as UserLean;
           const coins =
             player &&
-              typeof (player as any)?.coins === 'number' &&
-              Number.isFinite((player as any).coins)
-              ? (player as any).coins
+            typeof playerTyped?.coins === 'number' &&
+            Number.isFinite(playerTyped.coins)
+              ? playerTyped.coins
               : 0;
           playerCoins[normalizedId] = coins;
 
           // Get user name and profile image
-          const userName = (player as any)?.name || '';
-          const userProfileImage = (player as any)?.profileImage || null;
+          const userName = playerTyped?.name || playerTyped?.username || '';
+          const userProfileImage = playerTyped?.profileImage || null;
           // Check if this player is the host (first participant)
           const isHost = normalizedId === hostId;
           playerInfo[normalizedId] = {
@@ -1680,16 +1713,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             };
             winnerRate[normalizedId] = 0;
           }
-
-          console.log('[restartGame] Player info fetched:', {
-            playerId: normalizedId,
-            coins,
-            name: userName,
-            hasProfileImage: !!userProfileImage,
-            points: playerPoints[normalizedId],
-            levelName: playerLevel[normalizedId]?.levelName,
-            winnerRate: winnerRate[normalizedId],
-          });
         } catch (error) {
           console.warn('[restartGame] Failed to fetch player info:', {
             playerId: normalizedId,
@@ -1902,7 +1925,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Update game with questions
       // Set round to 1 if it doesn't exist (for backward compatibility)
-      const existingRound = typeof (game as any)?.round === 'number' ? (game as any).round : 1;
+      const gameTyped = game as unknown as GameLean;
+      const existingRound = typeof gameTyped.round === 'number' ? gameTyped.round : 1;
       await gameModel.updateOne(
         { gameId },
         {
@@ -1928,7 +1952,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         playerScores: new Map(),
         playerWrongAnswers: new Map(),
         eliminatedPlayers: new Set(),
-        gameMode: (game.metadata as any)?.gameMode as 'Regular' | 'Knockout' | undefined,
+        gameMode: (game.metadata as unknown as GameMetadata)?.gameMode as 'Regular' | 'Knockout' | undefined,
         startedAt: new Date(),
         isCompleted: false,
       };
@@ -2986,12 +3010,13 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             try {
               const normalizedPlayerId = this.normalizeId(playerId);
               const user = normalizedPlayerId ? usersMap.get(normalizedPlayerId) : null;
-              const userName = (user as any)?.name || (user as any)?.username || '';
+              const userTyped = user as unknown as UserLean;
+              const userName = userTyped?.name || userTyped?.username || '';
               userInfo = `${playerId}|${userName}`;
               // Get current player's info only
               currentPlayerInfo = {
                 name: userName,
-                profileImage: (user as any)?.profileImage || null,
+                profileImage: userTyped?.profileImage || null,
               };
             } catch (error) {
               userInfo = `${playerId}|`;
@@ -3066,12 +3091,13 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             try {
               const normalizedPlayerId = this.normalizeId(playerId);
               const user = normalizedPlayerId ? usersMap.get(normalizedPlayerId) : null;
-              const userName = (user as any)?.name || (user as any)?.username || '';
+              const userTyped = user as unknown as UserLean;
+              const userName = userTyped?.name || userTyped?.username || '';
               userInfo = `${playerId}|${userName}`;
               // Get current player's info only
               currentPlayerInfo = {
                 name: userName,
-                profileImage: (user as any)?.profileImage || null,
+                profileImage: userTyped?.profileImage || null,
               };
             } catch (error) {
               userInfo = `${playerId}|`;
@@ -3208,7 +3234,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     const singlePlayerGameOverPayload = {
       gameId: gameState.gameId,
-      roomId: (gameState as any).roomId,
+      roomId: undefined, // Single player games don't have roomId
       score,
       totalQuestions: questions.length,
       answers,
@@ -3325,7 +3351,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       let inviterName = '';
       try {
         const inviter = await this.usersService.findById(inviterId);
-        inviterName = (inviter as any)?.name || (inviter as any)?.username || '';
+        const inviterTyped = inviter as unknown as UserLean;
+        inviterName = inviterTyped?.name || inviterTyped?.username || '';
       } catch (error) {
         // If unable to get name, leave it empty
         inviterName = '';
@@ -3597,7 +3624,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
               playerScores: new Map(),
               playerWrongAnswers: new Map(),
               eliminatedPlayers: new Set(),
-              gameMode: (game.metadata as any)?.gameMode as 'Regular' | 'Knockout' | undefined,
+              gameMode: (game.metadata as unknown as GameMetadata)?.gameMode as 'Regular' | 'Knockout' | undefined,
               startedAt: new Date(),
               isCompleted: false,
             };
@@ -3662,17 +3689,18 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
               const gameProgress = progressMap.get(normalizedId);
 
               try {
+                const playerTyped = player as unknown as UserLean;
                 const coins =
                   player &&
-                    typeof (player as any)?.coins === 'number' &&
-                    Number.isFinite((player as any).coins)
-                    ? (player as any).coins
+                    typeof playerTyped?.coins === 'number' &&
+                    Number.isFinite(playerTyped.coins)
+                    ? playerTyped.coins
                     : 0;
                 playerCoins[normalizedId] = coins;
 
                 // Get user name and profile image
-                const userName = (player as any)?.name || '';
-                const userProfileImage = (player as any)?.profileImage || null;
+                const userName = playerTyped?.name || playerTyped?.username || '';
+                const userProfileImage = playerTyped?.profileImage || null;
                 // Check if this player is the host (first participant)
                 const isHost = normalizedId === hostId;
                 playerInfo[normalizedId] = {
@@ -3810,16 +3838,18 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Get acceptor's name and profile image from batch query result
       const normalizedAcceptorId = this.normalizeId(acceptorId);
       const acceptor = normalizedAcceptorId ? usersMap.get(normalizedAcceptorId) : null;
-      const acceptorName = (acceptor as any)?.name || (acceptor as any)?.username || '';
-      const acceptorProfileImage = (acceptor as any)?.profileImage || null;
+      const acceptorTyped = acceptor as unknown as UserLean;
+      const acceptorName = acceptorTyped?.name || acceptorTyped?.username || '';
+      const acceptorProfileImage = acceptorTyped?.profileImage || null;
 
       // Process participants using map (no queries)
       participantIds.forEach((normalizedId) => {
         const participant = usersMap.get(normalizedId);
 
         try {
-          const userName = (participant as any)?.name || (participant as any)?.username || '';
-          const userProfileImage = (participant as any)?.profileImage || null;
+          const participantTyped = participant as unknown as UserLean;
+          const userName = participantTyped?.name || participantTyped?.username || '';
+          const userProfileImage = participantTyped?.profileImage || null;
           const isHost = normalizedId === hostId;
 
           participantDetails.push({
@@ -3999,7 +4029,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       let cancellerName = '';
       try {
         const canceller = await this.usersService.findById(userId);
-        cancellerName = (canceller as any)?.name || (canceller as any)?.username || '';
+        const cancellerTyped = canceller as unknown as UserLean;
+        cancellerName = cancellerTyped?.name || cancellerTyped?.username || '';
       } catch (error) {
         // If unable to get name, leave it empty
         cancellerName = '';
@@ -4839,7 +4870,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const availableUsers: typeof onlineUsers = [];
       for (const user of onlineUsers) {
         const userId = this.normalizeId(user._id);
-        const userType = (user as any)?.userType;
+        const userTyped = user as unknown as UserLean;
+        const userType = userTyped?.userType;
         
         // Skip if invalid userId, is inviter, or not individual type
         if (!userId || userId === normalizedInviterId || userType !== 'individual') {
@@ -5089,7 +5121,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       let inviterName = '';
       try {
         const inviter = await this.usersService.findById(inviterId);
-        inviterName = (inviter as any)?.name || (inviter as any)?.username || '';
+        const inviterTyped = inviter as unknown as UserLean;
+        inviterName = inviterTyped?.name || inviterTyped?.username || '';
       } catch (error) {
         console.warn('[sendSequentialInvites] Failed to get inviter name:', {
           inviterId,
