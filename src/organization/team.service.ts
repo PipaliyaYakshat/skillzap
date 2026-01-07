@@ -96,6 +96,116 @@ type TopicWithAccuracies = {
   battleAccuracies?: Array<{ userId: Types.ObjectId; accuracy: number }>;
 }
 
+type AdminCreationLean = {
+  _id: Types.ObjectId;
+  creator?: Types.ObjectId;
+  createdAdmin?: Types.ObjectId;
+  organization: Types.ObjectId;
+  email: string;
+  name?: string;
+  status: string;
+  createdAt: Date;
+}
+
+type TopicLean = {
+  _id: Types.ObjectId;
+  title?: string;
+  subTopics?: (string | Types.ObjectId)[];
+  flashcardAccuracies?: Array<{ userId: string | Types.ObjectId; accuracy: number }>;
+  battleAccuracies?: Array<{ userId: string | Types.ObjectId; accuracy: number }>;
+  [key: string]: unknown;
+}
+
+type DeckLean = {
+  _id: Types.ObjectId;
+  name?: string;
+  description?: string;
+  category?: string;
+  status?: string;
+  isDefault?: boolean;
+  isPublic?: boolean;
+  contentIds?: (string | Types.ObjectId)[];
+  userId?: string | Types.ObjectId;
+  createdAt?: Date;
+  updatedAt?: Date;
+  [key: string]: unknown;
+}
+
+type GameLean = {
+  _id: Types.ObjectId;
+  gameId?: string;
+  type?: string;
+  gameMode?: string;
+  subTopicId?: string | Types.ObjectId;
+  players?: (string | Types.ObjectId)[];
+  playerAnswers?: Array<{
+    userId: string | Types.ObjectId;
+    questionIndex: number;
+    answer: string;
+    isCorrect: boolean;
+    timestamp: Date;
+  }>;
+  accuracy?: Record<string, number>;
+  isCompleted?: boolean;
+  [key: string]: unknown;
+}
+
+type TeamGameScoreLean = {
+  _id: Types.ObjectId;
+  userId: string | Types.ObjectId;
+  teamId: string | Types.ObjectId;
+  points?: number;
+  averageResponseTime?: number;
+  createdAt?: Date;
+  updatedAt?: Date;
+  __v?: number;
+  [key: string]: unknown;
+}
+
+type GameProgressLean = {
+  _id: Types.ObjectId;
+  userId: string | Types.ObjectId;
+  totalGamesPlayed?: number;
+  totalQuestions?: number;
+  totalCorrectAnswers?: number;
+  [key: string]: unknown;
+}
+
+type MemberResult = {
+  email: string;
+  message: string;
+  status: 'approved' | 'pending' | 'failed' | 'skipped';
+  user?: {
+    id: string | Types.ObjectId;
+    email?: string;
+    name?: string;
+  };
+}
+
+type AggregationResult = {
+  _id: string | Types.ObjectId | { userId: string | Types.ObjectId; teamId: string | Types.ObjectId };
+  totalPoints?: number;
+  totalCount?: number;
+}
+
+type TeamMemberPopulated = {
+  _id: Types.ObjectId;
+  team: Types.ObjectId | PopulatedTeamInfo;
+  user?: Types.ObjectId | PopulatedUserInfo | null;
+  organization: Types.ObjectId | PopulatedOrgInfo;
+  email?: string;
+  isAdmin?: boolean;
+  status?: string;
+  joinedAt?: Date;
+  creator?: Types.ObjectId;
+  gameAccuracy?: number;
+  [key: string]: unknown;
+}
+
+type QueryFilter = {
+  [key: string]: unknown;
+}
+
 @Injectable()
 export class TeamService {
   private transporter;
@@ -856,24 +966,26 @@ export class TeamService {
         .populate('user', 'name email')
         .exec();
 
-      return members.map((member: any) => {
-        if (member.user && typeof member.user === 'object' && 'name' in member.user) {
+      return members.map((member) => {
+        const memberTyped = member as unknown as TeamMemberPopulated;
+        if (memberTyped.user && typeof memberTyped.user === 'object' && '_id' in memberTyped.user) {
+          const userTyped = memberTyped.user as PopulatedUserInfo;
           return {
-            id: member._id,
-            userId: member.user._id,
-            name: member.user.name,
-            email: member.user.email,
-            isAdmin: member.isAdmin,
-            status: member.status,
-            joinedAt: member.joinedAt,
+            id: memberTyped._id,
+            userId: userTyped._id,
+            name: userTyped.name || null,
+            email: userTyped.email || null,
+            isAdmin: memberTyped.isAdmin || false,
+            status: memberTyped.status || null,
+            joinedAt: memberTyped.joinedAt || null,
           };
         } else {
           return {
-            id: member._id,
-            email: member.email,
-            isAdmin: member.isAdmin,
-            status: member.status,
-            joinedAt: member.joinedAt,
+            id: memberTyped._id,
+            email: memberTyped.email || null,
+            isAdmin: memberTyped.isAdmin || false,
+            status: memberTyped.status || null,
+            joinedAt: memberTyped.joinedAt || null,
           };
         }
       });
@@ -1009,7 +1121,7 @@ export class TeamService {
 
       // Step 5: Creator is NOT added as TeamMember - only stored in Team.creator field
       // Step 6: Optionally add multiple members by email
-      const memberResults: any[] = [];
+      const memberResults: MemberResult[] = [];
       if (memberEmails && Array.isArray(memberEmails) && memberEmails.length > 0) {
         // Clean and validate all emails are business emails (not free email domains)
         const cleanedEmails = memberEmails
@@ -1130,13 +1242,13 @@ export class TeamService {
 
   private async addSingleMemberToTeam(
     teamId: string,
-    adminUser: any,
+    adminUser: UserDocument,
     memberEmail: string,
     organizationId: string,
-    team: any,
-    organization: any,
+    team: TeamDocument,
+    organization: OrganizationDocument,
     allowUnlimitedMembers = false
-  ) {
+  ): Promise<MemberResult> {
     // Prevent re-adding the admin/creator
     if (memberEmail === adminUser.email) {
       return {
@@ -1231,7 +1343,7 @@ export class TeamService {
         user: {
           id: existingUser._id,
           email: existingUser.email,
-          name: existingUser.name
+          name: existingUser.name || undefined
         }
       };
     } else {
@@ -1629,7 +1741,7 @@ export class TeamService {
         : uniqueEmails.slice(0, remainingSlots);
       
       // Step 6: Process each member
-      const memberResults: any[] = [];
+      const memberResults: MemberResult[] = [];
       
       // Add failed status for emails that exceed the limit
       if (!allowUnlimitedMembers && uniqueEmails.length > remainingSlots) {
@@ -2462,7 +2574,7 @@ export class TeamService {
       }
 
       // Step 6: Get all AdminCreation records for this organization
-      const adminCreationQuery: any = {
+      const adminCreationQuery: QueryFilter = {
         organization: effectiveOrganizationId
       };
 
@@ -2483,16 +2595,24 @@ export class TeamService {
 
       // Step 7: Separate pending and approved AdminCreation records
       // Pending: status is 'pending' and createdAdmin is null (not registered yet)
-      const pendingAdminCreations = allAdminCreations.filter((ac: any) => 
-        ac.status === 'pending' && !ac.createdAdmin
-      );
+      const pendingAdminCreations = allAdminCreations.filter((ac) => {
+        const acTyped = ac as unknown as AdminCreationLean;
+        return acTyped.status === 'pending' && !acTyped.createdAdmin;
+      });
       // Approved: status is 'approved' and has createdAdmin (registered user)
       const approvedAdminCreationIds = allAdminCreations
-        .filter((ac: any) => ac.createdAdmin && ac.status === 'approved')
-        .map((ac: any) => ac.createdAdmin.toString());
+        .filter((ac) => {
+          const acTyped = ac as unknown as AdminCreationLean;
+          return acTyped.createdAdmin && acTyped.status === 'approved';
+        })
+        .map((ac) => {
+          const acTyped = ac as unknown as AdminCreationLean;
+          return acTyped.createdAdmin?.toString() || '';
+        })
+        .filter((id): id is string => id !== '');
 
       // Step 8: Get approved admins from User table
-      const adminQuery: any = {
+      const adminQuery: QueryFilter = {
         userType: 'admin',
         organization: effectiveOrganizationId
       };
@@ -2525,65 +2645,72 @@ export class TeamService {
         .exec();
 
       // Step 9: Create a map of AdminCreation records by email and createdAdmin
-      const adminCreationByEmailMap = new Map<string, any>();
-      const adminCreationByUserIdMap = new Map<string, any>();
+      const adminCreationByEmailMap = new Map<string, AdminCreationLean>();
+      const adminCreationByUserIdMap = new Map<string, AdminCreationLean>();
       
-      allAdminCreations.forEach((ac: any) => {
-        if (ac.email) {
-          adminCreationByEmailMap.set(ac.email.toLowerCase(), ac);
+      allAdminCreations.forEach((ac) => {
+        const acTyped = ac as unknown as AdminCreationLean;
+        if (acTyped.email) {
+          adminCreationByEmailMap.set(acTyped.email.toLowerCase(), acTyped);
         }
-        if (ac.createdAdmin) {
-          adminCreationByUserIdMap.set(ac.createdAdmin.toString(), ac);
+        if (acTyped.createdAdmin) {
+          adminCreationByUserIdMap.set(acTyped.createdAdmin.toString(), acTyped);
         }
       });
 
       // Step 10: Format approved admins (from User table)
-      const formattedApprovedAdmins = approvedAdmins.map((admin: any) => {
-        const adminCreation = adminCreationByUserIdMap.get(admin._id.toString());
+      const formattedApprovedAdmins = approvedAdmins.map((admin) => {
+        const adminTyped = admin as unknown as PopulatedUserInfo & { _id: Types.ObjectId; email?: string; name?: string; profileImage?: string | null; createdAt?: Date };
+        const adminCreation = adminCreationByUserIdMap.get(adminTyped._id.toString());
         return {
-          id: admin._id,
-          email: admin.email,
-          name: admin.name,
-          profileImage: admin.profileImage || null,
+          id: adminTyped._id,
+          email: adminTyped.email || null,
+          name: adminTyped.name || null,
+          profileImage: adminTyped.profileImage || null,
           invitationStatus: adminCreation?.status || 'approved',
-          createdAt: admin.createdAt
+          createdAt: adminTyped.createdAt || new Date()
         };
       });
 
       // Step 11: Format pending admins (from AdminCreation table only, not in User table yet)
       const formattedPendingAdmins = pendingAdminCreations
-        .filter((ac: any) => {
+        .filter((ac) => {
+          const acTyped = ac as unknown as AdminCreationLean;
           // Only include if name filter matches (if provided)
           if (name && name.trim()) {
-            const acName = ac.name || '';
+            const acName = acTyped.name || '';
             return acName.toLowerCase().includes(name.trim().toLowerCase());
           }
           return true;
         })
-        .map((ac: any) => {
+        .map((ac) => {
+          const acTyped = ac as unknown as AdminCreationLean;
           // Check if this email already exists as an approved admin
           const existingApprovedAdmin = approvedAdmins.find(
-            (admin: any) => admin.email?.toLowerCase() === ac.email?.toLowerCase()
+            (admin) => {
+              const adminTyped = admin as unknown as PopulatedUserInfo & { email?: string };
+              return adminTyped.email?.toLowerCase() === acTyped.email?.toLowerCase();
+            }
           );
           
           // Only include if not already in approved admins list
           if (!existingApprovedAdmin) {
             return {
-              id: ac._id, // Use AdminCreation _id for pending admins
-              email: ac.email,
-              name: ac.name || null,
+              id: acTyped._id, // Use AdminCreation _id for pending admins
+              email: acTyped.email,
+              name: acTyped.name || null,
               profileImage: null, // Pending admins don't have profileImage yet
-              invitationStatus: ac.status || 'pending',
-              createdAt: ac.createdAt
+              invitationStatus: acTyped.status || 'pending',
+              createdAt: acTyped.createdAt
             };
           }
           return null;
         })
-        .filter((admin: any) => admin !== null); // Remove null entries
+        .filter((admin): admin is NonNullable<typeof admin> => admin !== null); // Remove null entries
 
       // Step 12: Combine and sort all admins by createdAt (newest first)
       const allFormattedAdmins = [...formattedApprovedAdmins, ...formattedPendingAdmins].sort(
-        (a: any, b: any) => {
+        (a, b) => {
           const dateA = new Date(a.createdAt).getTime();
           const dateB = new Date(b.createdAt).getTime();
           return dateB - dateA; // Descending order
@@ -2591,7 +2718,7 @@ export class TeamService {
       );
 
       // Build filter applied object
-      const filterApplied: any = {};
+      const filterApplied: Record<string, string> = {};
       if (name && name.trim()) {
         filterApplied.name = name.trim();
       }
@@ -2773,7 +2900,7 @@ export class TeamService {
 
       // Step 5: Build query for decks with category and name filters
       const skip = (page - 1) * limit;
-      const deckQuery: any = {
+      const deckQuery: QueryFilter = {
         userId: { $in: allUserIds }
       };
 
@@ -2808,13 +2935,14 @@ export class TeamService {
         .exec();
 
       // Create a map for quick topic lookup by ID
-      const topicsMap = allTopics.reduce((map, topic: any) => {
-        const topicId = this.normalizeId(topic._id);
+      const topicsMap = allTopics.reduce((map, topic) => {
+        const topicTyped = topic as unknown as TopicLean;
+        const topicId = this.normalizeId(topicTyped._id);
         if (topicId) {
-          map.set(topicId, topic);
+          map.set(topicId, topicTyped);
         }
         return map;
-      }, new Map<string, any>());
+      }, new Map<string, TopicLean>());
 
       // Fetch all TopicProgress records for this user and all topics in a single query
       const allTopicProgressRecords = await this.topicProgressModel
@@ -2827,8 +2955,9 @@ export class TeamService {
         .exec();
 
       // Create a map of completed subtopic IDs by topic ID
-      const completedSubTopicsByTopic = allTopicProgressRecords.reduce((map, progress: any) => {
-        const topicId = this.normalizeId(progress.topicId);
+      const completedSubTopicsByTopic = allTopicProgressRecords.reduce((map, progress) => {
+        const progressTyped = progress as { topicId?: string | Types.ObjectId; completedSubTopicIds?: (string | Types.ObjectId)[] };
+        const topicId = this.normalizeId(progressTyped.topicId);
         if (!topicId) return map;
 
         if (!map.has(topicId)) {
@@ -2836,9 +2965,9 @@ export class TeamService {
         }
 
         const completedSet = map.get(topicId);
-        if (progress.completedSubTopicIds && Array.isArray(progress.completedSubTopicIds)) {
-          const normalizedIds = progress.completedSubTopicIds
-            .map((subTopicId: any) => this.normalizeId(subTopicId))
+        if (progressTyped.completedSubTopicIds && Array.isArray(progressTyped.completedSubTopicIds)) {
+          const normalizedIds = progressTyped.completedSubTopicIds
+            .map((subTopicId) => this.normalizeId(subTopicId))
             .filter((id): id is string => id !== null);
           
           normalizedIds.reduce((set, id) => {
@@ -2850,37 +2979,39 @@ export class TeamService {
       }, new Map<string, Set<string>>());
 
       // Step 8: Format the response with userPercentage calculation
-      const formattedDecks = decks.map((deck: any) => {
-        let creator: any = null;
-        if (deck.userId && typeof deck.userId === 'object' && deck.userId._id) {
+      const formattedDecks = decks.map((deck) => {
+        const deckTyped = deck as unknown as DeckLean & { userId?: string | Types.ObjectId | PopulatedUserInfo };
+        let creator: { id: string; name: string | null; email: string | null; userType: string | null } | null = null;
+        if (deckTyped.userId && typeof deckTyped.userId === 'object' && '_id' in deckTyped.userId) {
+          const userTyped = deckTyped.userId as PopulatedUserInfo & { userType?: string };
           creator = {
-            id: deck.userId._id.toString(),
-            name: deck.userId.name || null,
-            email: deck.userId.email || null,
-            userType: deck.userId.userType || null
+            id: userTyped._id.toString(),
+            name: userTyped.name || null,
+            email: userTyped.email || null,
+            userType: userTyped.userType || null
           };
         }
 
         // Calculate userPercentage
         let userPercentage = 0;
-        const contentIds = deck.contentIds || [];
+        const contentIds = deckTyped.contentIds || [];
         
         if (contentIds.length > 0) {
           // Get topics for this deck from the pre-fetched map
           const deckTopics = contentIds
-            .map((id: any) => {
+            .map((id) => {
               const normalizedId = this.normalizeId(id);
               return normalizedId ? topicsMap.get(normalizedId) : null;
             })
-            .filter((topic: any) => topic !== null);
+            .filter((topic): topic is TopicLean => topic !== null);
 
           // Count total subtopics across all topics
           const allSubtopicIds = deckTopics
-            .filter((topic: any) => topic.subTopics && Array.isArray(topic.subTopics))
-            .flatMap((topic: any) => 
-              topic.subTopics
-                .map((id: any) => this.normalizeId(id))
-                .filter((id: string | null): id is string => !!id)
+            .filter((topic) => topic.subTopics && Array.isArray(topic.subTopics))
+            .flatMap((topic) => 
+              (topic.subTopics || [])
+                .map((id) => this.normalizeId(id))
+                .filter((id): id is string => id !== null)
             );
           
           const totalSubtopics = allSubtopicIds.length;
@@ -2890,7 +3021,7 @@ export class TeamService {
           if (totalSubtopics > 0 && allSubtopicIds.length > 0) {
             // Collect all completed subtopic IDs from pre-fetched data
             const completedSubTopicIds = contentIds
-              .map((topicId: any) => this.normalizeId(topicId))
+              .map((topicId) => this.normalizeId(topicId))
               .filter((id): id is string => id !== null)
               .reduce((set, normalizedTopicId) => {
                 const completedSet = completedSubTopicsByTopic.get(normalizedTopicId);
@@ -3053,14 +3184,15 @@ export class TeamService {
         flashcardGamesPlayed = flashcardGames.length;
         
         // Calculate accuracy from playerAnswers (more accurate than using accuracy field)
-        flashcardGames.forEach((game: any) => {
-          if (game.playerAnswers && Array.isArray(game.playerAnswers)) {
+        flashcardGames.forEach((game) => {
+          const gameTyped = game as unknown as GameLean;
+          if (gameTyped.playerAnswers && Array.isArray(gameTyped.playerAnswers)) {
             // Calculate from playerAnswers - the source of truth
-            const userAnswers = game.playerAnswers.filter(
-              (answer: any) => this.normalizeId(answer.userId) === normalizedUserId
+            const userAnswers = gameTyped.playerAnswers.filter(
+              (answer) => this.normalizeId(answer.userId) === normalizedUserId
             );
             if (userAnswers.length > 0) {
-              const correct = userAnswers.filter((answer: any) => answer.isCorrect === true).length;
+              const correct = userAnswers.filter((answer) => answer.isCorrect === true).length;
               flashcardCorrect += correct;
               flashcardTotal += userAnswers.length;
             }
@@ -3082,14 +3214,15 @@ export class TeamService {
         battleGamesPlayed = battleGames.length;
         
         // Calculate accuracy from playerAnswers (more accurate than using accuracy field)
-        battleGames.forEach((game: any) => {
-          if (game.playerAnswers && Array.isArray(game.playerAnswers)) {
+        battleGames.forEach((game) => {
+          const gameTyped = game as unknown as GameLean;
+          if (gameTyped.playerAnswers && Array.isArray(gameTyped.playerAnswers)) {
             // Calculate from playerAnswers - the source of truth
-            const userAnswers = game.playerAnswers.filter(
-              (answer: any) => this.normalizeId(answer.userId) === normalizedUserId
+            const userAnswers = gameTyped.playerAnswers.filter(
+              (answer) => this.normalizeId(answer.userId) === normalizedUserId
             );
             if (userAnswers.length > 0) {
-              const correct = userAnswers.filter((answer: any) => answer.isCorrect === true).length;
+              const correct = userAnswers.filter((answer) => answer.isCorrect === true).length;
               battleCorrect += correct;
               battleTotal += userAnswers.length;
             }
@@ -3386,14 +3519,17 @@ export class TeamService {
 
                 // Collect all valid user IDs
                 const memberUserIds = allTeamMembers
-                  .map((m: any) => m.user && typeof m.user === 'object' && m.user._id
-                    ? this.normalizeId(m.user._id)
-                    : null)
+                  .map((m) => {
+                    const mTyped = m as unknown as TeamMemberPopulated;
+                    return mTyped.user && typeof mTyped.user === 'object' && '_id' in mTyped.user
+                      ? this.normalizeId(mTyped.user._id)
+                      : null;
+                  })
                   .filter((id: string | null): id is string => id !== null && isValidObjectId(id))
                   .map((id: string) => new Types.ObjectId(id));
 
                 // Single aggregation query for all members
-                let allPoints: any[] = [];
+                let allPoints: AggregationResult[] = [];
                 if (memberUserIds.length > 0) {
                   try {
                     allPoints = await this.teamGameScoreModel.aggregate([
@@ -3417,17 +3553,19 @@ export class TeamService {
 
                 // Create a map of userId to totalPoints
                 const pointsMap = new Map<string, number>();
-                allPoints.forEach((result: any) => {
-                  const userId = this.normalizeId(result._id);
+                allPoints.forEach((result) => {
+                  const resultTyped = result as unknown as AggregationResult;
+                  const userId = this.normalizeId(resultTyped._id);
                   if (userId) {
-                    pointsMap.set(userId, result.totalPoints || 0);
+                    pointsMap.set(userId, resultTyped.totalPoints || 0);
                   }
                 });
 
                 // Map members with their points
-                const membersWithPoints = allTeamMembers.map((member: any) => {
-                  const memberUserId = member.user && typeof member.user === 'object' && member.user._id
-                    ? this.normalizeId(member.user._id)
+                const membersWithPoints = allTeamMembers.map((member) => {
+                  const memberTyped = member as unknown as TeamMemberPopulated;
+                  const memberUserId = memberTyped.user && typeof memberTyped.user === 'object' && '_id' in memberTyped.user
+                    ? this.normalizeId((memberTyped.user as PopulatedUserInfo)._id)
                     : null;
                   const totalPoints = memberUserId ? (pointsMap.get(memberUserId) || 0) : 0;
 
@@ -3468,7 +3606,7 @@ export class TeamService {
         };
       }
 
-      const deckQuery: any = { userId: { $in: allOwnerIds } };
+      const deckQuery: QueryFilter = { userId: { $in: allOwnerIds } };
       if (searchTerm) {
         deckQuery.name = { $regex: searchTerm, $options: 'i' };
       }
@@ -3496,9 +3634,10 @@ export class TeamService {
       // Process decks and build topic-wise accuracy from topics table (optimization: batch fetch all topics)
       // 1. Collect all unique topic IDs from all decks
       const allTopicIdsSet = new Set<string>();
-      decks.forEach((deck: any) => {
-        const topicIds = (deck.contentIds || []).filter((id: any) => id);
-        topicIds.forEach((id: any) => {
+      decks.forEach((deck) => {
+        const deckTyped = deck as unknown as DeckLean;
+        const topicIds = (deckTyped.contentIds || []).filter((id) => id);
+        topicIds.forEach((id) => {
           const normalizedId = this.normalizeId(id);
           if (normalizedId) {
             allTopicIdsSet.add(normalizedId);
@@ -3516,11 +3655,12 @@ export class TeamService {
         .exec();
 
       // 3. Create a map of topics by ID
-      const topicsMap = new Map<string, any>();
-      allTopics.forEach((topic: any) => {
-        const topicId = this.normalizeId(topic._id);
+      const topicsMap = new Map<string, TopicLean>();
+      allTopics.forEach((topic) => {
+        const topicTyped = topic as unknown as TopicLean;
+        const topicId = this.normalizeId(topicTyped._id);
         if (topicId) {
-          topicsMap.set(topicId, topic);
+          topicsMap.set(topicId, topicTyped);
         }
       });
 
@@ -3529,13 +3669,14 @@ export class TeamService {
       const flashcardAccuracyMap = new Map<string, number>();
       const battleAccuracyMap = new Map<string, number>();
       
-      allTopics.forEach((topic: any) => {
-        const topicId = this.normalizeId(topic._id);
+      allTopics.forEach((topic) => {
+        const topicTyped = topic as unknown as TopicLean;
+        const topicId = this.normalizeId(topicTyped._id);
         if (!topicId) return;
 
         // Process flashcard accuracies
-        if (topic.flashcardAccuracies && Array.isArray(topic.flashcardAccuracies)) {
-          topic.flashcardAccuracies.forEach((entry: any) => {
+        if (topicTyped.flashcardAccuracies && Array.isArray(topicTyped.flashcardAccuracies)) {
+          topicTyped.flashcardAccuracies.forEach((entry) => {
             const userId = this.normalizeId(entry.userId);
             if (userId) {
               const key = `${topicId}:${userId}`;
@@ -3545,8 +3686,8 @@ export class TeamService {
         }
 
         // Process battle accuracies
-        if (topic.battleAccuracies && Array.isArray(topic.battleAccuracies)) {
-          topic.battleAccuracies.forEach((entry: any) => {
+        if (topicTyped.battleAccuracies && Array.isArray(topicTyped.battleAccuracies)) {
+          topicTyped.battleAccuracies.forEach((entry) => {
             const userId = this.normalizeId(entry.userId);
             if (userId) {
               const key = `${topicId}:${userId}`;
@@ -3557,12 +3698,13 @@ export class TeamService {
       });
 
       // 4. Process decks and map topics from the pre-fetched map
-      const responseDecks = decks.map((deck: any) => {
+      const responseDecks = decks.map((deck) => {
+        const deckTyped = deck as unknown as DeckLean;
         // Get all topics for this deck
-        const topicIds = (deck.contentIds || []).filter((id: any) => id);
+        const topicIds = (deckTyped.contentIds || []).filter((id) => id);
         
         // Build topics array with accuracy per topic from pre-fetched topics map
-        const topicsWithAccuracy = topicIds.map((topicId: any) => {
+        const topicsWithAccuracy = topicIds.map((topicId) => {
           const normalizedTopicId = this.normalizeId(topicId);
           if (!normalizedTopicId) {
             return {
@@ -3655,14 +3797,17 @@ export class TeamService {
 
               // Collect all valid user IDs
               const memberUserIds = allTeamMembers
-                .map((m: any) => m.user && typeof m.user === 'object' && m.user._id
-                  ? this.normalizeId(m.user._id)
-                  : null)
+                .map((m) => {
+                  const mTyped = m as unknown as TeamMemberPopulated;
+                  return mTyped.user && typeof mTyped.user === 'object' && '_id' in mTyped.user
+                    ? this.normalizeId(mTyped.user._id)
+                    : null;
+                })
                 .filter((id: string | null): id is string => id !== null && isValidObjectId(id))
                 .map((id: string) => new Types.ObjectId(id));
 
               // Single aggregation query for all members
-              let allPoints: any[] = [];
+              let allPoints: AggregationResult[] = [];
               if (memberUserIds.length > 0) {
                 try {
                   allPoints = await this.teamGameScoreModel.aggregate([
@@ -3687,17 +3832,19 @@ export class TeamService {
 
               // Create a map of userId to totalPoints
               const pointsMap = new Map<string, number>();
-              allPoints.forEach((result: any) => {
-                const userId = this.normalizeId(result._id);
+              allPoints.forEach((result) => {
+                const resultTyped = result as unknown as AggregationResult;
+                const userId = this.normalizeId(resultTyped._id);
                 if (userId) {
-                  pointsMap.set(userId, result.totalPoints || 0);
+                  pointsMap.set(userId, resultTyped.totalPoints || 0);
                 }
               });
 
               // Map members with their points
-              const membersWithPoints = allTeamMembers.map((member: any) => {
-                const memberUserId = member.user && typeof member.user === 'object' && member.user._id
-                  ? this.normalizeId(member.user._id)
+              const membersWithPoints = allTeamMembers.map((member) => {
+                const memberTyped = member as unknown as TeamMemberPopulated;
+                const memberUserId = memberTyped.user && typeof memberTyped.user === 'object' && '_id' in memberTyped.user
+                  ? this.normalizeId(memberTyped.user._id)
                   : null;
                 const totalPoints = memberUserId ? (pointsMap.get(memberUserId) || 0) : 0;
 
@@ -3789,13 +3936,16 @@ export class TeamService {
 
       // Step 5: Collect all valid user IDs and calculate total points from TeamGameScore
       const memberUserIds = members
-        .map((m: any) => m.user && typeof m.user === 'object' && m.user._id
-          ? new Types.ObjectId(m.user._id)
-          : null)
+        .map((m) => {
+          const mTyped = m as unknown as TeamMemberPopulated;
+          return mTyped.user && typeof mTyped.user === 'object' && '_id' in mTyped.user
+            ? new Types.ObjectId(mTyped.user._id)
+            : null;
+        })
         .filter((id: Types.ObjectId | null): id is Types.ObjectId => id !== null);
 
       // Single aggregation query for all members
-      let allPoints: any[] = [];
+      let allPoints: AggregationResult[] = [];
       if (memberUserIds.length > 0) {
         try {
           allPoints = await this.teamGameScoreModel.aggregate([
@@ -3819,35 +3969,42 @@ export class TeamService {
 
       // Create a map of userId to totalPoints
       const pointsMap = new Map<string, number>();
-      allPoints.forEach((result: any) => {
-        const userId = this.normalizeId(result._id);
+      allPoints.forEach((result) => {
+        const resultTyped = result as unknown as AggregationResult;
+        const userId = this.normalizeId(resultTyped._id);
         if (userId) {
-          pointsMap.set(userId, result.totalPoints || 0);
+          pointsMap.set(userId, resultTyped.totalPoints || 0);
         }
       });
 
-      // Map members with their points
-      const membersWithPoints = members.map((member: any) => {
-        let userId = null;
+        // Map members with their points
+      const membersWithPoints = members.map((member) => {
+        const memberTyped = member as unknown as TeamMemberPopulated;
+        let userId: Types.ObjectId | null = null;
         let totalPoints = 0;
 
-        if (member.user && typeof member.user === 'object' && member.user._id) {
-          userId = member.user._id;
+        if (memberTyped.user && typeof memberTyped.user === 'object' && '_id' in memberTyped.user) {
+          const userTyped = memberTyped.user as PopulatedUserInfo;
+          userId = userTyped._id;
           const normalizedUserId = this.normalizeId(userId);
           totalPoints = normalizedUserId ? (pointsMap.get(normalizedUserId) || 0) : 0;
         }
 
+        const userInfo = memberTyped.user && typeof memberTyped.user === 'object' && '_id' in memberTyped.user
+          ? memberTyped.user as PopulatedUserInfo
+          : null;
+
         return {
-          id: this.normalizeId(member._id),
+          id: this.normalizeId(memberTyped._id),
           userId: userId ? this.normalizeId(userId) : null,
-          name: member.user?.name ?? null,
-          email: member.user?.email ?? member.email ?? null,
-          profileImage: member.user?.profileImage ?? null,
-          isAdmin: member.isAdmin ?? false,
-          status: member.status ?? null,
-          joinedAt: member.joinedAt ?? null,
+          name: userInfo?.name ?? null,
+          email: userInfo?.email ?? memberTyped.email ?? null,
+          profileImage: userInfo?.profileImage ?? null,
+          isAdmin: memberTyped.isAdmin ?? false,
+          status: memberTyped.status ?? null,
+          joinedAt: memberTyped.joinedAt ?? null,
           points: totalPoints,
-          isOnline: member.user?.isOnline ?? false
+          isOnline: userInfo?.isOnline ?? false
         };
       });
 
@@ -3983,7 +4140,7 @@ export class TeamService {
         .exec();
 
       // Step 4: Get all teams in these organizations with optional name filter
-      const teamQuery: any = { organization: { $in: organizationIds } };
+      const teamQuery: QueryFilter = { organization: { $in: organizationIds } };
       
       // Add name filter if provided (case-insensitive partial match)
       if (name && name.trim()) {
@@ -3996,8 +4153,14 @@ export class TeamService {
         .exec();
 
       // Step 5: Batch fetch all data at once (optimization)
-      const teamIds = teams.map((t: any) => t._id);
-      const creatorIds = teams.map((t: any) => t.creator).filter((id: any) => id);
+      const teamIds = teams.map((t) => {
+        const tTyped = t as { _id: Types.ObjectId };
+        return tTyped._id;
+      });
+      const creatorIds = teams.map((t) => {
+        const tTyped = t as unknown as { creator?: Types.ObjectId };
+        return tTyped.creator;
+      }).filter((id): id is Types.ObjectId => id !== undefined && id !== null);
 
       // 1. Batch fetch all creators
       const allCreators = await this.userModel
@@ -4006,13 +4169,14 @@ export class TeamService {
         .lean()
         .exec();
       
-      const creatorsMap = allCreators.reduce((map, creator: any) => {
-        const creatorId = this.normalizeId(creator._id);
+      const creatorsMap = allCreators.reduce((map, creator) => {
+        const creatorTyped = creator as unknown as PopulatedUserInfo & { _id: Types.ObjectId; email?: string; name?: string };
+        const creatorId = this.normalizeId(creatorTyped._id);
         if (creatorId) {
-          map.set(creatorId, creator);
+          map.set(creatorId, creatorTyped);
         }
         return map;
-      }, new Map<string, any>());
+      }, new Map<string, PopulatedUserInfo & { _id: Types.ObjectId; email?: string; name?: string }>());
 
       // 2. Batch fetch all members for all teams (with status filter for display)
       const allMembers = await this.teamMemberModel
@@ -4039,33 +4203,42 @@ export class TeamService {
         }
       ]);
 
-      const memberCountMap = memberCountsByTeam.reduce((map, result: any) => {
-        const teamId = this.normalizeId(result._id);
+      const memberCountMap = memberCountsByTeam.reduce((map, result) => {
+        const resultTyped = result as unknown as AggregationResult & { totalCount?: number };
+        const teamId = this.normalizeId(resultTyped._id);
         if (teamId) {
-          map.set(teamId, result.totalCount || 0);
+          map.set(teamId, resultTyped.totalCount || 0);
         }
         return map;
       }, new Map<string, number>());
 
       // Group members by team
-      const membersByTeam = allMembers.reduce((map, member: any) => {
-        const teamId = this.normalizeId(member.team);
+      const membersByTeam = allMembers.reduce((map, member) => {
+        const memberTyped = member as unknown as TeamMemberPopulated;
+        const teamId = this.normalizeId(memberTyped.team);
         if (teamId) {
           if (!map.has(teamId)) {
             map.set(teamId, []);
           }
-          map.get(teamId)!.push(member);
+          map.get(teamId)!.push(memberTyped);
         }
         return map;
-      }, new Map<string, any[]>());
+      }, new Map<string, TeamMemberPopulated[]>());
 
       // 3. Collect all valid user IDs for approved members only (for points aggregation)
       const allApprovedMemberUserIds = allMembers
-        .filter((m: any) => m.user && typeof m.user === 'object' && m.user._id && m.status === 'approved')
-        .map((m: any) => new Types.ObjectId(m.user._id));
+        .filter((m) => {
+          const mTyped = m as unknown as TeamMemberPopulated;
+          return mTyped.user && typeof mTyped.user === 'object' && '_id' in mTyped.user && mTyped.status === 'approved';
+        })
+        .map((m) => {
+          const mTyped = m as unknown as TeamMemberPopulated;
+          const userTyped = mTyped.user as PopulatedUserInfo;
+          return new Types.ObjectId(userTyped._id);
+        });
 
       // 4. Single aggregation query for all points (grouped by userId and teamId)
-      let allPointsAggregation: any[] = [];
+      let allPointsAggregation: AggregationResult[] = [];
       if (allApprovedMemberUserIds.length > 0 && teamIds.length > 0) {
         try {
           allPointsAggregation = await this.teamGameScoreModel.aggregate([
@@ -4091,18 +4264,20 @@ export class TeamService {
       }
 
       // Create a map of (userId, teamId) to totalPoints
-      const pointsMap = allPointsAggregation.reduce((map, result: any) => {
-        const userId = this.normalizeId(result._id.userId);
-        const teamId = this.normalizeId(result._id.teamId);
+      const pointsMap = allPointsAggregation.reduce((map, result) => {
+        const resultTyped = result as unknown as AggregationResult & { _id: { userId: string | Types.ObjectId; teamId: string | Types.ObjectId } };
+        const userId = this.normalizeId(resultTyped._id.userId);
+        const teamId = this.normalizeId(resultTyped._id.teamId);
         if (userId && teamId) {
           const key = `${teamId}:${userId}`;
-          map.set(key, result.totalPoints || 0);
+          map.set(key, resultTyped.totalPoints || 0);
         }
         return map;
       }, new Map<string, number>());
 
       // Step 5: Process teams with members
-      const teamsWithMembers = teams.map((team: any) => {
+      const teamsWithMembers = teams.map((team) => {
+        const teamTyped = team as unknown as { _id: Types.ObjectId; teamName?: string; organization: Types.ObjectId; creator: Types.ObjectId; isActive?: boolean; createdAt?: Date };
         // Get organization details for this team
         const teamOrg = organizations.find(
           org => org._id.toString() === team.organization.toString()
@@ -4117,13 +4292,15 @@ export class TeamService {
         const members = membersByTeam.get(teamIdStr) || [];
 
         // Process members with points calculation
-        const membersWithPoints = members.map((member: any) => {
+        const membersWithPoints = members.map((member) => {
+          const memberTyped = member as unknown as TeamMemberPopulated;
           let totalPoints = 0;
-          let userId = null;
+          let userId: Types.ObjectId | null = null;
 
           // Only calculate points for approved members with user accounts
-          if (member.user && typeof member.user === 'object' && member.user._id && member.status === 'approved') {
-            userId = member.user._id;
+          if (memberTyped.user && typeof memberTyped.user === 'object' && '_id' in memberTyped.user && memberTyped.status === 'approved') {
+            const userTyped = memberTyped.user as PopulatedUserInfo;
+            userId = userTyped._id;
             const normalizedUserId = this.normalizeId(userId);
             if (normalizedUserId) {
               const key = `${teamIdStr}:${normalizedUserId}`;
@@ -4131,15 +4308,19 @@ export class TeamService {
             }
           }
 
+          const userInfo = memberTyped.user && typeof memberTyped.user === 'object' && '_id' in memberTyped.user
+            ? memberTyped.user as PopulatedUserInfo
+            : null;
+
           return {
-            id: this.normalizeId(member._id),
+            id: this.normalizeId(memberTyped._id),
             userId: userId ? this.normalizeId(userId) : null,
-            name: member.user?.name ?? null,
-            email: member.user?.email ?? member.email ?? null,
-            profileImage: member.user?.profileImage ?? null,
-            isAdmin: member.isAdmin ?? false,
-            status: member.status ?? null,
-            joinedAt: member.joinedAt ?? null,
+            name: userInfo?.name ?? null,
+            email: userInfo?.email ?? memberTyped.email ?? null,
+            profileImage: userInfo?.profileImage ?? null,
+            isAdmin: memberTyped.isAdmin ?? false,
+            status: memberTyped.status ?? null,
+            joinedAt: memberTyped.joinedAt ?? null,
             points: totalPoints
           };
         });
@@ -4186,12 +4367,15 @@ export class TeamService {
       // ✅ OPTIMIZATION: Use bulkWrite instead of multiple individual updates
       // This reduces database round trips from N to 1, significantly improving performance
       if (teams.length > 0) {
-        const bulkOps = teams.map((team: any) => ({
-          updateOne: {
-            filter: { _id: team._id },
-            update: { $set: { memberCount: memberCountMap.get(team._id.toString()) || 0 } },
-          },
-        }));
+        const bulkOps = teams.map((team) => {
+          const teamTyped = team as { _id: Types.ObjectId };
+          return {
+            updateOne: {
+              filter: { _id: teamTyped._id },
+              update: { $set: { memberCount: memberCountMap.get(teamTyped._id.toString()) || 0 } },
+            },
+          };
+        });
         
         await this.teamModel.bulkWrite(bulkOps);
       }
@@ -4303,7 +4487,10 @@ export class TeamService {
         .exec();
 
       // Step 4: Batch fetch all data at once (optimization)
-      const teamIds = teams.map((t: any) => t._id);
+      const teamIds = teams.map((t) => {
+        const tTyped = t as { _id: Types.ObjectId };
+        return tTyped._id;
+      });
 
       // 1. Batch fetch all approved members for all teams
       const allMembers = await this.teamMemberModel
@@ -4316,21 +4503,29 @@ export class TeamService {
         .exec();
 
       // Group members by team
-      const membersByTeam = new Map<string, any[]>();
-      allMembers.forEach((member: any) => {
-        const teamId = this.normalizeId(member.team);
+      const membersByTeam = new Map<string, TeamMemberPopulated[]>();
+      allMembers.forEach((member) => {
+        const memberTyped = member as unknown as TeamMemberPopulated;
+        const teamId = this.normalizeId(memberTyped.team);
         if (teamId) {
           if (!membersByTeam.has(teamId)) {
             membersByTeam.set(teamId, []);
           }
-          membersByTeam.get(teamId)!.push(member);
+          membersByTeam.get(teamId)!.push(memberTyped);
         }
       });
 
       // 2. Collect all member user IDs
       const allMemberUserIds = allMembers
-        .filter((m: any) => m.user && typeof m.user === 'object' && m.user._id)
-        .map((m: any) => this.normalizeId(m.user._id))
+        .filter((m) => {
+          const mTyped = m as unknown as TeamMemberPopulated;
+          return mTyped.user && typeof mTyped.user === 'object' && '_id' in mTyped.user;
+        })
+        .map((m) => {
+          const mTyped = m as unknown as TeamMemberPopulated;
+          const userTyped = mTyped.user as PopulatedUserInfo;
+          return this.normalizeId(userTyped._id);
+        })
         .filter((id): id is string => id !== null && isValidObjectId(id));
 
       // 3. Batch fetch all GameProgress records
@@ -4339,11 +4534,12 @@ export class TeamService {
         .lean()
         .exec();
 
-      const gameProgressMap = new Map<string, any>();
-      allGameProgress.forEach((gp: any) => {
-        const userId = this.normalizeId(gp.userId);
+      const gameProgressMap = new Map<string, GameProgressLean>();
+      allGameProgress.forEach((gp) => {
+        const gpTyped = gp as unknown as GameProgressLean;
+        const userId = this.normalizeId(gpTyped.userId);
         if (userId) {
-          gameProgressMap.set(userId, gp);
+          gameProgressMap.set(userId, gpTyped);
         }
       });
 
@@ -4357,21 +4553,22 @@ export class TeamService {
         .exec();
 
       // Group TeamGameScores by (teamId, userId) and get latest for each combination
-      const latestTeamGameScoresMap = new Map<string, any>();
-      allTeamGameScores.forEach((score: any) => {
-        const userId = this.normalizeId(score.userId);
-        const teamId = this.normalizeId(score.teamId);
+      const latestTeamGameScoresMap = new Map<string, TeamGameScoreLean>();
+      allTeamGameScores.forEach((score) => {
+        const scoreTyped = score as unknown as TeamGameScoreLean;
+        const userId = this.normalizeId(scoreTyped.userId);
+        const teamId = this.normalizeId(scoreTyped.teamId);
         if (userId && teamId) {
           const key = `${teamId}:${userId}`;
           const existing = latestTeamGameScoresMap.get(key);
           if (!existing) {
-            latestTeamGameScoresMap.set(key, score);
+            latestTeamGameScoresMap.set(key, scoreTyped);
           } else {
             // Keep the latest one based on updatedAt
             const existingDate = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-            const scoreDate = score.updatedAt ? new Date(score.updatedAt).getTime() : 0;
+            const scoreDate = scoreTyped.updatedAt ? new Date(scoreTyped.updatedAt).getTime() : 0;
             if (scoreDate > existingDate) {
-              latestTeamGameScoresMap.set(key, score);
+              latestTeamGameScoresMap.set(key, scoreTyped);
             }
           }
         }
@@ -4402,9 +4599,10 @@ export class TeamService {
 
       // 7. Collect all topic IDs from these decks
       const topicIdsForStats: string[] = [];
-      orgDecks.forEach((deck: any) => {
-        if (deck.contentIds && Array.isArray(deck.contentIds)) {
-          deck.contentIds.forEach((contentId: any) => {
+      orgDecks.forEach((deck) => {
+        const deckTyped = deck as unknown as DeckLean;
+        if (deckTyped.contentIds && Array.isArray(deckTyped.contentIds)) {
+          deckTyped.contentIds.forEach((contentId) => {
             const normalizedId = this.normalizeId(contentId);
             if (normalizedId && !topicIdsForStats.includes(normalizedId)) {
               topicIdsForStats.push(normalizedId);
@@ -4419,11 +4617,12 @@ export class TeamService {
         .lean()
         .exec();
 
-      const topicsMap = new Map<string, any>();
-      allTopics.forEach((topic: any) => {
-        const topicId = this.normalizeId(topic._id);
+      const topicsMap = new Map<string, TopicLean>();
+      allTopics.forEach((topic) => {
+        const topicTyped = topic as unknown as TopicLean;
+        const topicId = this.normalizeId(topicTyped._id);
         if (topicId) {
-          topicsMap.set(topicId, topic);
+          topicsMap.set(topicId, topicTyped);
         }
       });
 
@@ -4432,13 +4631,14 @@ export class TeamService {
       const flashcardAccuracyMap = new Map<string, number>();
       const battleAccuracyMap = new Map<string, number>();
       
-      allTopics.forEach((topic: any) => {
-        const topicId = this.normalizeId(topic._id);
+      allTopics.forEach((topic) => {
+        const topicTyped = topic as unknown as TopicLean;
+        const topicId = this.normalizeId(topicTyped._id);
         if (!topicId) return;
 
         // Process flashcard accuracies
-        if (topic.flashcardAccuracies && Array.isArray(topic.flashcardAccuracies)) {
-          topic.flashcardAccuracies.forEach((entry: any) => {
+        if (topicTyped.flashcardAccuracies && Array.isArray(topicTyped.flashcardAccuracies)) {
+          topicTyped.flashcardAccuracies.forEach((entry) => {
             const userId = this.normalizeId(entry.userId);
             if (userId) {
               const key = `${topicId}:${userId}`;
@@ -4448,8 +4648,8 @@ export class TeamService {
         }
 
         // Process battle accuracies
-        if (topic.battleAccuracies && Array.isArray(topic.battleAccuracies)) {
-          topic.battleAccuracies.forEach((entry: any) => {
+        if (topicTyped.battleAccuracies && Array.isArray(topicTyped.battleAccuracies)) {
+          topicTyped.battleAccuracies.forEach((entry) => {
             const userId = this.normalizeId(entry.userId);
             if (userId) {
               const key = `${topicId}:${userId}`;
@@ -4460,8 +4660,8 @@ export class TeamService {
       });
 
       // Helper function to build subjectModeStats (now using pre-fetched Maps - O(1) lookup)
-      const buildSubjectModeStats = (topicIds: string[], memberUserId: string): Record<string, any> => {
-        const subjectModeStats: Record<string, any> = {};
+      const buildSubjectModeStats = (topicIds: string[], memberUserId: string): Record<string, { flashcardAccuracy: number; battleAccuracy: number; Improvement: number }> => {
+        const subjectModeStats: Record<string, { flashcardAccuracy: number; battleAccuracy: number; Improvement: number }> = {};
         
         if (topicIds.length === 0) {
           return subjectModeStats;
@@ -4499,7 +4699,8 @@ export class TeamService {
       };
 
       // Step 5: Process teams with members
-      const teamsData = teams.map((team: any) => {
+      const teamsData = teams.map((team) => {
+        const teamTyped = team as unknown as { _id: Types.ObjectId; teamName?: string; points?: number; organization: Types.ObjectId; creator: Types.ObjectId; isActive?: boolean; createdAt?: Date };
         // Get team's total points from team table
         const teamTotalPoints = team.points || 0;
         const teamIdStr = team._id.toString();
@@ -4508,11 +4709,12 @@ export class TeamService {
         const members = membersByTeam.get(teamIdStr) || [];
 
         // Process each member
-        const membersData = members.map((member: any) => {
-          if (!member.user || !member.user._id) {
+        const membersData = members.map((member) => {
+          const memberTyped = member as unknown as TeamMemberPopulated;
+          if (!memberTyped.user || (typeof memberTyped.user === 'object' && !('_id' in memberTyped.user))) {
             // Member without user account (pending)
             return {
-              ...member,
+              ...memberTyped,
               scores: [],
               totalPoints: teamTotalPoints, // Use team's total points
               accuracy: '0.00',
@@ -4522,10 +4724,26 @@ export class TeamService {
             };
           }
 
-          const memberUserId = this.normalizeId(member.user._id);
+          const userInfo = memberTyped.user && typeof memberTyped.user === 'object' && '_id' in memberTyped.user
+            ? memberTyped.user as PopulatedUserInfo
+            : null;
+
+          if (!userInfo) {
+            return {
+              ...memberTyped,
+              scores: [],
+              totalPoints: 0,
+              accuracy: '0.00',
+              totalGamesPlayed: 0,
+              totalQuestionsAnswered: 0,
+              correctAnswers: 0
+            };
+          }
+
+          const memberUserId = this.normalizeId(userInfo._id);
           if (!memberUserId) {
             return {
-              ...member,
+              ...memberTyped,
               scores: [],
               totalPoints: 0,
               accuracy: '0.00',
@@ -4544,14 +4762,28 @@ export class TeamService {
           const correctAnswers = gameProgress?.totalCorrectAnswers || 0;
 
           // Get accuracy from TeamMember's gameAccuracy field
-          const accuracy = member.gameAccuracy || 0;
+          const accuracy = memberTyped.gameAccuracy || 0;
 
           // Get latest TeamGameScore from map
           const scoreKey = `${teamIdStr}:${memberUserId}`;
           const latestScore = latestTeamGameScoresMap.get(scoreKey);
 
           // Process scores - use the latest score or create default
-          let scoresData: any[] = [];
+          let scoresData: Array<{
+            _id: Types.ObjectId | null;
+            teamId: string;
+            userId: string;
+            points: number;
+            accuracy: number;
+            totalGamesPlayed: number;
+            totalQuestionsAnswered: number;
+            correctAnswers: number;
+            averageResponseTime: number;
+            subjectModeStats: Record<string, { flashcardAccuracy: number; battleAccuracy: number; Improvement: number }>;
+            createdAt: Date;
+            updatedAt: Date;
+            __v: number;
+          }> = [];
           let memberPoints = 0;
           
           if (latestScore) {
@@ -4595,19 +4827,24 @@ export class TeamService {
           }
 
           return {
-            _id: member._id,
-            team: member.team?.toString() || teamIdStr,
-            organization: member.organization?.toString() || organizationId,
-            email: member.email || member.user?.email || null,
-            isAdmin: member.isAdmin || false,
-            status: member.status || 'approved',
-            joinedAt: member.joinedAt || new Date(),
-            __v: member.__v || 0,
-            user: {
-              _id: member.user._id,
-              name: member.user.name || null,
-              email: member.user.email || null,
-              profileImage: member.user.profileImage || null
+            _id: memberTyped._id,
+            team: this.normalizeId(memberTyped.team) || teamIdStr,
+            organization: this.normalizeId(memberTyped.organization) || organizationId,
+            email: memberTyped.email || userInfo?.email || null,
+            isAdmin: memberTyped.isAdmin || false,
+            status: memberTyped.status || 'approved',
+            joinedAt: memberTyped.joinedAt || new Date(),
+            __v: (memberTyped as { __v?: number }).__v || 0,
+            user: userInfo ? {
+              _id: userInfo._id,
+              name: userInfo.name || null,
+              email: userInfo.email || null,
+              profileImage: userInfo.profileImage || null
+            } : {
+              _id: null,
+              name: null,
+              email: null,
+              profileImage: null
             },
             scores: scoresData,
             totalPoints: memberPoints, // Member-specific points for ranking
@@ -4845,8 +5082,14 @@ export class TeamService {
       // Step 4: Get team information for each user (optimization: batch fetch team members)
       // 1. Collect all member user IDs
       const memberUserIds = onlineUsers
-        .filter((user: any) => user.userType === 'member')
-        .map((user: any) => this.normalizeId(user._id))
+        .filter((user) => {
+          const userTyped = user as unknown as PopulatedUserInfo & { userType?: string };
+          return userTyped.userType === 'member';
+        })
+        .map((user) => {
+          const userTyped = user as unknown as PopulatedUserInfo;
+          return this.normalizeId(userTyped._id);
+        })
         .filter((id): id is string => id !== null && isValidObjectId(id));
 
       // 2. Batch fetch all team members for member users
@@ -4860,27 +5103,31 @@ export class TeamService {
         .exec();
 
       // 3. Create a map of userId to team member (with team info)
-      const teamMemberMap = new Map<string, any>();
-      allTeamMembers.forEach((teamMember: any) => {
-        const userId = this.normalizeId(teamMember.user);
+      const teamMemberMap = new Map<string, TeamMemberPopulated>();
+      allTeamMembers.forEach((teamMember) => {
+        const teamMemberTyped = teamMember as unknown as TeamMemberPopulated;
+        const userId = this.normalizeId(teamMemberTyped.user);
         if (userId) {
-          teamMemberMap.set(userId, teamMember);
+          teamMemberMap.set(userId, teamMemberTyped);
         }
       });
 
       // 4. Format users with team information from the map
-      const formattedUsers = onlineUsers.map((user: any) => {
-        const normalizedUserId = this.normalizeId(user._id);
-        const normalizedOrgId = user.organization && typeof user.organization === 'object' 
-          ? this.normalizeId(user.organization._id) 
-          : this.normalizeId(user.organization);
+      const formattedUsers = onlineUsers.map((user) => {
+        const userTyped = user as unknown as PopulatedUserInfo & { _id: Types.ObjectId; email?: string; userType?: string; isOnline?: boolean; profileImage?: string | null; lastSeen?: Date; organization?: Types.ObjectId | PopulatedOrgInfo };
+        const normalizedUserId = this.normalizeId(userTyped._id);
+        const normalizedOrgId = userTyped.organization && typeof userTyped.organization === 'object' && '_id' in userTyped.organization
+          ? this.normalizeId((userTyped.organization as PopulatedOrgInfo)._id) 
+          : userTyped.organization
+            ? this.normalizeId(userTyped.organization as Types.ObjectId)
+            : null;
 
         // Initialize teamId and teamName
         let teamId: string | null = null;
         let teamName: string | null = null;
 
         // Only get team information for members (superAdmin and admin should have null)
-        if (user.userType === 'member' && normalizedUserId) {
+        if (userTyped.userType === 'member' && normalizedUserId) {
           const teamMember = teamMemberMap.get(normalizedUserId);
           if (teamMember && teamMember.team) {
             const teamMemberTyped = teamMember as unknown as PopulatedTeamMemberLean;
@@ -4895,21 +5142,25 @@ export class TeamService {
         }
         // For superAdmin and admin, teamId and teamName remain null
 
+        const orgInfo = userTyped.organization && typeof userTyped.organization === 'object' && '_id' in userTyped.organization
+          ? userTyped.organization as PopulatedOrgInfo
+          : null;
+
         return {
           id: normalizedUserId,
-          name: user.name || null,
-          email: user.email || null,
-          userType: user.userType || null,
-          isOnline: user.isOnline || false,
-          profileImage: user.profileImage || null,
-          lastSeen: user.lastSeen || null,
+          name: userTyped.name || null,
+          email: userTyped.email || null,
+          userType: userTyped.userType || null,
+          isOnline: userTyped.isOnline || false,
+          profileImage: userTyped.profileImage || null,
+          lastSeen: userTyped.lastSeen || null,
           teamId: teamId,
           teamName: teamName,
-          organization: user.organization && typeof user.organization === 'object'
+          organization: orgInfo
             ? {
                 id: normalizedOrgId,
-                name: user.organization.name || null,
-                logo: user.organization.logo || null
+                name: orgInfo.name || null,
+                logo: (orgInfo as { logo?: string }).logo || null
               }
             : null
         };

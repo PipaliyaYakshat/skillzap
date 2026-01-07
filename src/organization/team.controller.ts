@@ -9,12 +9,11 @@ import {
   Param,
   Query,
   UseGuards,
-  Request,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
   HttpException,
-    Req,
+  Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TeamService } from './team.service';
@@ -46,6 +45,15 @@ import { TeamRoleGuard } from './guards/team-role.guard';
 import { RolesGuard } from '../auth/lib/roles.guard';
 import { Roles } from '../auth/lib/roles.decorator';
 import { multerOrganizationLogoOptions } from '../common/multer.service';
+import { type Request } from 'express';
+
+// Type for authenticated user object
+type AuthUser = {
+  id?: string;
+  _id?: string;
+  userId?: string;
+  [key: string]: unknown;
+};
 
 @ApiTags('Team Controller')
 @Controller('organization')
@@ -84,15 +92,19 @@ export class TeamController {
   async createOrganization(
     @Body() createOrganizationDto: CreateOrganizationDto,
     @UploadedFile() organizationLogo: Express.Multer.File,
-    @Request() req: any,
+    @Req() req: Request & { user?: AuthUser },
   ) {
     if (!organizationLogo) {
       throw new BadRequestException('Organization logo is required');
     }
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User authentication required');
+    }
     return this.teamService.createOrganization(
       createOrganizationDto,
       organizationLogo,
-      req.user.id,
+      userId,
     );
   }
 
@@ -106,13 +118,17 @@ export class TeamController {
     status: 200,
     description: 'Organizations retrieved successfully',
   })
-  async getOrganization(@Request() req: any) {
-    return this.teamService.getOrganization(req.user.id);
+  async getOrganization(@Req() req: Request & { user?: AuthUser }) {
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User authentication required');
+    }
+    return this.teamService.getOrganization(userId);
   }
 
   // @Get('dashboard')
   // @ApiOperation({ summary: 'Get dashboard data (organizations, teams, members)' })
-  // async getDashboard(@Request() req: any) {
+  // async getDashboard(@Req() req: Request & { user?: AuthUser }) {
   //   const userId = req.user?.id;
   //   if (!userId) {
   //     throw new BadRequestException('User authentication required');
@@ -131,8 +147,12 @@ export class TeamController {
     status: 200,
     description: 'All organizations retrieved successfully',
   })
-  async getAllOrganization(@Request() req: any) {
-    return this.teamService.getAllOrganization(req.user.id);
+  async getAllOrganization(@Req() req: Request & { user?: AuthUser }) {
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User authentication required');
+    }
+    return this.teamService.getAllOrganization(userId);
   }
 
   @Put(':id')
@@ -165,13 +185,17 @@ export class TeamController {
     @Param('id') id: string,
     @Body() updateOrganizationDto: UpdateOrganizationDto,
     @UploadedFile() organizationLogo: Express.Multer.File | undefined,
-    @Request() req: any,
+    @Req() req: Request & { user?: AuthUser },
   ) {
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User authentication required');
+    }
     return this.teamService.updateOrganization(
       id,
       updateOrganizationDto,
       organizationLogo,
-      req.user.id,
+      userId,
     );
   }
 
@@ -240,11 +264,15 @@ export class TeamController {
   @ApiResponse({ status: 400, description: 'Invalid user ID' })
   @ApiResponse({ status: 404, description: 'User not found' })
   async getAllTeamsForUser(
-    @Request() req: any,
+    @Req() req: Request & { user?: AuthUser },
     @Query('status') status?: string,
     @Query('name') name?: string,
   ) {
-    return this.teamService.getAllTeamsForUser(req.user.id, status, name);
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User authentication required');
+    }
+    return this.teamService.getAllTeamsForUser(userId, status, name);
   }
 
   @Get('team/:teamId/details')
@@ -319,9 +347,13 @@ export class TeamController {
   })
   async deleteOrganization(
     @Param('id') id: string,
-    @Request() req: any,
+    @Req() req: Request & { user?: AuthUser },
   ) {
-    return this.teamService.deleteOrganization(id, req.user.id);
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User authentication required');
+    }
+    return this.teamService.deleteOrganization(id, userId);
   }
 
   @UseGuards(TeamRoleGuard)
@@ -340,11 +372,15 @@ export class TeamController {
     description: 'Invalid input or user already admin',
   })
   async makeUserAdmin(
-    @Request() req: any,
+    @Req() req: Request & { user?: AuthUser },
     @Body() makeUserAdminDto: MakeUserAdminDto
   ) {
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User authentication required');
+    }
     return this.teamService.makeUserAdmin(
-      req.user.id,
+      userId,
       makeUserAdminDto.organizationId,
       makeUserAdminDto.email,
       makeUserAdminDto.name
@@ -378,11 +414,15 @@ export class TeamController {
   })
   async getAdmin(
     @Query('organizationId') organizationId: string | undefined,
-    @Request() req: any,
+    @Req() req: Request & { user?: AuthUser },
     @Query('name') name?: string,
     @Query('status') status?: string
   ) {
-    return this.teamService.getAdmin(req.user.id, organizationId, name, status);
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User authentication required');
+    }
+    return this.teamService.getAdmin(userId, organizationId, name, status);
   }
 
   @Delete('admin/:adminUserId')
@@ -411,12 +451,16 @@ export class TeamController {
   async removeAdminDelete(
     @Param('adminUserId') adminUserId: string,
     @Query('organizationId') organizationId: string | undefined,
-    @Request() req: any
+    @Req() req: Request & { user?: AuthUser }
   ) {
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User authentication required');
+    }
     return this.teamService.removeAdmin(
       adminUserId,
       organizationId,
-      req.user.id
+      userId
     );
   }
 
@@ -436,11 +480,15 @@ export class TeamController {
     description: 'Invalid input or organization not found',
   })
   async createTeamAndAddMember(
-    @Request() req: any,
+    @Req() req: Request & { user?: AuthUser },
     @Body() createTeamDto: CreateTeamDto
   ) {
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User authentication required');
+    }
     return this.teamService.createTeamAndAddMember(
-      req.user.id,
+      userId,
       createTeamDto.organizationId,
       createTeamDto.teamName,
       createTeamDto.memberEmails
@@ -463,12 +511,16 @@ export class TeamController {
     description: 'Invalid input, team not found, or members already in team',
   })
   async addMemberToTeam(
-    @Request() req: any,
+    @Req() req: Request & { user?: AuthUser },
     @Body() addMemberToTeamDto: AddMemberToTeamDto
   ) {
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User authentication required');
+    }
     return this.teamService.addMemberToTeam(
       addMemberToTeamDto.teamId,
-      req.user.id,
+      userId,
       addMemberToTeamDto.memberEmails,
       addMemberToTeamDto.organizationId
     );
@@ -480,7 +532,7 @@ export class TeamController {
   // @ApiQuery({ name: 'teamId', description: 'Team ID', required: true, example: '507f1f77bcf86cd799439011' })
   // @ApiQuery({ name: 'organizationId', description: 'Organization ID', required: true, example: '507f1f77bcf86cd799439011' })
   // async getTeamMembers(
-  //   @Request() req: any,
+  //   @Req() req: Request & { user?: AuthUser },
   //   @Query('teamId') teamId: string,
   //   @Query('organizationId') organizationId: string
   // ) {
@@ -514,12 +566,16 @@ export class TeamController {
     description: 'Team not found',
   })
   async removeMemberFromTeam(
-    @Request() req: any,
+    @Req() req: Request & { user?: AuthUser },
     @Body() removeMemberFromTeamDto: RemoveMemberFromTeamDto
   ) {
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User authentication required');
+    }
     return this.teamService.removeMemberFromTeam(
       removeMemberFromTeamDto.teamId,
-      req.user.id,
+      userId,
       removeMemberFromTeamDto.memberId,
       removeMemberFromTeamDto.organizationId
     );
@@ -545,12 +601,16 @@ export class TeamController {
     description: 'Team not found',
   })
   async moveMemberToTeam(
-    @Request() req: any,
+    @Req() req: Request & { user?: AuthUser },
     @Body() moveMemberToTeamDto: MoveMemberToTeamDto
   ) {
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User authentication required');
+    }
     return this.teamService.moveMemberToTeam(
       moveMemberToTeamDto.teamId,
-      req.user.id,
+      userId,
       moveMemberToTeamDto.memberId,
       moveMemberToTeamDto.moveTeamId
     );
@@ -607,9 +667,13 @@ export class TeamController {
   @ApiQuery({ name: 'category', required: false, description: 'Filter decks by category name', example: 'Technology' })
   @ApiQuery({ name: 'name', required: false, description: 'Filter decks by name (partial match, case-insensitive). Example: searching "H" will match "HTML"', example: 'H' })
   async getUserOrganizationDecks(
-    @Request() req: any,
+    @Req() req: Request & { user?: AuthUser },
     @Query() query: MyDecksQueryDto,
   ) {
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User authentication required');
+    }
     const page = query.page ? parseInt(query.page, 10) : 1;
     const limit = query.limit ? parseInt(query.limit, 10) : 10;
     const category = query.category;
@@ -623,7 +687,7 @@ export class TeamController {
     }
 
     return this.teamService.getUserOrganizationDecks(
-      req.user.id,
+      userId,
       page,
       limit,
       category,
@@ -637,9 +701,13 @@ export class TeamController {
   @ApiResponse({ status: 400, description: 'Invalid user ID' })
   @ApiResponse({ status: 404, description: 'User or organization not found' })
   async getDashboard(
-    @Request() req: any
+    @Req() req: Request & { user?: AuthUser }
   ) {
-    return this.teamService.getDashboard(req.user.id);
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User authentication required');
+    }
+    return this.teamService.getDashboard(userId);
   }
 
   @Get('users/online')
@@ -706,8 +774,12 @@ export class TeamController {
     status: 404,
     description: 'User not found',
   })
-  async getUsersOnline(@Request() req: any) {
-    return this.teamService.getUsersOnline(req.user.id);
+  async getUsersOnline(@Req() req: Request & { user?: AuthUser }) {
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User authentication required');
+    }
+    return this.teamService.getUsersOnline(userId);
   }
 
   @Get('knowledge-improvement')
@@ -726,11 +798,15 @@ export class TeamController {
   @ApiQuery({ name: 'userId', required: false, description: 'Optional target user ID to fetch accuracy for. If not provided, uses the authenticated user from token.', example: '507f1f77bcf86cd799439011' })
   @ApiQuery({ name: 'searchTerm', required: false, description: 'Optional deck name search term', example: 'Python' })
   async getKnowledgeImprovementDecks(
-    @Request() req: any,
+    @Req() req: Request & { user?: AuthUser },
     @Query('userId') userId?: string,
     @Query('searchTerm') searchTerm?: string,
   ) {
-    return this.teamService.getKnowledgeImprovementDecks(req.user.id, userId, searchTerm);
+    const authenticatedUserId = req.user?.id || req.user?._id || req.user?.userId;
+    if (!authenticatedUserId) {
+      throw new BadRequestException('User authentication required');
+    }
+    return this.teamService.getKnowledgeImprovementDecks(authenticatedUserId, userId, searchTerm);
   }
 
    @Patch('deck/:deckId/name')
@@ -760,7 +836,7 @@ export class TeamController {
       description: 'Deck not found',
     })
     async updateDeckName(
-      @Req() req: Request & { user?: Record<string, any> },
+      @Req() req: Request & { user?: AuthUser },
       @Param('deckId') deckId: string,
       @Body() body: UpdateDeckNameDto,
     ) {
@@ -816,7 +892,7 @@ export class TeamController {
     description: 'Deck not found',
   })
   async deleteDeck(
-    @Req() req: Request & { user?: Record<string, any> },
+    @Req() req: Request & { user?: AuthUser },
     @Param('deckId') deckId: string,
   ) {
     const userId = req.user?.id || req.user?._id || req.user?.userId;

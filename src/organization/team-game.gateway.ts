@@ -27,6 +27,13 @@ import { TeamGameScore, TeamGameScoreDocument } from './entities/team-game.entit
 import { Types } from 'mongoose';
 
 // Type interfaces for proper typing
+interface JwtPayload {
+  id?: string;
+  userId?: string;
+  role?: string;
+  [key: string]: unknown; // Allow for other properties
+}
+
 type UserLean = {
   _id: Types.ObjectId;
   name?: string | null;
@@ -38,6 +45,51 @@ type UserLean = {
   isOnline?: boolean;
   isBlocked?: boolean;
   userType?: string;
+  lastSeen?: Date;
+}
+
+type TeamMemberLean = {
+  _id: Types.ObjectId;
+  name?: string | null;
+  email?: string;
+  profileImage?: string | null;
+  isOnline?: boolean;
+  lastSeen?: Date;
+  teamMemberId?: string;
+  teamId?: string;
+  organizationId?: string;
+  isAdmin?: boolean;
+  status?: string;
+  joinedAt?: Date;
+}
+
+type Invite = {
+  gameId?: string | null;
+  toUserId?: string | Types.ObjectId;
+  fromUserId?: string | Types.ObjectId;
+  gameMode?: string;
+  [key: string]: unknown; // Allow for other properties
+}
+
+type PendingInvite = {
+  inviteId: string;
+  fromUserId: string;
+  toUserId: string;
+  deviceId?: string | null;
+  gameMode?: string;
+  gameId?: string | null;
+  createdAt: string;
+  deckId?: string | null;
+  topicId?: string | null;
+  [key: string]: unknown; // Allow for other properties
+}
+
+type TeamGameScoreLean = {
+  _id?: Types.ObjectId;
+  userId?: string | Types.ObjectId;
+  teamId?: string | Types.ObjectId;
+  points?: number;
+  [key: string]: unknown; // Allow for other properties
 }
 
 type DeckLean = {
@@ -49,7 +101,7 @@ type DeckLean = {
 type TopicLean = {
   _id: Types.ObjectId;
   title?: string;
-  subTopics?: Types.ObjectId[];
+  subTopics?: (string | Types.ObjectId)[];
 }
 
 type TeamLean = {
@@ -186,13 +238,13 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   // Helper method to check if user is blocked
-  private async checkUserIsBlocked(userId: string): Promise<{ isBlocked: boolean; user?: any }> {
+  private async checkUserIsBlocked(userId: string): Promise<{ isBlocked: boolean; user?: UserLean | null }> {
     try {
-      const user = await this.userModel.findById(userId).exec();
+      const user = await this.userModel.findById(userId).lean().exec();
       if (!user) {
         return { isBlocked: false, user: null };
       }
-      return { isBlocked: user.isBlocked === true, user };
+      return { isBlocked: (user as unknown as UserLean)?.isBlocked === true, user: user as unknown as UserLean };
     } catch (error) {
       return { isBlocked: false, user: null };
     }
@@ -222,8 +274,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       const token = authHeader.split(' ')[1];
 
       // Verify and decode token
-      let decoded: any;
-      decoded = this.jwtService.verify(token);
+      const decoded: JwtPayload = this.jwtService.verify(token);
       console.log('[handleConnection] Token verified:', {
         socketId: client.id,
         hasDecoded: !!decoded,
@@ -1097,7 +1148,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       });
 
       // Collect all team members from all teams - OPTIMIZED: Batch query instead of loop
-      const allTeamMembersMap = new Map<string, any>(); // Use Map to track unique members by ID
+      const allTeamMembersMap = new Map<string, TeamMemberLean>(); // Use Map to track unique members by ID
       
       // Filter out invalid team IDs
       const validTeamIds = teamId
@@ -1116,24 +1167,24 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           .exec();
         
         // Process all team members and add to map (handles duplicates automatically)
-        allTeamMembers.forEach((member: any) => {
-          const user = member.user;
-          if (user && typeof user === 'object' && user.isActive !== false) {
+        allTeamMembers.forEach((member) => {
+          const user = member.user as unknown as UserLean;
+          if (user && typeof user === 'object' && (user as { isActive?: boolean }).isActive !== false) {
             const memberId = this.normalizeId(user._id);
             if (memberId && !allTeamMembersMap.has(memberId)) {
               allTeamMembersMap.set(memberId, {
-                _id: memberId,
+                _id: memberId as unknown as Types.ObjectId,
                 name: user.name || user.username || null,
                 email: user.email,
                 profileImage: user.profileImage,
                 isOnline: user.isOnline || false,
                 lastSeen: user.lastSeen,
-                teamMemberId: this.normalizeId(member._id),
-                teamId: this.normalizeId(member.team) || '',
-                organizationId: this.normalizeId(member.organization) || '',
-                isAdmin: member.isAdmin,
-                status: member.status,
-                joinedAt: member.joinedAt,
+                teamMemberId: this.normalizeId(member._id) || undefined,
+                teamId: this.normalizeId(member.team) || undefined,
+                organizationId: this.normalizeId(member.organization) || undefined,
+                isAdmin: (member as { isAdmin?: boolean }).isAdmin,
+                status: (member as { status?: string }).status,
+                joinedAt: (member as { joinedAt?: Date }).joinedAt,
               });
             }
           }
@@ -1141,7 +1192,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       }
 
       // Filter to only online users and exclude the inviter
-      const onlineTeamMembers = Array.from(allTeamMembersMap.values()).filter((member: any) => {
+      const onlineTeamMembers = Array.from(allTeamMembersMap.values()).filter((member) => {
         const memberId = this.normalizeId(member._id);
         return (
           member.isOnline === true &&
@@ -1156,7 +1207,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       }
 
       // Extract user IDs from online team members
-      const allOnlineUserIds = onlineTeamMembers.map((member: any) =>
+      const allOnlineUserIds = onlineTeamMembers.map((member) =>
         this.normalizeId(member._id),
       ).filter((id): id is string => id !== null);
 
@@ -1192,7 +1243,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       const invites = Array.isArray(invite) ? invite : [invite];
 
       // Remove gameMode field from invite objects for inviteTeamUserResponse
-      const removeGameMode = (inv: any) => {
+      const removeGameMode = (inv: PendingInvite): Omit<PendingInvite, 'gameMode'> => {
         const { gameMode, ...inviteWithoutGameMode } = inv;
         return inviteWithoutGameMode;
       };
@@ -1237,10 +1288,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       newUserIdsToInvite.forEach((memberId) => {
         // Find the specific invite for this member (use original invite, not processed)
         const originalInvite = invites.find(
-          (inv: any) => this.normalizeId(inv.toUserId) === memberId
+          (inv) => this.normalizeId(inv.toUserId) === memberId
         );
         const processedInvite = processedInvites.find(
-          (inv: any) => this.normalizeId(inv.toUserId) === memberId
+          (inv) => this.normalizeId(inv.toUserId) === memberId
         );
 
         if (originalInvite && processedInvite) {
@@ -1386,7 +1437,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           .select('_id teamName')
           .lean()
           .exec();
-        teams.forEach((team: any) => {
+        teams.forEach((team) => {
           const teamId = this.normalizeId(team._id);
           if (teamId) {
             teamsInfoMap.set(teamId, {
@@ -1423,11 +1474,11 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       }).lean().exec();
 
       // Create a map for quick lookup
-      const participantsMap = new Map<string, any>();
-      allParticipants.forEach((participant: any) => {
+      const participantsMap = new Map<string, UserLean>();
+      allParticipants.forEach((participant) => {
         const participantId = this.normalizeId(participant._id);
         if (participantId) {
-          participantsMap.set(participantId, participant);
+          participantsMap.set(participantId, participant as unknown as UserLean);
         }
       });
 
@@ -1574,12 +1625,32 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       const mode = (activeRoomTyped?.gameMode || activeRoomTyped?.mode) ||
         (roomTyped?.gameMode || roomTyped?.mode) || undefined;
 
-      const roomDetailsPayload: any = {
+      const roomDetailsPayload: {
+        roomId: string;
+        invitsendId?: string;
+        invitaccpetedId?: string;
+        deviceId?: string;
+        gameId?: string;
+        participants: Array<{
+          userId: string;
+          name: string;
+          profileImage: string | null;
+          isHost: boolean;
+          teamId?: string;
+          teamName?: string;
+        }>;
+        teamMemberCount: Record<string, number>;
+        mode?: string;
+        deckId?: string;
+        deckName?: string;
+        topicId?: string;
+        topicName?: string;
+      } = {
         roomId: room.roomId,
-        invitsendId: normalizedInviterId, // Admin who sent the invite
-        invitaccpetedId: normalizedAcceptorId, // Current user who accepted
-        deviceId: room.deviceId,
-        gameId: room.gameId,
+        invitsendId: normalizedInviterId || undefined, // Admin who sent the invite
+        invitaccpetedId: normalizedAcceptorId || undefined, // Current user who accepted
+        deviceId: room.deviceId || undefined,
+        gameId: room.gameId || undefined,
         participants: participantDetails, // Array of participants with name, profileImage, isHost, teamId, teamName
         teamMemberCount: teamMemberCounts, // Count of members in each team in the room
         mode: mode,
@@ -1713,7 +1784,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
               .select('_id teamName')
               .lean()
               .exec();
-            teams.forEach((team: any) => {
+            teams.forEach((team) => {
               const teamId = this.normalizeId(team._id);
               if (teamId) {
                 teamsInfoMap.set(teamId, {
@@ -1753,11 +1824,11 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           }).lean().exec();
 
           // Create a map for quick lookup
-          const participantsMap = new Map<string, any>();
-          allParticipants.forEach((participant: any) => {
+          const participantsMap = new Map<string, UserLean>();
+          allParticipants.forEach((participant) => {
             const participantId = this.normalizeId(participant._id);
             if (participantId) {
-              participantsMap.set(participantId, participant);
+              participantsMap.set(participantId, participant as unknown as UserLean);
             }
           });
 
@@ -1833,11 +1904,31 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
             }
           }
           
-          const roomDetailsPayload: any = {
+          const roomDetailsPayload: {
+            roomId: string;
+            invitsendId?: string;
+            invitaccpetedId?: string;
+            deviceId?: string;
+            gameId?: string;
+            participants: Array<{
+              userId: string;
+              name: string;
+              profileImage: string | null;
+              isHost: boolean;
+              teamId?: string;
+              teamName?: string;
+            }>;
+            teamMemberCount: Record<string, number>;
+            mode?: string;
+            deckId?: string;
+            deckName?: string;
+            topicId?: string;
+            topicName?: string;
+          } = {
             roomId: roomId,
-            invitsendId: normalizedInviterId,
-            invitaccpetedId: normalizedInviterId, // Use inviterId as default since this is after cancel
-            deviceId: activeRoom.deviceId,
+            invitsendId: normalizedInviterId || undefined,
+            invitaccpetedId: normalizedInviterId || undefined, // Use inviterId as default since this is after cancel
+            deviceId: activeRoom.deviceId || undefined,
             gameId: roomId,
             participants: participantDetails,
             teamMemberCount: teamMemberCounts,
@@ -2107,7 +2198,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       // Generate questions - if deckId is provided, get topicId from deck and generate from all subtopics
       let questions: Question[] = [];
-      let topic: any = null;
+      let topic: TopicLean | null = null;
       let normalizedSubTopicId: string = '';
       let subTopicIndex: number = 1;
       let totalSubTopics: number = 1;
@@ -2132,12 +2223,13 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         const normalizedTopicId = resolvedTopicId;
 
         // Get the topic
-        topic = await this.topicModel.findById(normalizedTopicId).lean().exec();
-        if (!topic) {
+        const fetchedTopic = await this.topicModel.findById(normalizedTopicId).lean().exec();
+        if (!fetchedTopic) {
           return client.emit('errorMessage', {
             message: 'Topic not found',
           });
         }
+        topic = fetchedTopic as unknown as TopicLean;
 
         // Get all subtopics for this topic
         const subTopicIds = (topic.subTopics || [])
@@ -2197,7 +2289,12 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           game.subTopicId,
         );
 
-        topic = fetchedTopic;
+        if (!fetchedTopic) {
+          return client.emit('errorMessage', {
+            message: 'Topic not found',
+          });
+        }
+        topic = fetchedTopic as unknown as TopicLean;
         const aiService = this.contentService.getAiService();
         questions = await aiService.generateMCQQuestions(
           subTopic.title,
@@ -2223,6 +2320,11 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       }
 
       // Calculate topicId and topicName for response
+      if (!topic) {
+        return client.emit('errorMessage', {
+          message: 'Topic not found',
+        });
+      }
       const topicIdForResponse = this.normalizeId(topic._id) as string;
       const topicName = topic.title || '';
 
@@ -2286,11 +2388,11 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       }).lean().exec();
 
       // Create a map for quick lookup
-      const participantsMap = new Map<string, any>();
-      allParticipants.forEach((participant: any) => {
+      const participantsMap = new Map<string, UserLean>();
+      allParticipants.forEach((participant) => {
         const participantId = this.normalizeId(participant._id);
         if (participantId) {
-          participantsMap.set(participantId, participant);
+          participantsMap.set(participantId, participant as unknown as UserLean);
         }
       });
 
@@ -2333,7 +2435,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           .select('_id points teamName')
           .lean()
           .exec();
-        teams.forEach((team: any) => {
+        teams.forEach((team) => {
           const teamId = this.normalizeId(team._id);
           if (teamId) {
             teampoint[teamId] = typeof team.points === 'number' && Number.isFinite(team.points) ? team.points : 0;
@@ -2360,7 +2462,29 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Emit to room, not globally - ensures only users in the room receive it
       // When generating from all subtopics (deckId + topicId), exclude subTopicId, subTopicIndex, totalSubTopics
       const isAllSubTopicsMode = deckId && resolvedTopicId;
-      const teamGameCreatedPayload: any = {
+      const teamGameCreatedPayload: {
+        success: boolean;
+        gameId: string;
+        roomId: string;
+        deckId?: string;
+        deckName?: string | null;
+        topicId: string;
+        topicName: string;
+        totalQuestions: number;
+        timePerQuestion: number;
+        playerInfo: Record<string, { name: string; profileImage: string | null; isHost: boolean }>;
+        teams: Record<string, { teamName: string }>;
+        teampoint: Record<string, number>;
+        totalmember: Record<string, number>;
+        questions: Question[];
+        topicType?: string;
+        players: string[];
+        gameMode?: string;
+        member?: number;
+        subTopicId?: string;
+        subTopicIndex?: number;
+        totalSubTopics?: number;
+      } = {
         success: true,
         gameId: result.gameId,
         roomId: room.roomId,
@@ -3500,7 +3624,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           .select('_id teamName points')
           .lean()
           .exec();
-        teamsData.forEach((team: any) => {
+        teamsData.forEach((team) => {
           const teamId = this.normalizeId(team._id);
           if (teamId) {
             teamsInfoMapBeforeAward.set(teamId, {
@@ -3582,7 +3706,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           .select('_id teamName points')
           .lean()
           .exec();
-        teamsData.forEach((team: any) => {
+        teamsData.forEach((team) => {
           const teamId = this.normalizeId(team._id);
           if (teamId) {
             teamsInfoMap.set(teamId, {
@@ -3675,7 +3799,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       });
 
       // OPTIMIZATION: Single batch query for all TeamGameScore records instead of N queries
-      let teamGameScores: any[] = [];
+      let teamGameScores: TeamGameScoreLean[] = [];
       if (teamGameScoreConditions.length > 0) {
         teamGameScores = await this.teamGameScoreModel
           .find({
@@ -3686,11 +3810,11 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           })
           .select('userId teamId points')
           .lean()
-          .exec();
+          .exec() as unknown as TeamGameScoreLean[];
       }
 
       // Create map for quick lookup of player points
-      teamGameScores.forEach((tgs: any) => {
+      teamGameScores.forEach((tgs) => {
         const userId = this.normalizeId(tgs.userId);
         if (userId) {
           const points = typeof tgs.points === 'number' && Number.isFinite(tgs.points) 
@@ -3715,13 +3839,14 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         .exec();
 
       // Create map for quick lookup of player info
-      allPlayers.forEach((player: any) => {
+      allPlayers.forEach((player) => {
         const playerId = this.normalizeId(player._id);
         if (playerId) {
           const points = playerPointsMap.get(playerId) || 0;
+          const playerTyped = player as unknown as UserLean;
           playerInfoMap.set(playerId, {
-            name: (player as unknown as UserLean)?.name || (player as unknown as UserLean)?.username || '',
-            profileImage: (player as unknown as UserLean)?.profileImage || null,
+            name: playerTyped?.name || playerTyped?.username || '',
+            profileImage: playerTyped?.profileImage || null,
             points: points,
           });
         }

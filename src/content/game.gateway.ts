@@ -119,6 +119,44 @@ interface GameLean {
   metadata?: GameMetadata | unknown;
   eliminatedPlayers?: Array<Types.ObjectId | string>;
   round?: number;
+  gameMode?: 'team' | 'duel' | 'brawl' | 'DUEL' | 'BRAWL';
+  deckSelectionMethod?: 'random' | 'selected';
+  selectedDeckId?: string;
+  players?: Array<string | Types.ObjectId>;
+  subTopicId?: string;
+  difficulty?: 'easy' | 'medium' | 'hard';
+  gameStarted?: boolean;
+  startTime?: Date;
+  currentQuestion?: number;
+  [key: string]: unknown;
+}
+
+interface JwtPayload {
+  id?: string;
+  userId?: string;
+  role?: string;
+  [key: string]: unknown;
+}
+
+interface DailyStreakInfo {
+  currentDailyStreak: number;
+  longestDailyStreak: number;
+  dailyStreakIcons: string[];
+  dailyStreakWeek?: Array<{ day: string; date: string; icon: string }>;
+  lastGamePlayDate: Date | null;
+}
+
+interface DeckLean {
+  _id: Types.ObjectId;
+  name?: string;
+  userId?: Types.ObjectId | string;
+  contentIds?: Array<Types.ObjectId | string>;
+  isPublic?: boolean;
+  status?: string;
+  category?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+  [key: string]: unknown;
 }
 
 @UseFilters(new CustomWsExceptionFilter())
@@ -135,7 +173,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private autoInviteStates: Map<string, AutoInviteState> = new Map();
 
   // Store selected random deck per user (userId -> deck object)
-  private userSelectedRandomDeck: Map<string, any> = new Map();
+  private userSelectedRandomDeck: Map<string, DeckLean> = new Map();
 
   constructor(
     private readonly contentService: ContentService,
@@ -183,7 +221,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   // Helper method to check if user is blocked
-  private async checkUserIsBlocked(userId: string): Promise<{ isBlocked: boolean; user?: any }> {
+  private async checkUserIsBlocked(userId: string): Promise<{ isBlocked: boolean; user?: UserLean | null }> {
     try {
       const user = await this.usersService.findById(userId);
       if (!user) {
@@ -219,9 +257,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const token = authHeader.split(' ')[1];
 
       // Verify and decode token
-      let decoded: any;
+      let decoded: JwtPayload;
       try {
-        decoded = this.jwtService.verify(token);
+        decoded = this.jwtService.verify(token) as JwtPayload;
         console.log('[handleConnection] Token verified:', {
           socketId: client.id,
           hasDecoded: !!decoded,
@@ -1352,11 +1390,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Get existing game from database
       const gameModel = this.contentService.getGameModel();
-      let existingGame: any = null;
+      let existingGame: GameLean | null = null;
 
       // First, try to find game using gameId from existing state (if available)
       if (existingState?.gameId) {
-        existingGame = await gameModel.findOne({ gameId: existingState.gameId }).lean().exec();
+        existingGame = await gameModel.findOne({ gameId: existingState.gameId }).lean().exec() as GameLean | null;
         console.log('[restartGame] Found game from existing state:', {
           gameId: existingState.gameId,
           found: !!existingGame,
@@ -1392,7 +1430,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
           })
           .sort({ startTime: -1 })
           .lean()
-          .exec();
+          .exec() as GameLean | null;
 
         // If still not found, try with $in (any of the participants)
         if (!existingGame) {
@@ -1402,7 +1440,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             })
             .sort({ startTime: -1 })
             .lean()
-            .exec();
+            .exec() as GameLean | null;
         }
 
         console.log('[restartGame] Game search result:', {
@@ -2939,7 +2977,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       );
 
       // Get daily streak info for all players
-      const playerDailyStreaks: Record<string, any> = {};
+      const playerDailyStreaks: Record<string, DailyStreakInfo> = {};
       
       // Collect players that need fallback query
       const playersNeedingFallback: string[] = [];
@@ -2952,6 +2990,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             currentDailyStreak: streakUpdate.currentDailyStreak || 0,
             longestDailyStreak: streakUpdate.longestDailyStreak || 0,
             dailyStreakIcons: streakUpdate.dailyStreakIcons || [],
+            lastGamePlayDate: streakUpdate.lastGamePlayDate || null,
           };
         } else {
           playersNeedingFallback.push(playerId);
@@ -3928,82 +3967,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  // @SubscribeMessage('joinRoom')
-  // async joinRoom(
-  //   @ConnectedSocket() client: Socket,
-  //   @MessageBody() data: { roomId?: string },
-  // ) {
-  //   const userId = client.data.userId;
-  //   console.log('[joinRoom] Event received:', {
-  //     userId,
-  //     data,
-  //     socketId: client.id,
-  //     timestamp: new Date().toISOString(),
-  //   });
-
-  //   if (!userId) {
-  //     console.log('[joinRoom] Error: Unauthorized - no userId');
-  //     return client.emit('errorMessage', { message: 'Unauthorized' });
-  //   }
-
-  //   try {
-  //     // Check if user is in a room
-  //     const room = data.roomId
-  //       ? this.contentService.getRoomByRoomId(data.roomId)
-  //       : this.contentService.getRoomByUserId(userId);
-
-  //     if (!room) {
-  //       console.log('[joinRoom] Error: User not in any room:', {
-  //         userId,
-  //         requestedRoomId: data.roomId,
-  //       });
-  //       return client.emit('errorMessage', {
-  //         message: 'You are not in any active room',
-  //       });
-  //     }
-
-  //     // Verify user is a participant in the room
-  //     const normalizedUserId = this.normalizeId(userId);
-  //     if (!normalizedUserId || !room.participants.includes(normalizedUserId)) {
-  //       console.log('[joinRoom] Error: User not a participant in room:', {
-  //         userId: normalizedUserId,
-  //         roomId: room.roomId,
-  //         participants: room.participants,
-  //       });
-  //       return client.emit('errorMessage', {
-  //         message: 'You are not a participant in this room',
-  //       });
-  //     }
-
-  //     // Join the socket to the room
-  //     client.join(room.roomId);
-  //     console.log('[joinRoom] User joined room successfully:', {
-  //       userId: normalizedUserId,
-  //       roomId: room.roomId,
-  //       socketId: client.id,
-  //       participants: room.participants,
-  //     });
-
-  //     // Return room info to client
-  //     client.emit('joinRoomResponse', {
-  //       success: true,
-  //       roomId: room.roomId,
-  //       participants: room.participants,
-  //       gameId: room.gameId,
-  //     });
-  //   } catch (error) {
-  //     console.error('[joinRoom] Error occurred:', {
-  //       userId,
-  //       error: error.message,
-  //       stack: error.stack,
-  //       data,
-  //     });
-  //     client.emit('errorMessage', {
-  //       message: error?.message || 'Failed to join room',
-  //     });
-  //   }
-  // }
-
   @SubscribeMessage('cancelInvite')
   async cancelInvite(
     @ConnectedSocket() client: Socket,
@@ -4615,7 +4578,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // @SubscribeMessage('useHint')
   // async useHint(
   //   @ConnectedSocket() client: Socket,
-  //   @MessageBody() data?: any,
+  //   @MessageBody() data?: Record<string, unknown>,
   // ) {
   //   const userId = client.data.userId as string;
   //   const deviceId =

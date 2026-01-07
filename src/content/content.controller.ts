@@ -20,6 +20,14 @@ import { JwtAuthGuard } from '../auth/lib/jwt-auth.guard';
 import { Roles } from '../auth/lib/roles.decorator';
 import { RolesGuard } from '../auth/lib/roles.guard';
 
+// Type for authenticated user object
+type AuthUser = {
+  id?: string;
+  _id?: string;
+  userId?: string;
+  [key: string]: unknown;
+};
+
 @ApiTags('Content')
 // @UseGuards(FlexibleAuthGuard)
 @Controller('content')
@@ -58,7 +66,7 @@ export class ContentController {
   @UseInterceptors(FileInterceptor('file', multerFileOptions))
   uploadFile(
     @UploadedFile() file: Express.Multer.File,
-    @Req() req: Request & { user?: Record<string, any> },
+    @Req() req: Request & { user?: AuthUser },
   ) {
     return this.contentService.uploadFile(req.user, file);
   }
@@ -102,7 +110,7 @@ export class ContentController {
     },
   })
   async createDeck(
-    @Req() req: Request & { user?: Record<string, any> },
+    @Req() req: Request & { user?: AuthUser },
     @UploadedFile() file: Express.Multer.File,
     @Body()
     body: {
@@ -245,7 +253,7 @@ export class ContentController {
     example: 'Trailblazers',
   })
   async getLeaderboard(
-    @Req() req: Request & { user?: Record<string, any> },
+    @Req() req: Request & { user?: AuthUser },
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('levelName') levelName?: string,
@@ -285,7 +293,7 @@ export class ContentController {
     description: 'List of user decks retrieved successfully',
   })
   async getMyDecks(
-    @Req() req: Request & { user?: Record<string, any> },
+    @Req() req: Request & { user?: AuthUser },
   ) {
     const userId = req.user?.id || req.user?._id || req.user?.userId;
     if (!userId) {
@@ -321,7 +329,7 @@ export class ContentController {
     description: 'Deck not found',
   })
   async updateDeckName(
-    @Req() req: Request & { user?: Record<string, any> },
+    @Req() req: Request & { user?: AuthUser },
     @Param('deckId') deckId: string,
     @Body() body: UpdateDeckNameDto,
   ) {
@@ -381,7 +389,7 @@ export class ContentController {
   @UseGuards(FlexibleAuthGuard)
   async getTopicById(
     @Param('topicId') topicId: string,
-    @Req() req: Request & { user?: Record<string, any> },
+    @Req() req: Request & { user?: AuthUser },
   ) {
     const userId = req.user?.id || req.user?._id || req.user?.userId;
     return this.contentService.getTopicById(topicId, userId);
@@ -426,7 +434,7 @@ export class ContentController {
   })
   async getSubTopicById(
     @Param('subTopicId') subTopicId: string,
-    @Req() req: Request & { user?: Record<string, any> },
+    @Req() req: Request & { user?: AuthUser },
   ) {
     const userId = req.user?.id || req.user?._id || req.user?.userId;
     return this.contentService.getSubTopicById(subTopicId, userId);
@@ -472,7 +480,7 @@ export class ContentController {
   })
   async getTopicProgress(
     @Param('topicId') topicId: string,
-    @Req() req: Request & { user?: Record<string, any> },
+    @Req() req: Request & { user?: AuthUser },
   ) {
     const userId = req.user?.id || req.user?._id || req.user?.userId;
     if (!userId) {
@@ -530,7 +538,7 @@ export class ContentController {
     description: 'Bad request - User can only move topics from/to decks they created',
   })
   async moveTopics(
-    @Req() req: Request & { user?: Record<string, any> },
+    @Req() req: Request & { user?: AuthUser },
     @Body() moveTopicsDto: MoveTopicsDto,
   ) {
     const userId = req.user?.id || req.user?._id || req.user?.userId;
@@ -648,7 +656,7 @@ export class ContentController {
     description: 'Public access request submitted successfully',
   })
   async requestPublicAccess(
-    @Req() req: Request & { user?: Record<string, any> },
+    @Req() req: Request & { user?: AuthUser },
     @Body('deckId') deckId: string,
   ) {
     const userId = req.user?.id;
@@ -724,7 +732,7 @@ export class ContentController {
     },
   })
   async getLibrary(
-    @Req() req: Request & { user?: Record<string, any> },
+    @Req() req: Request & { user?: AuthUser },
     @Query() query: LibraryQueryDto,
   ) {
     const userId = req.user?.id || req.user?._id || req.user?.userId || null;
@@ -870,7 +878,7 @@ export class ContentController {
   })
   async askQuestion(
     @Param('subTopicId') subTopicId: string,
-    @Req() req: Request & { user?: Record<string, any> },
+    @Req() req: Request & { user?: AuthUser },
     @Body() body: { question: string },
   ) {
     const userId = req.user?.id || req.user?._id || req.user?.userId;
@@ -915,7 +923,7 @@ export class ContentController {
   })
   async getMoreDetails(
     @Param('subTopicId') subTopicId: string,
-    @Req() req: Request & { user?: Record<string, any> },
+    @Req() req: Request & { user?: AuthUser },
   ) {
     const userId = req.user?.id || req.user?._id || req.user?.userId;
 
@@ -957,7 +965,7 @@ export class ContentController {
     description: 'Topics and subtopics deleted successfully',
   })
   async deleteTopics(
-    @Req() req: Request & { user?: Record<string, any> },
+    @Req() req: Request & { user?: AuthUser },
     @Param('deckId') deckId: string,
     @Body('topicIds') topicIds: string[],
   ) {
@@ -1004,7 +1012,7 @@ export class ContentController {
     description: 'Deck not found',
   })
   async deleteDeck(
-    @Req() req: Request & { user?: Record<string, any> },
+    @Req() req: Request & { user?: AuthUser },
     @Param('deckId') deckId: string,
   ) {
     const userId = req.user?.id || req.user?._id || req.user?.userId;
@@ -1045,7 +1053,7 @@ export class ContentController {
     description: 'User not found',
   })
   async toggleUserOnlineStatus(
-    @Req() req: Request & { user?: Record<string, any> },
+    @Req() req: Request & { user?: AuthUser },
   ) {
     const userId = req.user?.id || req.user?._id || req.user?.userId;
     if (!userId) {

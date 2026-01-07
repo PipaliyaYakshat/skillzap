@@ -12,8 +12,14 @@ type ExtractTextOptions = {
   contentType?: string | null;
 };
 
-type PdfParserCtor = new (options: Record<string, any>) => {
-  getText(options?: Record<string, any>): Promise<{ text?: string }>;
+type PdfParserOptions = {
+  data: Buffer;
+};
+
+type PdfParserGetTextOptions = Record<string, unknown>;
+
+type PdfParserCtor = new (options: PdfParserOptions) => {
+  getText(options?: PdfParserGetTextOptions): Promise<{ text?: string }>;
 };
 
 @Injectable()
