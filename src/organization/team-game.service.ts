@@ -326,6 +326,168 @@ export class TeamGameService {
    * For flashcard: aggregates all subtopic accuracies (acc1 + acc2 + ... + accN) / N
    * For battle: stores without subtopicId (rolling average per user)
    */
+
+  
+  // private async updateTopicAccuracyFromSubTopic(
+  //   subTopicId: string,
+  //   userId: string,
+  //   accuracy: number,
+  //   gamesPlayed: number,
+  //   type: 'flashcard' | 'battle',
+  // ): Promise<void> {
+  //   try {
+  //     const normalizedSubTopicId = this.normalizeId(subTopicId);
+  //     const normalizedUserId = this.normalizeId(userId);
+
+  //     if (!normalizedSubTopicId || !normalizedUserId) {
+  //       return;
+  //     }
+
+  //     // Get the subtopic to find its topicId
+  //     const subTopic = await this.subTopicModel
+  //       .findById(normalizedSubTopicId)
+  //       .select('topicId')
+  //       .lean();
+
+  //     if (!subTopic || !subTopic.topicId) {
+  //       return;
+  //     }
+
+  //     const topicId = this.normalizeId(subTopic.topicId);
+  //     if (!topicId) {
+  //       return;
+  //     }
+
+  //     const arrayField =
+  //       type === 'flashcard' ? 'flashcardAccuracies' : 'battleAccuracies';
+
+  //     if (type === 'flashcard') {
+  //       // Flashcard: Aggregate all subtopic accuracies (acc1 + acc2 + ... + accN) / N
+  //       // OPTIMIZED: Fetch topic with both subTopics and accuracy array in single query
+  //       const topic = await this.topicModel
+  //         .findById(topicId)
+  //         .select(`subTopics ${arrayField}`)
+  //         .lean();
+
+  //       if (!topic || !topic.subTopics || topic.subTopics.length === 0) {
+  //         return;
+  //       }
+
+  //       // Get all subtopics for this topic
+  //       const subTopicIds = topic.subTopics.map((id) => this.normalizeId(id)).filter((id): id is string => !!id);
+
+  //       // Fetch all subtopics and collect their accuracies for this user
+  //       const subTopics = await this.subTopicModel
+  //         .find({ _id: { $in: subTopicIds } })
+  //         .select('flashcardAccuracies')
+  //         .lean();
+
+  //       // Collect all accuracies for this user from all subtopics
+  //       const accuracies: number[] = [];
+  //       subTopics.forEach((subTopic) => {
+  //         const subTopicTyped = subTopic as unknown as LeanSubTopic;
+  //         const entry = subTopicTyped.flashcardAccuracies?.find(
+  //           (entry: AccuracyEntry) => this.normalizeId(entry.userId) === normalizedUserId,
+  //         );
+  //         if (entry && typeof entry.accuracy === 'number') {
+  //           accuracies.push(entry.accuracy);
+  //         }
+  //       });
+
+  //       // Calculate average: (acc1 + acc2 + ... + accN) / N
+  //       let topicAccuracy = 0;
+  //       if (accuracies.length > 0) {
+  //         const sum = accuracies.reduce((a, b) => a + b, 0);
+  //         topicAccuracy = Math.round((sum / accuracies.length) * 100) / 100;
+  //       }
+
+  //       // OPTIMIZED: Use topic fetched above to check existing entry (no additional query needed)
+  //       const topicDocTyped = topic as unknown as LeanTopic;
+  //       const accuracyArray = topicDocTyped?.flashcardAccuracies;
+  //       const existingEntry = accuracyArray?.find(
+  //         (entry: AccuracyEntry) => this.normalizeId(entry.userId) === normalizedUserId,
+  //       );
+
+  //       if (existingEntry) {
+  //         // Update existing entry with aggregated average
+  //         await this.topicModel.updateOne(
+  //           {
+  //             _id: topicId,
+  //             [`${arrayField}.userId`]: normalizedUserId,
+  //           },
+  //           {
+  //             $set: {
+  //               [`${arrayField}.$.accuracy`]: topicAccuracy,
+  //               [`${arrayField}.$.gamesPlayed`]: accuracies.length,
+  //             },
+  //           },
+  //         );
+  //       } else {
+  //         // Create new entry with aggregated average
+  //         await this.topicModel.updateOne(
+  //           { _id: topicId },
+  //           {
+  //             $push: {
+  //               [arrayField]: {
+  //                 userId: normalizedUserId,
+  //                 accuracy: topicAccuracy,
+  //                 gamesPlayed: accuracies.length,
+  //               },
+  //             },
+  //           },
+  //         );
+  //       }
+  //     } else {
+  //       // Battle: Store without subtopicId (rolling average per user)
+  //       const topicDoc = await this.topicModel
+  //         .findById(topicId)
+  //         .select(arrayField)
+  //         .lean();
+
+  //       const topicDocTyped = topicDoc as unknown as LeanTopic;
+  //       const accuracyArray = arrayField === 'flashcardAccuracies' 
+  //         ? topicDocTyped?.flashcardAccuracies 
+  //         : topicDocTyped?.battleAccuracies;
+  //       const existingEntry = accuracyArray?.find(
+  //         (entry: AccuracyEntry) => this.normalizeId(entry.userId) === normalizedUserId,
+  //       );
+
+  //       if (existingEntry) {
+  //         // Update existing entry (rolling average)
+  //         await this.topicModel.updateOne(
+  //           {
+  //             _id: topicId,
+  //             [`${arrayField}.userId`]: normalizedUserId,
+  //           },
+  //           {
+  //             $set: {
+  //               [`${arrayField}.$.accuracy`]: accuracy,
+  //               [`${arrayField}.$.gamesPlayed`]: gamesPlayed,
+  //             },
+  //           },
+  //         );
+  //       } else {
+  //         // Create new entry without subtopicId
+  //         await this.topicModel.updateOne(
+  //           { _id: topicId },
+  //           {
+  //             $push: {
+  //               [arrayField]: {
+  //                 userId: normalizedUserId,
+  //                 accuracy,
+  //                 gamesPlayed,
+  //               },
+  //             },
+  //           },
+  //         );
+  //       }
+  //     }
+  //   } catch (error) {
+  //     // Non-blocking: log error but don't interrupt game completion
+  //     console.error('Failed to update topic accuracy from subtopic', error);
+  //   }
+  // }
+
   private async updateTopicAccuracyFromSubTopic(
     subTopicId: string,
     userId: string,
@@ -374,23 +536,61 @@ export class TeamGameService {
         // Get all subtopics for this topic
         const subTopicIds = topic.subTopics.map((id) => this.normalizeId(id)).filter((id): id is string => !!id);
 
-        // Fetch all subtopics and collect their accuracies for this user
-        const subTopics = await this.subTopicModel
-          .find({ _id: { $in: subTopicIds } })
-          .select('flashcardAccuracies')
-          .lean();
-
-        // Collect all accuracies for this user from all subtopics
-        const accuracies: number[] = [];
-        subTopics.forEach((subTopic) => {
-          const subTopicTyped = subTopic as unknown as LeanSubTopic;
-          const entry = subTopicTyped.flashcardAccuracies?.find(
-            (entry: AccuracyEntry) => this.normalizeId(entry.userId) === normalizedUserId,
-          );
-          if (entry && typeof entry.accuracy === 'number') {
-            accuracies.push(entry.accuracy);
+        // Fetch all accuracies for this user from all subtopics using aggregation
+        const validObjectIds = subTopicIds
+          .filter(id => isValidObjectId(id))
+          .map(id => new Types.ObjectId(id));
+        
+        const accuracyResults = validObjectIds.length > 0 ? await this.subTopicModel.aggregate([
+          {
+            $match: {
+              _id: { $in: validObjectIds }
+            }
+          },
+          {
+            $unwind: {
+              path: '$flashcardAccuracies',
+              preserveNullAndEmptyArrays: false
+            }
+          },
+          {
+            $match: {
+              $expr: {
+                $eq: [
+                  { $toString: '$flashcardAccuracies.userId' },
+                  normalizedUserId
+                ]
+              }
+            }
+          },
+          {
+            $project: {
+              accuracy: {
+                $cond: {
+                  if: { $eq: [{ $type: '$flashcardAccuracies.accuracy' }, 'number'] },
+                  then: '$flashcardAccuracies.accuracy',
+                  else: null
+                }
+              }
+            }
+          },
+          {
+            $match: {
+              accuracy: { $ne: null }
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              accuracies: { $push: '$accuracy' }
+            }
           }
-        });
+        ]) : [];
+
+        // Extract accuracies array from aggregation result
+        const accuracies: number[] = accuracyResults.length > 0 && accuracyResults[0].accuracies 
+          ? accuracyResults[0].accuracies 
+          : [];
 
         // Calculate average: (acc1 + acc2 + ... + accN) / N
         let topicAccuracy = 0;
@@ -843,7 +1043,130 @@ export class TeamGameService {
    * @param inviterId Optional inviter/admin ID to exclude from team validation
    * @returns Object with validation result and team grouping info
    */
-  async validateTeamBasedAcceptance(
+
+
+  // async validateTeamBasedAcceptance(
+  //   participants: string[],
+  //   inviterId?: string,
+  // ): Promise<{
+  //   isValid: boolean;
+  //   errorMessage?: string;
+  //   teams: Map<string, string[]>; // teamId -> participantIds
+  //   teamAcceptanceCounts: Map<string, number>; // teamId -> accepted count
+  // }> {
+  //   try {
+  //     const teams = new Map<string, string[]>();
+  //     const teamAcceptanceCounts = new Map<string, number>();
+
+  //     // Get team memberships for all participants
+  //     // Exclude inviter (admin) from validation - they can only view, not play
+  //     const normalizedInviterId = inviterId ? this.normalizeId(inviterId) : null;
+  //     const normalizedParticipants = participants
+  //       .map((p) => this.normalizeId(p))
+  //       .filter((id): id is string => id !== null && id !== normalizedInviterId);
+
+  //     // Find team memberships for all participants
+  //     const teamMembers = await this.teamMemberModel
+  //       .find({
+  //         user: { $in: normalizedParticipants },
+  //         status: 'approved', // Only approved team members
+  //       })
+  //       .lean()
+  //       .exec();
+
+  //     // Get team details separately
+  //     const teamIds = teamMembers
+  //       .map((tm) => this.normalizeId(tm.team))
+  //       .filter((id): id is string => id !== null);
+      
+  //     const teamDetailsMap = new Map<string, LeanTeam>();
+  //     if (teamIds.length > 0) {
+  //       const teamsData = await this.teamModel
+  //         .find({ _id: { $in: teamIds } })
+  //         .select('_id teamName')
+  //         .lean()
+  //         .exec();
+  //       teamsData.forEach((team) => {
+  //         const teamId = this.normalizeId(team._id);
+  //         if (teamId) {
+  //           teamDetailsMap.set(teamId, team as unknown as LeanTeam);
+  //         }
+  //       });
+  //     }
+
+  //     // Group participants by team
+  //     for (const participantId of normalizedParticipants) {
+  //       const teamMember = teamMembers.find(
+  //         (tm) => this.normalizeId(tm.user) === participantId,
+  //       );
+
+  //       if (teamMember) {
+  //         const teamId = this.normalizeId(teamMember.team);
+  //         if (teamId) {
+  //           if (!teams.has(teamId)) {
+  //             teams.set(teamId, []);
+  //           }
+  //           teams.get(teamId)!.push(participantId);
+  //         }
+  //       } else {
+  //         // Participant is not in any team - create a "no-team" group
+  //         const noTeamId = 'no-team';
+  //         if (!teams.has(noTeamId)) {
+  //           teams.set(noTeamId, []);
+  //         }
+  //         teams.get(noTeamId)!.push(participantId);
+  //       }
+  //     }
+
+  //     // Count accepted players per team (all participants are considered accepted since they're in the room)
+  //     for (const [teamId, teamParticipants] of teams.entries()) {
+  //       teamAcceptanceCounts.set(teamId, teamParticipants.length);
+  //     }
+
+  //     // Validate number of teams (must be 2 or 3)
+  //     const teamCount = teams.size;
+  //     if (teamCount !== 2 && teamCount !== 3) {
+  //       return {
+  //         isValid: false,
+  //         errorMessage: `Game requires exactly 2 or 3 teams. Found ${teamCount} teams.`,
+  //         teams,
+  //         teamAcceptanceCounts,
+  //       };
+  //     }
+
+  //     // Validate all teams have equal accepted players
+  //     const acceptanceCounts = Array.from(teamAcceptanceCounts.values());
+  //     const firstCount = acceptanceCounts[0];
+  //     const allEqual = acceptanceCounts.every((count) => count === firstCount);
+
+  //     if (!allEqual) {
+  //       const teamCountsStr = Array.from(teamAcceptanceCounts.entries())
+  //         .map(([teamId, count]) => {
+  //           const teamDetails = teamDetailsMap.get(teamId);
+  //           const teamName = teamDetails?.teamName || teamId;
+  //           return `${teamName}: ${count}`;
+  //         })
+  //         .join(', ');
+  //       return {
+  //         isValid: false,
+  //         errorMessage: `All teams must have equal number of accepted players. Current counts: ${teamCountsStr}`,
+  //         teams,
+  //         teamAcceptanceCounts,
+  //       };
+  //     }
+
+  //     return {
+  //       isValid: true,
+  //       teams,
+  //       teamAcceptanceCounts,
+  //     };
+  //   } catch (error) {
+  //     console.error('Error in validateTeamBasedAcceptance:', error);
+  //     throw error;
+  //   }
+  // }
+
+   async validateTeamBasedAcceptance(
     participants: string[],
     inviterId?: string,
   ): Promise<{
@@ -863,63 +1186,89 @@ export class TeamGameService {
         .map((p) => this.normalizeId(p))
         .filter((id): id is string => id !== null && id !== normalizedInviterId);
 
-      // Find team memberships for all participants
-      const teamMembers = await this.teamMemberModel
-        .find({
-          user: { $in: normalizedParticipants },
-          status: 'approved', // Only approved team members
-        })
-        .lean()
-        .exec();
+      // OPTIMIZED: Use Mongoose aggregation to group participants by team directly in database
+      const validObjectIds = normalizedParticipants
+        .filter(id => isValidObjectId(id))
+        .map(id => new Types.ObjectId(id));
 
-      // Get team details separately
-      const teamIds = teamMembers
-        .map((tm) => this.normalizeId(tm.team))
-        .filter((id): id is string => id !== null);
-      
-      const teamDetailsMap = new Map<string, LeanTeam>();
-      if (teamIds.length > 0) {
-        const teamsData = await this.teamModel
-          .find({ _id: { $in: teamIds } })
-          .select('_id teamName')
-          .lean()
-          .exec();
-        teamsData.forEach((team) => {
-          const teamId = this.normalizeId(team._id);
-          if (teamId) {
-            teamDetailsMap.set(teamId, team as unknown as LeanTeam);
-          }
+      // Aggregate to group participants by team
+      const groupedByTeam = validObjectIds.length > 0 ? await this.teamMemberModel.aggregate([
+        {
+          $match: {
+            user: { $in: validObjectIds },
+            status: 'approved',
+          },
+        },
+        {
+          $group: {
+            _id: '$team',
+            participants: { $push: { $toString: '$user' } },
+          },
+        },
+        {
+          $project: {
+            teamId: { $toString: '$_id' },
+            participants: 1,
+            _id: 0,
+          },
+        },
+      ]) : [];
+
+      // Build teams Map from aggregation results
+      groupedByTeam.forEach((group) => {
+        const teamId = group.teamId;
+        if (teamId) {
+          teams.set(teamId, group.participants);
+        }
+      });
+
+      // Find participants who are not in any team (missing from aggregation results)
+      const participantsInTeams = new Set<string>();
+      groupedByTeam.forEach((group) => {
+        group.participants.forEach((pid: string) => {
+          participantsInTeams.add(pid);
         });
-      }
+      });
 
-      // Group participants by team
-      for (const participantId of normalizedParticipants) {
-        const teamMember = teamMembers.find(
-          (tm) => this.normalizeId(tm.user) === participantId,
-        );
-
-        if (teamMember) {
-          const teamId = this.normalizeId(teamMember.team);
-          if (teamId) {
-            if (!teams.has(teamId)) {
-              teams.set(teamId, []);
-            }
-            teams.get(teamId)!.push(participantId);
-          }
-        } else {
-          // Participant is not in any team - create a "no-team" group
+      // Add participants without teams to "no-team" group
+      normalizedParticipants.forEach((participantId) => {
+        if (!participantsInTeams.has(participantId)) {
           const noTeamId = 'no-team';
           if (!teams.has(noTeamId)) {
             teams.set(noTeamId, []);
           }
           teams.get(noTeamId)!.push(participantId);
         }
+      });
+
+      // Get team details separately for error messages
+      const teamIds = Array.from(teams.keys()).filter((id) => id !== 'no-team');
+      const teamDetailsMap = new Map<string, LeanTeam>();
+      if (teamIds.length > 0) {
+        const validTeamObjectIds = teamIds
+          .filter(id => isValidObjectId(id))
+          .map(id => new Types.ObjectId(id));
+        
+        if (validTeamObjectIds.length > 0) {
+          const teamsData = await this.teamModel
+            .find({ _id: { $in: validTeamObjectIds } })
+            .select('_id teamName')
+            .lean()
+            .exec();
+          teamsData.forEach((team) => {
+            const teamId = this.normalizeId(team._id);
+            if (teamId) {
+              teamDetailsMap.set(teamId, team as unknown as LeanTeam);
+            }
+          });
+        }
       }
 
       // Count accepted players per team (all participants are considered accepted since they're in the room)
-      for (const [teamId, teamParticipants] of teams.entries()) {
+      // OPTIMIZED: Use Map.forEach() instead of for-of loop
+      teams.forEach((teamParticipants, teamId) => {
         teamAcceptanceCounts.set(teamId, teamParticipants.length);
-      }
+      });
 
       // Validate number of teams (must be 2 or 3)
       const teamCount = teams.size;
