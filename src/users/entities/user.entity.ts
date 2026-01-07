@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema ,Types} from 'mongoose';
+import { USER_ROLE } from 'src/common/enum';
 
 @Schema({ timestamps: true })
 export class User extends Document {
@@ -139,7 +140,7 @@ export class User extends Document {
   // @Prop({ type: Number, default: 5, required: false })
   // maxLives: number;
 
-  @Prop({ type: String, required: false, default: 'userLogin' })
+  @Prop({ type: String, required: false, default: USER_ROLE[1] })
   role: string;
 
   @Prop({ type: Boolean, default: true })

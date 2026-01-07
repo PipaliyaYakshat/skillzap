@@ -37,6 +37,7 @@ import { ContentFileData } from 'src/organization/entities/content-file-data.ent
 import { MailService } from 'src/common/mail.service';
 import { convertToPublicUrl, getPublicUrlPath } from 'src/common/multer.service';
 import { ContentService } from 'src/content/content.service';
+import { USER_TYPE } from 'src/common/enum';
 
 @Injectable()
 export class UsersService {
@@ -403,7 +404,7 @@ export class UsersService {
       // Give different lives based on userType
       // "member" -> 50 lives
       // "individual"/"Individual" or any other type -> 15 lives
-      const isMember = user.userType?.toLowerCase() === 'member';
+      const isMember = user.userType?.toLowerCase() === USER_TYPE[3].toLowerCase();
       const refillAmount = isMember 
         ? UsersService.LIFE_REFILL_AMOUNT_MEMBER 
         : UsersService.LIFE_REFILL_AMOUNT_INDIVIDUAL;
@@ -662,7 +663,7 @@ export class UsersService {
       user.startPlanDate = startDate;
       user.expirePlanDate = expireDate;
       user.cardNumber = cardNumber;
-      user.userType = 'superAdmin';
+      user.userType = USER_TYPE[1];
 
       await user.save();
 

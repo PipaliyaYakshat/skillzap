@@ -30,6 +30,7 @@ import {
   TeamGameChat,
   TeamGameChatDocument,
 } from './entities/teamgame-chat.entity';
+import { USER_TYPE } from 'src/common/enum';
 
 // Helper types for lean document results
 type LeanDeck = Omit<Deck, keyof Document> & { _id: Types.ObjectId; flashcardAccuracies?: Array<{ userId: string; accuracy: number; gamesPlayed: number }>; battleAccuracies?: Array<{ userId: string; accuracy: number; gamesPlayed: number }> };
@@ -978,7 +979,7 @@ export class TeamGameService {
           const orgAdmins = await this.userModel
             .find({
               organization: normalizedOrgId,
-              userType: { $in: ['admin', 'superAdmin'] },
+              userType: { $in: [USER_TYPE[2], USER_TYPE[1]] },
             })
             .select('_id')
             .lean()
@@ -1380,12 +1381,12 @@ export class TeamGameService {
             .lean()
             .exec();
 
-          if (deckCreator?.userType !== 'superAdmin') {
+          if (deckCreator?.userType !== USER_TYPE[1]) {
             // Deck must belong to an admin/superAdmin of the same organization
             const orgAdmins = await this.userModel
               .find({
                 organization: normalizedOrgId,
-                userType: { $in: ['admin', 'superAdmin'] },
+                userType: { $in: [USER_TYPE[2], USER_TYPE[1]] },
               })
               .select('_id')
               .lean()

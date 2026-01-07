@@ -9,8 +9,6 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, Schema as MongooseSchema } from 'mongoose';
 import * as bcrypt from 'bcrypt';
-import * as jwt from 'jsonwebtoken';
-import { addMinutes } from 'date-fns';
 import { MailService } from '../common/mail.service';
 import { User, UserDocument } from 'src/users/entities/user.entity';
 import type { CreateUserDto } from './dto/create-user.dto';
@@ -25,6 +23,8 @@ import { ContentFileData } from '../organization/entities/content-file-data.enti
 import type { CreateEnterpriseUserDto } from './dto/create-enterprise-user.dto';
 import { GameProgress, GameProgressDocument } from '../content/schemas/game-progress.schema';
 import { TempRegistration, TempRegistrationDocument } from './schemas/temp-registration.schema';
+import { generateJwtToken, OTP_FUNCTION, OTPGNARETE } from '../common/utils';
+import { USER_ROLE, USER_TYPE } from 'src/common/enum';
 
 @Injectable()
 export class AuthService {
@@ -84,7 +84,7 @@ export class AuthService {
         const inviter = await this.userModel.findById(inviterId);
         if (
           inviter &&
-          (inviter.userType === 'superAdmin' || inviter.userType === 'admin') &&
+          (inviter.userType === USER_TYPE[1] || inviter.userType === USER_TYPE[2]) &&
           inviter.teamPlan
         ) {
           const normalized = String(inviter.teamPlan).toLowerCase();
@@ -98,22 +98,22 @@ export class AuthService {
       // Priority: pendingAdmin > pendingTeamMember > superAdmin (if no birth fields) > individual
       const isMissingBirthFields = !createUserDto.monthOfBirth && !createUserDto.yearOfBirth;
       const userType = pendingAdmin
-        ? 'admin'
+        ? USER_TYPE[2]
         : pendingTeamMember
-        ? 'member'
+        ? USER_TYPE[3]
         : isMissingBirthFields
-        ? 'superAdmin'
-        : 'individual';
+        ? USER_TYPE[1]
+        : USER_TYPE[0];
 
       // Generate and send OTP if userType is individual OR monthOfBirth or yearOfBirth is not provided
       let registrationOtp: number | null = null;
       let otpExpires: Date | null = null;
-      const requiresOtp = userType === 'individual' || !createUserDto.monthOfBirth || !createUserDto.yearOfBirth;
+      const requiresOtp = userType === USER_TYPE[0] || !createUserDto.monthOfBirth || !createUserDto.yearOfBirth;
       
       // Check if email domain is in free email domains list (only when birth fields are missing)
       // This check should NOT apply when user provides both monthOfBirth and yearOfBirth
       const isAnyBirthFieldMissing = !createUserDto.monthOfBirth || !createUserDto.yearOfBirth;
-      if (isAnyBirthFieldMissing && (userType === 'individual' || userType === 'superAdmin')) {
+      if (isAnyBirthFieldMissing && (userType === USER_TYPE[0] || userType === USER_TYPE[1])) {
         const emailDomain = createUserDto.email.split('@')[1]?.toLowerCase();
         if (emailDomain && this.freeEmailDomains.includes(emailDomain)) {
           throw new BadRequestException('Only business emails are allowed. Please use a business email address.');
@@ -121,7 +121,7 @@ export class AuthService {
       }
       
       if (requiresOtp) {
-        registrationOtp = Math.floor(100000 + Math.random() * 900000);
+        registrationOtp = OTPGNARETE();
         otpExpires = OTP_FUNCTION.getOtpExpiryDate();
       }
 
@@ -139,10 +139,10 @@ export class AuthService {
           ...createUserDto,
           password: hashedPassword,
           name: createUserDto.name ?? null,
-          userType: userType === 'superAdmin' 
-            ? 'superAdmin' 
-            : userType === 'individual' 
-            ? 'individual' 
+          userType: userType === USER_TYPE[1] 
+            ? USER_TYPE[1] 
+            : userType === USER_TYPE[0]
+            ? USER_TYPE[0] 
             : 'organization',
           teamPlan: inviterTeamPlan,
           monthOfBirth: createUserDto.monthOfBirth ?? null,
@@ -156,12 +156,12 @@ export class AuthService {
 
         // If there's a pending admin invitation
         if (pendingAdmin) {
-          tempRegistrationData.userType = 'admin';
+          tempRegistrationData.userType = USER_TYPE[2];
           if (pendingAdmin.organization) {
             tempRegistrationData.organization = pendingAdmin.organization;
           }
         } else if (pendingTeamMember) {
-          tempRegistrationData.userType = 'member';
+          tempRegistrationData.userType = USER_TYPE[3];
           if (pendingTeamMember.organization) {
             tempRegistrationData.organization = pendingTeamMember.organization;
           }
@@ -200,10 +200,10 @@ export class AuthService {
           ...createUserDto,
           password: hashedPassword,
           name: createUserDto.name ?? null,
-          userType: userType === 'superAdmin' 
-            ? 'superAdmin' 
-            : userType === 'individual' 
-            ? 'individual' 
+          userType: userType === USER_TYPE[1] 
+            ? USER_TYPE[1] 
+            : userType === USER_TYPE[0] 
+            ? USER_TYPE[0] 
             : 'organization',
           teamPlan: inviterTeamPlan,
           monthOfBirth: createUserDto.monthOfBirth ?? null,
@@ -217,12 +217,12 @@ export class AuthService {
 
         // If there's a pending admin invitation
         if (pendingAdmin) {
-          tempRegistrationData.userType = 'admin';
+          tempRegistrationData.userType = USER_TYPE[2];
           if (pendingAdmin.organization) {
             tempRegistrationData.organization = pendingAdmin.organization;
           }
         } else if (pendingTeamMember) {
-          tempRegistrationData.userType = 'member';
+          tempRegistrationData.userType = USER_TYPE[3];
           if (pendingTeamMember.organization) {
             tempRegistrationData.organization = pendingTeamMember.organization;
           }
@@ -255,10 +255,10 @@ export class AuthService {
         ...createUserDto,
         password: hashedPassword,
         name: createUserDto.name ?? null,
-        userType: userType === 'superAdmin' 
-          ? 'superAdmin' 
-          : userType === 'individual' 
-          ? 'individual' 
+        userType: userType === USER_TYPE[1] 
+          ? USER_TYPE[1] 
+          : userType === USER_TYPE[0] 
+          ? USER_TYPE[0] 
           : 'organization',
         teamPlan: inviterTeamPlan,
         monthOfBirth: createUserDto.monthOfBirth ?? null,
@@ -270,7 +270,7 @@ export class AuthService {
         // Check admin limit before registration
         if (pendingAdmin.organization) {
           const actualAdminCount = await this.userModel.countDocuments({
-            userType: 'admin',
+            userType: USER_TYPE[2],
             organization: pendingAdmin.organization,
           });
 
@@ -283,20 +283,20 @@ export class AuthService {
           }
         }
 
-        userData.userType = 'admin';
+        userData.userType = USER_TYPE[2];
         if (pendingAdmin.organization) {
           userData.organization = pendingAdmin.organization;
         }
       } else if (pendingTeamMember) {
         // If there's a pending team member invitation
-        userData.userType = 'member';
+        userData.userType = USER_TYPE[3];
         if (pendingTeamMember.organization) {
           userData.organization = pendingTeamMember.organization;
         }
       }
 
       // If userType is superAdmin, add subscription with 14day plan
-      if (userData.userType === 'superAdmin') {
+      if (userData.userType === USER_TYPE[1]) {
         const subscriptionId = new Types.ObjectId('693a5354e1607999d1a494ae');
         const startDate = new Date();
         const expireDate = new Date(startDate);
@@ -389,7 +389,7 @@ export class AuthService {
 
       if (!user) throw new NotFoundException('User not found.');
 
-      const otp = Math.floor(100000 + Math.random() * 900000);
+      const otp = OTPGNARETE();
       const otpExpires = OTP_FUNCTION.getOtpExpiryDate();
 
       user.otp = otp;
@@ -431,7 +431,7 @@ export class AuthService {
         }
 
         // Generate new OTP
-        const otp = Math.floor(100000 + Math.random() * 900000);
+        const otp = OTPGNARETE();
         const otpExpires = OTP_FUNCTION.getOtpExpiryDate();
 
         tempRegistration.otp = otp;
@@ -470,7 +470,7 @@ export class AuthService {
         );
       }
 
-      const otp = Math.floor(100000 + Math.random() * 900000);
+      const otp = OTPGNARETE();
       const otpExpires = OTP_FUNCTION.getOtpExpiryDate();
 
       user.otp = otp;
@@ -524,7 +524,7 @@ export class AuthService {
         // Check admin limit if pending admin
         if (pendingAdmin && pendingAdmin.organization) {
           const actualAdminCount = await this.userModel.countDocuments({
-            userType: 'admin',
+            userType: USER_TYPE[2],
             organization: pendingAdmin.organization,
           });
 
@@ -572,7 +572,7 @@ export class AuthService {
         };
 
         // If userType is superAdmin, add subscription with 14day plan
-        if (userData.userType === 'superAdmin') {
+        if (userData.userType === USER_TYPE[1]) {
           const subscriptionId = new Types.ObjectId('693a5354e1607999d1a494ae');
           const startDate = new Date();
           const expireDate = new Date(startDate);
@@ -777,11 +777,3 @@ export class AuthService {
     return safeData;
   }
 }
-
-export function generateJwtToken(user: UserDocument): string {
-  return jwt.sign({ id: user._id, role: user.role }, 'TOKEN');
-}
-
-export const OTP_FUNCTION = {
-  getOtpExpiryDate: (): Date => addMinutes(new Date(), 1),
-};

@@ -25,6 +25,7 @@ import { Topic, TopicDocument } from '../content/schemas/topic.schema';
 import { SubTopic, SubTopicDocument } from '../content/schemas/subtopic.schema';
 import { TeamGameScore, TeamGameScoreDocument } from './entities/team-game.entity';
 import { Types } from 'mongoose';
+import { USER_TYPE } from 'src/common/enum';
 
 // Type interfaces for proper typing
 interface JwtPayload {
@@ -1129,7 +1130,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       const userType = inviter.userType;
 
-      if (userType !== 'superAdmin' && userType !== 'admin') {
+      if (userType !== USER_TYPE[1] && userType !== USER_TYPE[2]) {
         return client.emit('errorMessage', {
           message: 'Only superAdmin or admin users can send team invites',
         });

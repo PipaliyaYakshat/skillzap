@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
+import { USER_TYPE } from 'src/common/enum';
 
 export type TempRegistrationDocument = TempRegistration & Document;
 
@@ -32,7 +33,7 @@ export class TempRegistration extends Document {
   @Prop({ type: Date, required: true })
   otpSendDate: Date;
 
-  @Prop({ type: String, default: 'individual' })
+  @Prop({ type: String, default: USER_TYPE[0] })
   userType: string;
 
   @Prop({ type: String, default: null, required: false })

@@ -20,6 +20,7 @@ import {
 import { JwtAuthGuard } from 'src/auth/lib/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/lib/roles.guard';
 import { Roles } from 'src/auth/lib/roles.decorator';
+import { USER_ROLE } from 'src/common/enum';
 
 @ApiTags('Subscription Controller')
 @Controller('subscription')
@@ -29,7 +30,7 @@ export class SubscriptionController {
   constructor(private readonly subscriptionService: SubscriptionService) {}
 
   @Post()
-  @Roles('admin')
+  @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Create a new subscription plan',
     description: 'Admin only. Creates a new subscription plan with the provided details.',
@@ -88,7 +89,7 @@ export class SubscriptionController {
   }
 
   @Delete(':id')
-  @Roles('admin')
+  @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Delete subscription plan by ID',
     description: 'Admin only. Soft deletes a subscription plan by setting isDeleted flag to true. The ID must be a valid MongoDB ObjectId.',

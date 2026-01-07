@@ -8,6 +8,7 @@ import {
 import { JwtAuthGuard } from 'src/auth/lib/jwt-auth.guard';
 import { Roles } from 'src/auth/lib/roles.decorator';
 import { RolesGuard } from 'src/auth/lib/roles.guard';
+import { USER_ROLE } from 'src/common/enum';
 import { UpdateStatusEnterpriseDto } from '../users/dto/update-status-enterprise.dto';
 import { ToggleUserStatusDto } from './dto/toggle-user-status.dto';
 import { UpdateUserTypeDto } from './dto/update-user-type.dto';
@@ -137,7 +138,7 @@ export class AdminController {
   @Get('users')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('access-token')
-  @Roles('admin')
+  @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Get all users',
     description: 'Admin only. Retrieves a paginated list of all users in the system.',
@@ -189,7 +190,7 @@ export class AdminController {
   @Get('users/with-purchases')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('access-token')
-  @Roles('admin')
+  @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Get users who purchased plans',
     description: 'Admin only. Retrieves paginated users that have purchased subscription plans along with plan status.',
@@ -223,7 +224,7 @@ export class AdminController {
   @Patch('enterprise/update-status')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('access-token')
-  @Roles('admin')
+  @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Update enterprise user status',
     description: 'Admin only. Updates the status of enterprise user registrations (approve/reject).',
@@ -244,7 +245,7 @@ export class AdminController {
   @Get('enterprise/pending-registrations')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('access-token')
-  @Roles('admin')
+  @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Get all enterprise pending registrations',
     description: 'Admin only. Retrieves a paginated list of all enterprise user registrations that are pending approval.',
@@ -274,7 +275,7 @@ export class AdminController {
   @Get('deck/public-requests')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('access-token')
-  @Roles('admin')
+  @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Get all public access requests',
     description: 'Admin only. Returns all decks where isPublic=true and status=pending. Only accessible to users with admin role.',
@@ -290,7 +291,7 @@ export class AdminController {
   @Post('deck/:deckId/approve-public')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('access-token')
-  @Roles('admin')
+  @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Approve or reject public access request for a deck',
     description: 'Admin only. Approves or rejects a deck public access request. If status=approve, sets status=approve and isPublic=true. If status=reject, sets status=reject and isPublic=false.',
@@ -333,7 +334,7 @@ export class AdminController {
   @Patch('users/toggle-status')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('access-token')
-  @Roles('admin')
+  @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Toggle user block status',
     description: 'Admin only. Toggles the block status of a user. When isBlocked=true, user cannot access anything.',
@@ -350,7 +351,7 @@ export class AdminController {
   @Patch('users/update-type')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('access-token')
-  @Roles('admin')
+  @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Update user type',
     description: 'Admin only. Updates the userType of a user.',
@@ -367,7 +368,7 @@ export class AdminController {
   @Get('content-file-data')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('access-token')
-  @Roles('admin')
+  @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Get all content file data',
     description: 'Admin only. Retrieves a paginated list of all content file data with optional status filter.',
@@ -404,7 +405,7 @@ export class AdminController {
   @Get('deck/public-approved')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('access-token')
-  @Roles('admin')
+  @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Get all public approved decks',
     description: 'Admin only. Retrieves a paginated list of decks where isPublic=true and status=approve with optional search by deck name.',
@@ -440,7 +441,7 @@ export class AdminController {
   @Post('change-password')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('access-token')
-  @Roles('admin')
+  @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Change admin password',
     description: 'Allows the authenticated admin to change their password by providing the old password and new password.',
@@ -462,7 +463,7 @@ export class AdminController {
   @Delete('users/:userId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('access-token')
-  @Roles('admin')
+  @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Delete user',
     description: 'Admin only. Deletes a user by userId along with all associated data including decks, topics, subtopics, games, game progress, user games, battle games, team games, and content.',
@@ -495,7 +496,7 @@ export class AdminController {
   @Delete('deck/:deckId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('access-token')
-  @Roles('admin')
+  @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Delete deck',
     description: 'Admin only. Deletes a deck by deckId along with all its topics and subtopics.',
@@ -528,7 +529,7 @@ export class AdminController {
   @Patch('users/update-subscription-expiry')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('access-token')
-  @Roles('admin')
+  @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Update user subscription expiry date',
     description: 'Admin only. Updates the subscription expiry date for a user by userId.',
@@ -553,7 +554,7 @@ export class AdminController {
   @Get('deck/:deckId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('access-token')
-  @Roles('admin')
+  @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Get deck by ID with all details',
     description: 'Admin only. Retrieves a deck by deckId with all its topics and subtopics populated.',

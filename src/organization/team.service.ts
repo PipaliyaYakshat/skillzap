@@ -27,6 +27,7 @@ import { SubTopic, SubTopicDocument } from '../content/schemas/subtopic.schema';
 import { TopicProgress, TopicProgressDocument } from '../content/schemas/topic-progress.schema';
 import { Game, GameDocument } from '../content/schemas/game.schema';
 import { TeamMemberDocument } from './entities/team-member.entity';
+import { USER_ROLE, USER_TYPE } from 'src/common/enum';
 
 // Type interfaces for proper typing (using type aliases to avoid conflicts)
 type UserWithTeamPlan = UserDocument & {
@@ -326,7 +327,7 @@ export class TeamService {
         throw new BadRequestException('User not found');
       }
 
-      if (user.userType !== 'superAdmin') {
+      if (user.userType !== USER_TYPE[1]) {
         throw new ForbiddenException(
           'Only users with superAdmin type can create organizations',
         );
@@ -388,7 +389,7 @@ export class TeamService {
         throw new BadRequestException('User not found');
       }
 
-      if (user.userType !== 'superAdmin') {
+      if (user.userType !== USER_TYPE[1]) {
         throw new ForbiddenException(
           'Only users with superAdmin type can view their created organizations',
         );
@@ -426,7 +427,7 @@ export class TeamService {
         throw new BadRequestException('User not found');
       }
 
-      if (user.role !== 'admin') {
+      if (user.role !== USER_ROLE[0]) {
         throw new ForbiddenException(
           'Only users with admin role can view all organizations',
         );
@@ -575,13 +576,13 @@ export class TeamService {
       let effectiveOrganizationId = organizationId;
       
       if (!effectiveOrganizationId) {
-        if (adminCreator.userType === 'admin') {
+        if (adminCreator.userType === USER_TYPE[2]) {
           // If adminCreator is an admin, get organization from their organization field
           if (!adminCreator.organization) {
             throw new BadRequestException('Admin user does not have an organization. Organization ID is required.');
           }
           effectiveOrganizationId = adminCreator.organization.toString();
-        } else if (adminCreator.userType === 'superAdmin') {
+        } else if (adminCreator.userType === USER_TYPE[1]) {
           // If adminCreator is superAdmin, get their first created organization
           const createdOrganization = await this.organizationModel.findOne({ creatorId: adminCreatorId });
           if (!createdOrganization) {
@@ -608,7 +609,7 @@ export class TeamService {
       // If adminCreator is an admin, check the organization creator's subscription
       // If adminCreator is superAdmin, check their own subscription
       let subscriptionOwner = adminCreator;
-      if (adminCreator.userType === 'admin') {
+      if (adminCreator.userType === USER_TYPE[2]) {
         // For admins, check the organization creator's (superAdmin) subscription
         const organizationCreator = await this.userModel.findById(organization.creatorId);
         if (!organizationCreator) {
@@ -659,8 +660,8 @@ export class TeamService {
 
       // Check authorization: must be superAdmin or admin of the same organization
       if (
-        adminCreator.userType !== 'superAdmin' &&
-        !(adminCreator.userType === 'admin' && adminCreator.organization?.toString() === effectiveOrganizationId)
+        adminCreator.userType !== USER_TYPE[1] &&
+        !(adminCreator.userType === USER_TYPE[2] && adminCreator.organization?.toString() === effectiveOrganizationId)
       ) {
         throw new ForbiddenException('Not authorized to add admin to this organization');
       }
@@ -669,7 +670,7 @@ export class TeamService {
       const existingUser = await this.userModel.findOne({ email });
       if (existingUser) {
         // If user exists, check if they're already an admin for this organization
-        if (existingUser.userType === 'admin' && existingUser.organization?.toString() === effectiveOrganizationId) {
+        if (existingUser.userType === USER_TYPE[2] && existingUser.organization?.toString() === effectiveOrganizationId) {
           throw new BadRequestException('User is already an admin for this organization');
         }
         // If user exists but is not an admin for this org, we can still invite them
@@ -688,7 +689,7 @@ export class TeamService {
       }
 
       // If adminCreator is superAdmin, check pending invitation limit (max 3)
-      if (enforceAdminLimit && adminCreator.userType === 'superAdmin') {
+      if (enforceAdminLimit && adminCreator.userType === USER_TYPE[1]) {
         const pendingInvitationCount = await this.adminCreationModel.countDocuments({
           creator: adminCreatorId,
           organization: effectiveOrganizationId,
@@ -703,7 +704,7 @@ export class TeamService {
       // Count actual admin users for this organization (users with role='admin' and matching organization)
       if (enforceAdminLimit) {
         const actualAdminCount = await this.userModel.countDocuments({ 
-          userType: 'admin',
+          userType: USER_TYPE[2],
           organization: effectiveOrganizationId
         });
 
@@ -1019,13 +1020,13 @@ export class TeamService {
       let effectiveOrganizationId = organizationId;
       
       if (!effectiveOrganizationId) {
-        if (creator.userType === 'admin') {
+        if (creator.userType === USER_TYPE[2]) {
           // If creator is an admin, get organization from their organization field
           if (!creator.organization) {
             throw new BadRequestException('Admin user does not have an organization. Organization ID is required.');
           }
           effectiveOrganizationId = creator.organization.toString();
-        } else if (creator.userType === 'superAdmin') {
+        } else if (creator.userType === USER_TYPE[1]) {
           // If creator is superAdmin, get their first created organization
           const createdOrganization = await this.organizationModel.findOne({ creatorId: creatorId });
           if (!createdOrganization) {
@@ -1049,8 +1050,8 @@ export class TeamService {
       }
 
       // Step 4: Validate Creator is superAdmin or admin of this org
-      const isSuperAdmin = creator.userType === 'superAdmin';
-      const isAdminOfOrg = creator.userType === 'admin' && 
+      const isSuperAdmin = creator.userType === USER_TYPE[1];
+      const isAdminOfOrg = creator.userType === USER_TYPE[2] && 
         creator.organization && 
         creator.organization.toString() === effectiveOrganizationId;
 
@@ -1062,7 +1063,7 @@ export class TeamService {
       // If creator is an admin, check the organization creator's subscription
       // If creator is superAdmin, check their own subscription
       let subscriptionOwner = creator;
-      if (creator.userType === 'admin') {
+      if (creator.userType === USER_TYPE[2]) {
         // For admins, check the organization creator's (superAdmin) subscription
         const organizationCreator = await this.userModel.findById(organization.creatorId);
         if (!organizationCreator) {
@@ -1637,13 +1638,13 @@ export class TeamService {
       let effectiveOrganizationId = organizationId;
       
       if (!effectiveOrganizationId) {
-        if (adminUser.userType === 'admin') {
+        if (adminUser.userType === USER_TYPE[2]) {
           // If adminUser is an admin, get organization from their organization field
           if (!adminUser.organization) {
             throw new BadRequestException('Admin user does not have an organization. Organization ID is required.');
           }
           effectiveOrganizationId = adminUser.organization.toString();
-        } else if (adminUser.userType === 'superAdmin') {
+        } else if (adminUser.userType === USER_TYPE[1]) {
           // If adminUser is superAdmin, get their first created organization
           const createdOrganization = await this.organizationModel.findOne({ creatorId: adminUserId });
           if (!createdOrganization) {
@@ -1667,8 +1668,8 @@ export class TeamService {
       }
 
       // Step 5: Check authorization - admin must be superAdmin or admin of this org
-      const isSuperAdmin = adminUser.userType === 'superAdmin';
-      const isAdminOfOrg = adminUser.userType === 'admin' && 
+      const isSuperAdmin = adminUser.userType === USER_TYPE[1];
+      const isAdminOfOrg = adminUser.userType === USER_TYPE[2] && 
         adminUser.organization && 
         adminUser.organization.toString() === effectiveOrganizationId;
 
@@ -1680,7 +1681,7 @@ export class TeamService {
       let allowUnlimitedMembers = false;
       try {
         let subscriptionOwner = adminUser;
-        if (adminUser.userType === 'admin' && organization.creatorId) {
+        if (adminUser.userType === USER_TYPE[2] && organization.creatorId) {
           const organizationCreator = await this.userModel.findById(organization.creatorId);
           if (organizationCreator) {
             subscriptionOwner = organizationCreator;
@@ -1867,13 +1868,13 @@ export class TeamService {
       let effectiveOrganizationId = organizationId;
       
       if (!effectiveOrganizationId) {
-        if (adminUser.userType === 'admin') {
+        if (adminUser.userType === USER_TYPE[2]) {
           // If adminUser is an admin, get organization from their organization field
           if (!adminUser.organization) {
             throw new BadRequestException('Admin user does not have an organization. Organization ID is required.');
           }
           effectiveOrganizationId = adminUser.organization.toString();
-        } else if (adminUser.userType === 'superAdmin') {
+        } else if (adminUser.userType === USER_TYPE[1]) {
           // If adminUser is superAdmin, get their first created organization
           const createdOrganization = await this.organizationModel.findOne({ creatorId: adminUserId });
           if (!createdOrganization) {
@@ -1897,8 +1898,8 @@ export class TeamService {
       }
 
       // Step 5: Check authorization - admin must be superAdmin or admin of this org
-      const isSuperAdmin = adminUser.userType === 'superAdmin';
-      const isAdminOfOrg = adminUser.userType === 'admin' && 
+      const isSuperAdmin = adminUser.userType === USER_TYPE[1];
+      const isAdminOfOrg = adminUser.userType === USER_TYPE[2] && 
         adminUser.organization && 
         adminUser.organization.toString() === effectiveOrganizationId;
 
@@ -2042,12 +2043,12 @@ export class TeamService {
 
       // Step 4: Get organizationId from user or teams
       let organizationId: string;
-      const isSuperAdmin = adminUser.userType === 'superAdmin';
+      const isSuperAdmin = adminUser.userType === USER_TYPE[1];
       
       if (isSuperAdmin) {
         // For superAdmin, get organization from source team
         organizationId = sourceTeam.organization.toString();
-      } else if (adminUser.userType === 'admin' && adminUser.organization) {
+      } else if (adminUser.userType === USER_TYPE[2] && adminUser.organization) {
         // For admin, get organization from user's organization field
         organizationId = adminUser.organization.toString();
       } else {
@@ -2068,7 +2069,7 @@ export class TeamService {
         }
       } else {
         // For admin, verify they belong to this organization
-        const isAdminOfOrg = adminUser.userType === 'admin' && 
+        const isAdminOfOrg = adminUser.userType === USER_TYPE[2] && 
           adminUser.organization && 
           adminUser.organization.toString() === organizationId;
 
@@ -2116,7 +2117,7 @@ export class TeamService {
       try {
         // Determine subscription owner: if admin, check organization creator's subscription; if superAdmin, check their own
         let subscriptionOwner = adminUser;
-        if (adminUser.userType === 'admin' && organization.creatorId) {
+        if (adminUser.userType === USER_TYPE[2] && organization.creatorId) {
           const organizationCreator = await this.userModel.findById(organization.creatorId);
           if (organizationCreator) {
             subscriptionOwner = organizationCreator;
@@ -2271,7 +2272,7 @@ export class TeamService {
       }
 
       // Step 2: Check authorization - only superAdmin or admin can remove admins
-      if (requester.userType !== 'superAdmin' && requester.userType !== 'admin') {
+      if (requester.userType !== USER_TYPE[1] && requester.userType !== USER_TYPE[2]) {
         throw new ForbiddenException('Only superAdmin or admin users can remove admins from the organization');
       }
 
@@ -2279,13 +2280,13 @@ export class TeamService {
       let effectiveOrganizationId = trimmedOrganizationId;
       
       if (!effectiveOrganizationId) {
-        if (requester.userType === 'admin') {
+        if (requester.userType === USER_TYPE[2]) {
           // If requester is an admin, get organization from their organization field
           if (!requester.organization) {
             throw new BadRequestException('Admin user does not have an organization. Organization ID is required.');
           }
           effectiveOrganizationId = requester.organization.toString();
-        } else if (requester.userType === 'superAdmin') {
+        } else if (requester.userType === USER_TYPE[1]) {
           // Get superAdmin's first created organization
           const createdOrganization = await this.organizationModel.findOne({ creatorId: trimmedRequesterUserId });
           if (!createdOrganization) {
@@ -2307,12 +2308,12 @@ export class TeamService {
       }
 
       // Step 5: Check authorization based on requester type
-      if (requester.userType === 'superAdmin') {
+      if (requester.userType === USER_TYPE[1]) {
         // For superAdmin, verify they created this organization
         if (organization.creatorId.toString() !== trimmedRequesterUserId) {
           throw new ForbiddenException('Only the organization creator (superAdmin) can remove admins');
         }
-      } else if (requester.userType === 'admin') {
+      } else if (requester.userType === USER_TYPE[2]) {
         // For admin, verify they belong to this organization
         if (!requester.organization || requester.organization.toString() !== effectiveOrganizationId) {
           throw new ForbiddenException('You are not authorized to remove admins from this organization');
@@ -2331,7 +2332,7 @@ export class TeamService {
       }
 
       // If found in User table, also check for AdminCreation record (approved status)
-      if (adminUser && adminUser.userType === 'admin') {
+      if (adminUser && adminUser.userType === USER_TYPE[2]) {
         approvedAdminCreation = await this.adminCreationModel.findOne({
           createdAdmin: trimmedAdminUserId,
           organization: effectiveOrganizationId,
@@ -2381,7 +2382,7 @@ export class TeamService {
 
         // Get updated list of admins (approved + pending)
         const remainingApprovedAdmins = await this.userModel.find({
-          userType: 'admin',
+          userType: USER_TYPE[2],
           organization: effectiveOrganizationId
         }).select('name email _id').exec();
 
@@ -2429,7 +2430,7 @@ export class TeamService {
       }
 
       // Step 9: Verify that the user is actually an admin
-      if (adminUser.userType !== 'admin') {
+      if (adminUser.userType !== USER_TYPE[2]) {
         throw new BadRequestException('User is not an admin');
       }
 
@@ -2454,7 +2455,7 @@ export class TeamService {
 
       // Step 14: Get updated list of admins in the organization (approved + pending)
       const remainingApprovedAdmins = await this.userModel.find({
-        userType: 'admin',
+        userType: USER_TYPE[2],
         organization: effectiveOrganizationId
       }).select('name email _id').exec();
 
@@ -2523,7 +2524,7 @@ export class TeamService {
       }
 
       // Step 2: Check authorization - only superAdmin or admin can access
-      if (user.userType !== 'superAdmin' && user.userType !== 'admin') {
+      if (user.userType !== USER_TYPE[1] && user.userType !== USER_TYPE[2]) {
         throw new ForbiddenException('Only superAdmin or admin users can access this API');
       }
 
@@ -2531,13 +2532,13 @@ export class TeamService {
       let effectiveOrganizationId = organizationId;
       
       if (!effectiveOrganizationId) {
-        if (user.userType === 'admin') {
+        if (user.userType === USER_TYPE[2]) {
           // If user is an admin, get organization from their organization field
           if (!user.organization) {
             throw new BadRequestException('Admin user does not have an organization. Organization ID is required.');
           }
           effectiveOrganizationId = user.organization.toString();
-        } else if (user.userType === 'superAdmin') {
+        } else if (user.userType === USER_TYPE[1]) {
           // If user is superAdmin, get their first created organization
           const createdOrganization = await this.organizationModel.findOne({ creatorId: userId });
           if (!createdOrganization) {
@@ -2561,12 +2562,12 @@ export class TeamService {
       }
 
       // Step 5: Check if user has access to this organization
-      if (user.userType === 'superAdmin') {
+      if (user.userType === USER_TYPE[1]) {
         // For superAdmin, verify they created this organization
         if (organization.creatorId.toString() !== userId) {
           throw new ForbiddenException('You are not authorized to view admins of this organization');
         }
-      } else if (user.userType === 'admin') {
+      } else if (user.userType === USER_TYPE[2]) {
         // For admin, verify they belong to this organization
         if (!user.organization || user.organization.toString() !== effectiveOrganizationId) {
           throw new ForbiddenException('You are not authorized to view admins of this organization');
@@ -2613,7 +2614,7 @@ export class TeamService {
 
       // Step 8: Get approved admins from User table
       const adminQuery: QueryFilter = {
-        userType: 'admin',
+        userType: USER_TYPE[2],
         organization: effectiveOrganizationId
       };
 
@@ -2779,7 +2780,7 @@ export class TeamService {
       let organizationIds: string[] = [];
 
       // Case 1: User is superAdmin - find all organizations they created
-      if (user.userType === 'superAdmin') {
+      if (user.userType === USER_TYPE[1]) {
         const createdOrganizations = await this.organizationModel
           .find({ creatorId: userId })
           .select('_id')
@@ -2789,7 +2790,7 @@ export class TeamService {
       }
 
       // Case 2: User is admin - find their organization
-      if (user.userType === 'admin' && user.organization) {
+      if (user.userType === USER_TYPE[2] && user.organization) {
         const orgId = user.organization.toString();
         organizationIds = organizationIds.includes(orgId) 
           ? organizationIds 
@@ -2850,7 +2851,7 @@ export class TeamService {
       const creators = await this.userModel
         .find({ 
           _id: { $in: creatorIds },
-          userType: 'superAdmin'
+          userType: USER_TYPE[1]
         })
         .select('_id')
         .lean()
@@ -2863,7 +2864,7 @@ export class TeamService {
       // Batch fetch all admin users for all organizations at once
       const adminUsers = await this.userModel
         .find({
-          userType: 'admin',
+          userType: USER_TYPE[2],
           organization: { $in: organizationIds }
         })
         .select('_id')
@@ -3345,7 +3346,7 @@ export class TeamService {
       // Step 2: Determine effective userId based on requester's userType
       let effectiveUserId: string;
 
-      if (requesterUser.userType === 'member') {
+      if (requesterUser.userType === USER_TYPE[3]) {
         // For members: always use requester's userId, ignore targetUserId
         effectiveUserId = requesterUserId;
         
@@ -3353,7 +3354,7 @@ export class TeamService {
         if (targetUserId && targetUserId.trim()) {
           throw new BadRequestException('Members cannot specify userId. Only searchTerm is allowed.');
         }
-      } else if (requesterUser.userType === 'superAdmin' || requesterUser.userType === 'admin') {
+      } else if (requesterUser.userType === USER_TYPE[1] || requesterUser.userType === USER_TYPE[2]) {
         // For superAdmin/admin: use targetUserId if provided, otherwise use requesterUserId
         const trimmedTargetUserId = targetUserId?.trim();
         
@@ -3384,7 +3385,7 @@ export class TeamService {
       // Gather organizations the user is associated with (creator, admin, or member)
       const organizationIds: string[] = [];
 
-      if (user.userType === 'superAdmin') {
+      if (user.userType === USER_TYPE[1]) {
         const createdOrganizations = await this.organizationModel
           .find({ creatorId: effectiveUserId })
           .select('_id name')
@@ -3398,7 +3399,7 @@ export class TeamService {
         });
       }
 
-      if (user.userType === 'admin' && user.organization) {
+      if (user.userType === USER_TYPE[2] && user.organization) {
         const orgId = this.normalizeId(user.organization);
         if (orgId && !organizationIds.includes(orgId)) {
           organizationIds.push(orgId);
@@ -3460,7 +3461,7 @@ export class TeamService {
           .findById(orgTyped.creatorId)
           .select('_id userType')
           .lean();
-        if (creator && creator.userType === 'superAdmin') {
+        if (creator && creator.userType === USER_TYPE[1]) {
           const creatorId = this.normalizeId(creator._id);
           if (creatorId && !superAdminIds.includes(creatorId)) {
             superAdminIds.push(creatorId);
@@ -3469,7 +3470,7 @@ export class TeamService {
 
         // Admins of this organization
         const admins = await this.userModel
-          .find({ userType: 'admin', organization: orgId })
+          .find({ userType: USER_TYPE[2], organization: orgId })
           .select('_id')
           .lean()
           .exec();
@@ -3488,7 +3489,7 @@ export class TeamService {
         let userAccuracy = 0;
         let userRank: number | null = null;
         
-        if (user.userType === 'member') {
+        if (user.userType === USER_TYPE[3]) {
           try {
             const teamMember = await this.teamMemberModel
               .findOne({ 
@@ -3762,7 +3763,7 @@ export class TeamService {
       let userRank: number | null = null;
       
       // Only calculate accuracy and rank for members (not superAdmin/admin)
-      if (user.userType === 'member') {
+      if (user.userType === USER_TYPE[3]) {
         try {
           // Get TeamMember record to get gameAccuracy
           const teamMember = await this.teamMemberModel
@@ -4091,7 +4092,7 @@ export class TeamService {
       const organizationIds: string[] = [];
 
       // Case 1: User is superAdmin - find all organizations they created
-      if (user.userType === 'superAdmin') {
+      if (user.userType === USER_TYPE[1]) {
         const createdOrganizations = await this.organizationModel
           .find({ creatorId: userId })
           .select('_id name logo')
@@ -4101,7 +4102,7 @@ export class TeamService {
       }
 
       // Case 2: User is admin - find their organization
-      if (user.userType === 'admin' && user.organization) {
+      if (user.userType === USER_TYPE[2] && user.organization) {
         const orgId = user.organization.toString();
         if (!organizationIds.includes(orgId)) {
           organizationIds.push(orgId);
@@ -4437,7 +4438,7 @@ export class TeamService {
       let organizationIds: string[] = [];
 
       // Case 1: User is superAdmin - find organizations they created
-      if (user.userType === 'superAdmin') {
+      if (user.userType === USER_TYPE[1]) {
         const createdOrganizations = await this.organizationModel
           .find({ creatorId: userId })
           .select('_id')
@@ -4446,7 +4447,7 @@ export class TeamService {
       }
 
       // Case 2: User is admin - find their organization
-      if (user.userType === 'admin' && user.organization) {
+      if (user.userType === USER_TYPE[2] && user.organization) {
         const orgId = user.organization.toString();
         if (!organizationIds.includes(orgId)) {
           organizationIds.push(orgId);
@@ -4578,8 +4579,8 @@ export class TeamService {
       const orgAdmins = await this.userModel
         .find({
           $or: [
-            { organization: organizationId, userType: 'admin' },
-            { userType: 'superAdmin' }
+            { organization: organizationId, userType: USER_TYPE[2] },
+            { userType: USER_TYPE[1] }
           ]
         })
         .select('_id')
@@ -4938,8 +4939,8 @@ export class TeamService {
    * - NORMAL USER → only if owner
    */
   const isAdmin =
-    user.userType === 'superAdmin' ||
-    user.userType === 'admin';
+    user.userType === USER_TYPE[1] ||
+    user.userType === USER_TYPE[2];
 
   const isOwner = deckOwnerId === normalizedUserId;
 
@@ -4985,7 +4986,7 @@ export class TeamService {
       }
 
       // Step 2: Check authorization - only superAdmin or admin can delete decks
-      if (user.userType !== 'superAdmin' && user.userType !== 'admin') {
+      if (user.userType !== USER_TYPE[1] && user.userType !== USER_TYPE[2]) {
         throw new ForbiddenException('Only superAdmin or admin users can delete decks');
       }
 
@@ -5063,7 +5064,7 @@ export class TeamService {
       }
 
       // Step 2: Check authorization - only superAdmin, admin, or member can access this API
-      const allowedUserTypes = ['superAdmin', 'admin', 'member'];
+      const allowedUserTypes: string[] = [USER_TYPE[1], USER_TYPE[2], USER_TYPE[3]];
       if (!allowedUserTypes.includes(requester.userType)) {
         throw new ForbiddenException('Only superAdmin, admin, or member users can access this API');
       }
@@ -5071,7 +5072,7 @@ export class TeamService {
       // Step 3: Query users with userType in ['superAdmin', 'admin', 'member'] and isOnline = true
       const onlineUsers = await this.userModel
         .find({
-          userType: { $in: ['superAdmin', 'admin', 'member'] },
+          userType: { $in: [USER_TYPE[1], USER_TYPE[2], USER_TYPE[3]] },
           isOnline: true
         })
         .select('name email userType isOnline profileImage organization lastSeen')
@@ -5084,7 +5085,7 @@ export class TeamService {
       const memberUserIds = onlineUsers
         .filter((user) => {
           const userTyped = user as unknown as PopulatedUserInfo & { userType?: string };
-          return userTyped.userType === 'member';
+          return userTyped.userType === USER_TYPE[3];
         })
         .map((user) => {
           const userTyped = user as unknown as PopulatedUserInfo;
@@ -5127,7 +5128,7 @@ export class TeamService {
         let teamName: string | null = null;
 
         // Only get team information for members (superAdmin and admin should have null)
-        if (userTyped.userType === 'member' && normalizedUserId) {
+        if (userTyped.userType === USER_TYPE[3] && normalizedUserId) {
           const teamMember = teamMemberMap.get(normalizedUserId);
           if (teamMember && teamMember.team) {
             const teamMemberTyped = teamMember as unknown as PopulatedTeamMemberLean;

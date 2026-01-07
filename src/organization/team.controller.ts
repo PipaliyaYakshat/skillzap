@@ -46,6 +46,7 @@ import { RolesGuard } from '../auth/lib/roles.guard';
 import { Roles } from '../auth/lib/roles.decorator';
 import { multerOrganizationLogoOptions } from '../common/multer.service';
 import { type Request } from 'express';
+import { USER_ROLE, USER_TYPE } from 'src/common/enum';
 
 // Type for authenticated user object
 type AuthUser = {
@@ -138,7 +139,7 @@ export class TeamController {
 
   @Get('all')
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Get all organizations (admin role only)',
     description: 'Retrieves all organizations in the system. Only accessible to users with admin role.',

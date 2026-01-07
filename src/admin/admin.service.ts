@@ -47,8 +47,8 @@ import { AdminResendOtpDto } from './dto/admin-resend-otp.dto';
 import { AdminVerifyOtpDto } from './dto/admin-verify-otp.dto';
 import { AdminResetPasswordDto } from './dto/admin-reset-password.dto';
 import { AdminChangePasswordDto } from './dto/admin-change-password.dto';
-import * as jwt from 'jsonwebtoken';
-import { addMinutes } from 'date-fns';
+import { OTPGNARETE, generateJwtToken, OTP_FUNCTION } from 'src/common/utils';
+import { USER_ROLE, USER_TYPE } from 'src/common/enum';
 
 @Injectable()
 export class AdminService {
@@ -335,8 +335,8 @@ export class AdminService {
           contactNumber: registration.contactNumber,
           countryCode: registration.countryCode || '+1',
           password: hashedPassword,
-          role: 'userLogin',
-          userType: 'superAdmin',
+          role: USER_ROLE[1],
+          userType: USER_TYPE[1],
           teamPlan: 'enterprise',
           isActive: true,
           isRegister: true,
@@ -977,7 +977,7 @@ export class AdminService {
       // Give different lives based on userType
       // "member" -> 50 lives
       // "individual"/"Individual" or any other type -> 15 lives
-      const isMember = user.userType?.toLowerCase() === 'member';
+      const isMember = user.userType?.toLowerCase() === USER_TYPE[3].toLowerCase();
       const refillAmount = isMember 
         ? AdminService.LIFE_REFILL_AMOUNT_MEMBER 
         : AdminService.LIFE_REFILL_AMOUNT_INDIVIDUAL;
@@ -1025,7 +1025,7 @@ export class AdminService {
 
       const admin = await this.userModel.findOne({ 
         email,
-        role: { $in: ['admin'] }
+        role: { $in: [USER_ROLE[0]] }
       });
 
       if (!admin) {
@@ -1041,7 +1041,7 @@ export class AdminService {
         throw new BadRequestException('Password does not match.');
       }
 
-      const token = this.generateJwtToken(admin);
+      const token = generateJwtToken(admin);
       
       admin.isOnline = true;
       admin.isActive = true;
@@ -1064,15 +1064,15 @@ export class AdminService {
     try {
       const admin = await this.userModel.findOne({
         email: adminForgotPasswordDto.email,
-        role: { $in: ['admin'] }
+        role: { $in: [USER_ROLE[0]] }
       });
 
       if (!admin) {
         throw new NotFoundException('Admin not found.');
       }
 
-      const otp = Math.floor(100000 + Math.random() * 900000);
-      const otpExpires = this.getOtpExpiryDate();
+      const otp = OTPGNARETE();
+      const otpExpires = OTP_FUNCTION.getOtpExpiryDate();
 
       admin.otp = otp;
       admin.otpSendDate = otpExpires;
@@ -1098,7 +1098,7 @@ export class AdminService {
     try {
       const admin = await this.userModel.findOne({ 
         email: adminResendOtpDto.email,
-        role: { $in: ['admin'] }
+        role: { $in: [USER_ROLE[0]] }
       });
 
       if (!admin) {
@@ -1120,8 +1120,8 @@ export class AdminService {
         );
       }
 
-      const otp = Math.floor(100000 + Math.random() * 900000);
-      const otpExpires = this.getOtpExpiryDate();
+      const otp = OTPGNARETE();
+      const otpExpires = OTP_FUNCTION.getOtpExpiryDate();
 
       admin.otp = otp;
       admin.otpSendDate = otpExpires;
@@ -1146,7 +1146,7 @@ export class AdminService {
     try {
       const admin = await this.userModel.findOne({ 
         email: adminVerifyOtpDto.email,
-        role: { $in: ['admin'] }
+        role: { $in: [USER_ROLE[0]] }
       });
 
       if (!admin) {
@@ -1191,7 +1191,7 @@ export class AdminService {
 
       const admin = await this.userModel.findOne({
         email: adminResetPasswordDto.email,
-        role: { $in: ['admin'] }
+        role: { $in: [USER_ROLE[0]] }
       });
 
       if (!admin) {
@@ -1230,22 +1230,13 @@ export class AdminService {
     }
   }
 
-  // Helper methods for authentication
-  private generateJwtToken(user: UserDocument): string {
-    return jwt.sign({ id: user._id, role: user.role }, 'TOKEN');
-  }
-
-  private getOtpExpiryDate(): Date {
-    return addMinutes(new Date(), 2);
-  }
-
   async changePassword(adminId: string, adminChangePasswordDto: AdminChangePasswordDto) {
     try {
       const { oldPassword, newPassword } = adminChangePasswordDto;
 
       const admin = await this.userModel.findOne({
         _id: adminId,
-        role: { $in: ['admin'] }
+        role: { $in: [USER_ROLE[0]] }
       });
 
       if (!admin) {

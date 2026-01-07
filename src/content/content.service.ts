@@ -28,6 +28,7 @@ import { DeviceAccessService } from './device-access.service';
 import { Question } from './interfaces/question.interface';
 import { getUploadBasePath } from '../common/multer.service';
 import { extname } from 'path';
+import { USER_TYPE } from 'src/common/enum';
 import { Deck, DeckDocument } from './schemas/deck.schema';
 import { User, UserDocument } from '../users/entities/user.entity';
 import { UpdateQuery } from 'mongoose';
@@ -219,7 +220,7 @@ export class ContentService {
       throw new NotFoundException('User not found');
     }
 
-    if (user.userType !== 'individual') {
+    if (user.userType !== USER_TYPE[0]) {
       throw new ForbiddenException('Only Individual users can access this service');
     }
   }
@@ -2478,7 +2479,7 @@ export class ContentService {
 
   async getOnlineUsers() {
     const users = await this.userModel
-      .find({ isOnline: true, isActive: true, userType: 'individual' })
+      .find({ isOnline: true, isActive: true, userType: USER_TYPE[0] })
       .select('_id name email profileImage isOnline lastSeen userType')
       .sort({ lastSeen: -1 })
       .lean()
@@ -2500,7 +2501,7 @@ export class ContentService {
     const query: FilterQuery<UserDocument> = {
       name: { $regex: trimmedName, $options: 'i' },
       isActive: true,
-      userType: 'individual', // Only include Individual users, exclude Organization users
+      userType: USER_TYPE[0], // Only include Individual users, exclude Organization users
     };
 
     if (userId) {

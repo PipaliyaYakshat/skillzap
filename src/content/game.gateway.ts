@@ -8,6 +8,7 @@ import { UseFilters } from '@nestjs/common';
 import { CustomWsExceptionFilter } from 'src/common/CustomWsExceptionFilter';
 import { randomUUID } from 'crypto';
 import { Types } from 'mongoose';
+import { USER_TYPE } from 'src/common/enum';
 
 type Difficulty = 'easy' | 'medium' | 'hard';
 
@@ -4837,7 +4838,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         const userType = userTyped?.userType;
         
         // Skip if invalid userId, is inviter, or not individual type
-        if (!userId || userId === normalizedInviterId || userType !== 'individual') {
+        if (!userId || userId === normalizedInviterId || userType !== USER_TYPE[0]) {
           continue;
         }
 

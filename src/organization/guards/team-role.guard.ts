@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User } from '../../users/entities/user.entity';
 import { AdminCreation } from '../entities/admin-creation.entity';
+import { USER_TYPE } from 'src/common/enum';
 
 @Injectable()
 export class TeamRoleGuard implements CanActivate {
@@ -25,12 +26,12 @@ export class TeamRoleGuard implements CanActivate {
     }
 
     // If user is team type, allow access
-    if (userDoc?.userType === 'superAdmin') {
+    if (userDoc?.userType === USER_TYPE[1]) {
       return true;
     }
 
     // If user is admin type, check their approval status
-    if (userDoc?.userType === 'admin') {
+    if (userDoc?.userType === USER_TYPE[2]) {
       const adminCreation = await this.adminCreationModel.findOne({
         createdAdmin: user.id,
         // status: 'approved'

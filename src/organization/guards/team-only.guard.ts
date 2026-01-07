@@ -2,6 +2,7 @@ import { Injectable, CanActivate, ExecutionContext, BadRequestException } from '
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User } from '../../users/entities/user.entity';
+import { USER_TYPE } from 'src/common/enum';
 
 @Injectable()
 export class TeamOnlyGuard implements CanActivate {
@@ -18,6 +19,6 @@ export class TeamOnlyGuard implements CanActivate {
     }
 
     const userDoc = await this.userModel.findById(user.id);
-    return userDoc?.userType === 'superAdmin';
+    return userDoc?.userType === USER_TYPE[1];
   }
 } 
