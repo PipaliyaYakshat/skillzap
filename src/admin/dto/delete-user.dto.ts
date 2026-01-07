@@ -11,4 +11,3 @@ export class DeleteUserDto {
   @IsString({ message: 'User ID must be a string' })
   userId: string;
 }
-

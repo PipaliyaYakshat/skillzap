@@ -12,4 +12,3 @@ export class UpdateDeckNameDto {
   @MinLength(1)
   name: string;
 }
-

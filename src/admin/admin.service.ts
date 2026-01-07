@@ -14,20 +14,27 @@ import {
   SubscriptionPlanDocument,
   SubscriptionType,
 } from 'src/subscription/entities/subscription-plan.entity';
-import {
-  ContentFileData,
-} from 'src/organization/entities/content-file-data.entity';
+import { ContentFileData } from 'src/organization/entities/content-file-data.entity';
 import { Deck, DeckDocument } from 'src/content/schemas/deck.schema';
 import { Topic, TopicDocument } from 'src/content/schemas/topic.schema';
-import { SubTopic, SubTopicDocument } from 'src/content/schemas/subtopic.schema';
+import {
+  SubTopic,
+  SubTopicDocument,
+} from 'src/content/schemas/subtopic.schema';
 import { Game, GameDocument } from 'src/content/schemas/game.schema';
 import {
   GameProgress,
   GameProgressDocument,
 } from 'src/content/schemas/game-progress.schema';
 import { Content, ContentDocument } from 'src/content/schemas/content.schema';
-import { Gamebattl, GamebattleDocument } from 'src/content/schemas/btal.game.schema';
-import { UserGame, UserGameDocument } from 'src/users/entities/user-game.entity';
+import {
+  Gamebattl,
+  GamebattleDocument,
+} from 'src/content/schemas/btal.game.schema';
+import {
+  UserGame,
+  UserGameDocument,
+} from 'src/users/entities/user-game.entity';
 import {
   TeamGame,
   TeamGameDocument,
@@ -63,18 +70,32 @@ export class AdminService {
     private readonly contentFileDataModel: Model<ContentFileData>,
     @InjectModel(Deck.name) private readonly deckModel: Model<DeckDocument>,
     @InjectModel(Topic.name) private readonly topicModel: Model<TopicDocument>,
-    @InjectModel(SubTopic.name) private readonly subTopicModel: Model<SubTopicDocument>,
+    @InjectModel(SubTopic.name)
+    private readonly subTopicModel: Model<SubTopicDocument>,
     @InjectModel(Game.name) private readonly gameModel: Model<GameDocument>,
     @InjectModel(GameProgress.name)
     private readonly gameProgressModel: Model<GameProgressDocument>,
-    @InjectModel(Content.name) private readonly contentModel: Model<ContentDocument>,
-    @InjectModel(Gamebattl.name) private readonly gamebattlModel: Model<GamebattleDocument>,
-    @InjectModel(UserGame.name) private readonly userGameModel: Model<UserGameDocument>,
-    @InjectModel(TeamGame.name) private readonly teamGameModel: Model<TeamGameDocument>,
+    @InjectModel(Content.name)
+    private readonly contentModel: Model<ContentDocument>,
+    @InjectModel(Gamebattl.name)
+    private readonly gamebattlModel: Model<GamebattleDocument>,
+    @InjectModel(UserGame.name)
+    private readonly userGameModel: Model<UserGameDocument>,
+    @InjectModel(TeamGame.name)
+    private readonly teamGameModel: Model<TeamGameDocument>,
     private readonly mailService: MailService,
   ) {}
 
-  async findAll(query: { page?: number; limit?: number; search?: string; userType?: string; subscriptionType?: string; teamPlan?: string } = {}) {
+  async findAll(
+    query: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      userType?: string;
+      subscriptionType?: string;
+      teamPlan?: string;
+    } = {},
+  ) {
     try {
       const page = query.page || 1;
       const limit = query.limit || 10;
@@ -93,7 +114,10 @@ export class AdminService {
       // Filter by userType (case-insensitive exact match)
       if (query.userType && query.userType.trim().length > 0) {
         const ut = query.userType.trim();
-        filterQuery.userType = new RegExp(`^${ut.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}$`, 'i');
+        filterQuery.userType = new RegExp(
+          `^${ut.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}$`,
+          'i',
+        );
       }
 
       // Filter by subscriptionType: find plans with matching subscriptionType and filter by purchasePlanId
@@ -122,7 +146,9 @@ export class AdminService {
           };
         }
 
-        const planIds = matchingPlans.map((p: { _id: Types.ObjectId }) => p._id);
+        const planIds = matchingPlans.map(
+          (p: { _id: Types.ObjectId }) => p._id,
+        );
         filterQuery.purchasePlanId = { $in: planIds };
       }
 
@@ -170,13 +196,18 @@ export class AdminService {
     }
   }
 
-  async getUsersWithPurchases(query: { page?: number; limit?: number; subscriptionType?: string } = {}) {
+  async getUsersWithPurchases(
+    query: { page?: number; limit?: number; subscriptionType?: string } = {},
+  ) {
     try {
       const page = query.page || 1;
       const limit = query.limit || 10;
       const skip = (page - 1) * limit;
 
-      const filterQuery: Record<string, unknown> = { purchasePlanId: { $ne: null }, isActive: true };
+      const filterQuery: Record<string, unknown> = {
+        purchasePlanId: { $ne: null },
+        isActive: true,
+      };
 
       // If a subscriptionType filter is provided, find plans with that subscriptionType and filter users by those plan IDs
       if (query.subscriptionType && query.subscriptionType.trim().length > 0) {
@@ -204,7 +235,9 @@ export class AdminService {
           };
         }
 
-        const planIds = matchingPlans.map((p: { _id: Types.ObjectId }) => p._id);
+        const planIds = matchingPlans.map(
+          (p: { _id: Types.ObjectId }) => p._id,
+        );
         filterQuery.purchasePlanId = { $in: planIds };
       }
 
@@ -212,7 +245,10 @@ export class AdminService {
 
       const users = await this.userModel
         .find(filterQuery)
-        .populate({ path: 'purchasePlanId', select: 'name subscriptionType amount currency' })
+        .populate({
+          path: 'purchasePlanId',
+          select: 'name subscriptionType amount currency',
+        })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -220,8 +256,11 @@ export class AdminService {
 
       const sanitized = users.map((u) => {
         const base = this.sanitizeUser(u);
-        const plan = (u.purchasePlanId as unknown) as SubscriptionPlanDocument | null;
-        const isExpired = !!(u.expirePlanDate && u.expirePlanDate.getTime() < Date.now());
+        const plan =
+          u.purchasePlanId as unknown as SubscriptionPlanDocument | null;
+        const isExpired = !!(
+          u.expirePlanDate && u.expirePlanDate.getTime() < Date.now()
+        );
 
         return {
           ...base,
@@ -303,9 +342,7 @@ export class AdminService {
         });
 
         if (existingUser) {
-          throw new BadRequestException(
-            'User with this email already exists.',
-          );
+          throw new BadRequestException('User with this email already exists.');
         }
 
         // Hash password
@@ -344,7 +381,7 @@ export class AdminService {
 
         // Use default subscription plan ID for yearly plan, or use provided one
         const planIdToUse = subscriptionPlanId || '694fabd16aa5ed8993a8acc1';
-        
+
         if (!isValidObjectId(planIdToUse)) {
           throw new BadRequestException('Invalid subscription plan ID.');
         }
@@ -365,7 +402,7 @@ export class AdminService {
 
         userData.isPayment = true;
         userData.purchasePlanType = plan.subscriptionType;
-        userData.purchasePlanId = plan._id as Types.ObjectId;
+        userData.purchasePlanId = plan._id;
         userData.startPlanDate = startDate;
         userData.expirePlanDate = expireDate;
 
@@ -381,7 +418,7 @@ export class AdminService {
           registration.email,
           registration.firstName,
           registration.lastName,
-          registration.organizationName
+          registration.organizationName,
         );
 
         return {
@@ -407,7 +444,9 @@ export class AdminService {
     }
   }
 
-  async getAllUsersContentFileData(query: { page?: number; limit?: number } = {}) {
+  async getAllUsersContentFileData(
+    query: { page?: number; limit?: number } = {},
+  ) {
     try {
       const page = query.page || 1;
       const limit = query.limit || 10;
@@ -416,7 +455,9 @@ export class AdminService {
       // Filter by pending status
       const filterQuery = { status: 'pending' };
 
-      const total = await this.contentFileDataModel.countDocuments(filterQuery).exec();
+      const total = await this.contentFileDataModel
+        .countDocuments(filterQuery)
+        .exec();
 
       const registrations = await this.contentFileDataModel
         .find(filterQuery)
@@ -466,7 +507,9 @@ export class AdminService {
       throw new BadRequestException('Status is required');
     }
     if (status !== 'approve' && status !== 'reject') {
-      throw new BadRequestException('Status must be either "approve" or "reject"');
+      throw new BadRequestException(
+        'Status must be either "approve" or "reject"',
+      );
     }
 
     const deck = await this.deckModel.findById(deckId);
@@ -551,7 +594,13 @@ export class AdminService {
     }
   }
 
-  async getContentFileData(query: { page?: number; limit?: number; status?: 'approved' | 'pending' } = {}) {
+  async getContentFileData(
+    query: {
+      page?: number;
+      limit?: number;
+      status?: 'approved' | 'pending';
+    } = {},
+  ) {
     try {
       const page = query.page || 1;
       const limit = query.limit || 10;
@@ -560,11 +609,16 @@ export class AdminService {
       const filterQuery: Record<string, unknown> = {};
 
       // Filter by status if provided
-      if (query.status && (query.status === 'approved' || query.status === 'pending')) {
+      if (
+        query.status &&
+        (query.status === 'approved' || query.status === 'pending')
+      ) {
         filterQuery.status = query.status;
       }
 
-      const total = await this.contentFileDataModel.countDocuments(filterQuery).exec();
+      const total = await this.contentFileDataModel
+        .countDocuments(filterQuery)
+        .exec();
 
       const contentFileData = await this.contentFileDataModel
         .find(filterQuery)
@@ -596,7 +650,9 @@ export class AdminService {
     }
   }
 
-  async getPublicApprovedDecks(query: { page?: number; limit?: number; search?: string } = {}) {
+  async getPublicApprovedDecks(
+    query: { page?: number; limit?: number; search?: string } = {},
+  ) {
     try {
       const page = query.page || 1;
       const limit = query.limit || 10;
@@ -680,7 +736,9 @@ export class AdminService {
 
       // Delete all subtopics
       if (subTopicIds.length > 0) {
-        await this.subTopicModel.deleteMany({ _id: { $in: subTopicIds } }).exec();
+        await this.subTopicModel
+          .deleteMany({ _id: { $in: subTopicIds } })
+          .exec();
       }
 
       // Delete all topics
@@ -693,7 +751,8 @@ export class AdminService {
 
       return {
         statusCode: HttpStatus.OK,
-        message: 'Deck and all related content (topics and subtopics) deleted successfully.',
+        message:
+          'Deck and all related content (topics and subtopics) deleted successfully.',
         data: {
           deckId,
           deletedTopics: topicIds.length,
@@ -724,9 +783,7 @@ export class AdminService {
       }
 
       // Find all decks owned by this user
-      const userDecks = await this.deckModel
-        .find({ userId: userId })
-        .exec();
+      const userDecks = await this.deckModel.find({ userId: userId }).exec();
 
       const deckIds = userDecks.map((deck) => deck._id.toString());
       const topicIds: string[] = [];
@@ -753,7 +810,9 @@ export class AdminService {
 
       // Delete all subtopics
       if (subTopicIds.length > 0) {
-        await this.subTopicModel.deleteMany({ _id: { $in: subTopicIds } }).exec();
+        await this.subTopicModel
+          .deleteMany({ _id: { $in: subTopicIds } })
+          .exec();
       }
 
       // Delete all topics
@@ -776,24 +835,28 @@ export class AdminService {
       await this.userGameModel.deleteMany({ userId: userId }).exec();
 
       // Delete all battle games where user is host or in invited/accepted arrays
-      await this.gamebattlModel.deleteMany({
-        $or: [
-          { hostUserId: userId },
-          { invitedUserIds: { $in: [userId] } },
-          { acceptedUserIds: { $in: [userId] } },
-        ],
-      }).exec();
+      await this.gamebattlModel
+        .deleteMany({
+          $or: [
+            { hostUserId: userId },
+            { invitedUserIds: { $in: [userId] } },
+            { acceptedUserIds: { $in: [userId] } },
+          ],
+        })
+        .exec();
 
       // Delete all team games where user is creator or in invited/accepted arrays
       // Note: creator, invitedParticipants, and acceptedParticipants are ObjectId
       const userIdObjectId = new Types.ObjectId(userId);
-      await this.teamGameModel.deleteMany({
-        $or: [
-          { creator: userIdObjectId },
-          { invitedParticipants: { $in: [userIdObjectId] } },
-          { acceptedParticipants: { $in: [userIdObjectId] } },
-        ],
-      }).exec();
+      await this.teamGameModel
+        .deleteMany({
+          $or: [
+            { creator: userIdObjectId },
+            { invitedParticipants: { $in: [userIdObjectId] } },
+            { acceptedParticipants: { $in: [userIdObjectId] } },
+          ],
+        })
+        .exec();
 
       // Delete all content
       await this.contentModel.deleteMany({ userId: userId }).exec();
@@ -869,7 +932,8 @@ export class AdminService {
       }
 
       // Find the deck
-      const deck = await this.deckModel.findById(deckId)
+      const deck = await this.deckModel
+        .findById(deckId)
         .populate({ path: 'userId', select: 'name email' })
         .lean()
         .exec();
@@ -879,7 +943,9 @@ export class AdminService {
       }
 
       // Get all topics from deck's contentIds
-      const topicIds = (deck.contentIds || []).filter((id) => isValidObjectId(id));
+      const topicIds = (deck.contentIds || []).filter((id) =>
+        isValidObjectId(id),
+      );
 
       if (topicIds.length === 0) {
         return {
@@ -901,7 +967,9 @@ export class AdminService {
       // For each topic, get all subtopics
       const topicsWithSubtopics = await Promise.all(
         topics.map(async (topic) => {
-          const subTopicIds = (topic.subTopics || []).filter((id) => isValidObjectId(id));
+          const subTopicIds = (topic.subTopics || []).filter((id) =>
+            isValidObjectId(id),
+          );
 
           let subtopics: Array<Record<string, unknown>> = [];
           if (subTopicIds.length > 0) {
@@ -945,24 +1013,27 @@ export class AdminService {
       __v,
       ...rest
     } = user.toObject();
-    
+
     // Convert profileImage filesystem path to public URL if needed
     // Only convert if it looks like a file path, not if it's just an avatarId
     if (rest.profileImage) {
       // If profileImage contains a path separator or starts with /, it's a file path
       // Otherwise, it's likely an avatarId and should be returned as is
-      if (rest.profileImage.includes('/') || rest.profileImage.startsWith('/')) {
+      if (
+        rest.profileImage.includes('/') ||
+        rest.profileImage.startsWith('/')
+      ) {
         rest.profileImage = convertToPublicUrl(rest.profileImage);
       }
       // If it's just a simple string (avatarId), keep it as is
     }
-    
+
     return rest;
   }
 
   private async refreshLivesIfNeeded(
     user: UserDocument | null,
-    ): Promise<UserDocument | null> {
+  ): Promise<UserDocument | null> {
     if (!user) {
       return null;
     }
@@ -977,11 +1048,12 @@ export class AdminService {
       // Give different lives based on userType
       // "member" -> 50 lives
       // "individual"/"Individual" or any other type -> 15 lives
-      const isMember = user.userType?.toLowerCase() === USER_TYPE[3].toLowerCase();
-      const refillAmount = isMember 
-        ? AdminService.LIFE_REFILL_AMOUNT_MEMBER 
+      const isMember =
+        user.userType?.toLowerCase() === USER_TYPE[3].toLowerCase();
+      const refillAmount = isMember
+        ? AdminService.LIFE_REFILL_AMOUNT_MEMBER
         : AdminService.LIFE_REFILL_AMOUNT_INDIVIDUAL;
-      
+
       user.lives = refillAmount;
       user.nextLivesRefillAt = null;
       return user.save();
@@ -1023,9 +1095,9 @@ export class AdminService {
     try {
       const { email, password } = adminLoginDto;
 
-      const admin = await this.userModel.findOne({ 
+      const admin = await this.userModel.findOne({
         email,
-        role: { $in: [USER_ROLE[0]] }
+        role: { $in: [USER_ROLE[0]] },
       });
 
       if (!admin) {
@@ -1042,7 +1114,7 @@ export class AdminService {
       }
 
       const token = generateJwtToken(admin);
-      
+
       admin.isOnline = true;
       admin.isActive = true;
       await admin.save();
@@ -1064,7 +1136,7 @@ export class AdminService {
     try {
       const admin = await this.userModel.findOne({
         email: adminForgotPasswordDto.email,
-        role: { $in: [USER_ROLE[0]] }
+        role: { $in: [USER_ROLE[0]] },
       });
 
       if (!admin) {
@@ -1080,7 +1152,11 @@ export class AdminService {
       admin.verifyOtp = false;
       await admin.save();
 
-      this.mailService.sendOtpEmail(admin.email, admin.name || admin.email || 'Admin', otp);
+      this.mailService.sendOtpEmail(
+        admin.email,
+        admin.name || admin.email || 'Admin',
+        otp,
+      );
 
       return {
         statusCode: HttpStatus.OK,
@@ -1096,9 +1172,9 @@ export class AdminService {
 
   async adminResendOtp(adminResendOtpDto: AdminResendOtpDto) {
     try {
-      const admin = await this.userModel.findOne({ 
+      const admin = await this.userModel.findOne({
         email: adminResendOtpDto.email,
-        role: { $in: [USER_ROLE[0]] }
+        role: { $in: [USER_ROLE[0]] },
       });
 
       if (!admin) {
@@ -1128,7 +1204,11 @@ export class AdminService {
       admin.verifyOtp = false;
       await admin.save();
 
-      this.mailService.sendOtpEmail(admin.email, admin.name || admin.email || 'Admin', otp);
+      this.mailService.sendOtpEmail(
+        admin.email,
+        admin.name || admin.email || 'Admin',
+        otp,
+      );
 
       return {
         statusCode: HttpStatus.OK,
@@ -1144,9 +1224,9 @@ export class AdminService {
 
   async adminVerifyOtp(adminVerifyOtpDto: AdminVerifyOtpDto) {
     try {
-      const admin = await this.userModel.findOne({ 
+      const admin = await this.userModel.findOne({
         email: adminVerifyOtpDto.email,
-        role: { $in: [USER_ROLE[0]] }
+        role: { $in: [USER_ROLE[0]] },
       });
 
       if (!admin) {
@@ -1185,13 +1265,15 @@ export class AdminService {
 
   async adminResetPassword(adminResetPasswordDto: AdminResetPasswordDto) {
     try {
-      if (adminResetPasswordDto.password !== adminResetPasswordDto.confirmPassword) {
+      if (
+        adminResetPasswordDto.password !== adminResetPasswordDto.confirmPassword
+      ) {
         throw new BadRequestException('Passwords must match.');
       }
 
       const admin = await this.userModel.findOne({
         email: adminResetPasswordDto.email,
-        role: { $in: [USER_ROLE[0]] }
+        role: { $in: [USER_ROLE[0]] },
       });
 
       if (!admin) {
@@ -1208,7 +1290,10 @@ export class AdminService {
         throw new BadRequestException('OTP verification required.');
       }
 
-      const hashedPassword = await bcrypt.hash(adminResetPasswordDto.password, 10);
+      const hashedPassword = await bcrypt.hash(
+        adminResetPasswordDto.password,
+        10,
+      );
 
       admin.password = hashedPassword;
       admin.otp = null;
@@ -1230,13 +1315,16 @@ export class AdminService {
     }
   }
 
-  async changePassword(adminId: string, adminChangePasswordDto: AdminChangePasswordDto) {
+  async changePassword(
+    adminId: string,
+    adminChangePasswordDto: AdminChangePasswordDto,
+  ) {
     try {
       const { oldPassword, newPassword } = adminChangePasswordDto;
 
       const admin = await this.userModel.findOne({
         _id: adminId,
-        role: { $in: [USER_ROLE[0]] }
+        role: { $in: [USER_ROLE[0]] },
       });
 
       if (!admin) {

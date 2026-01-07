@@ -1,4 +1,12 @@
-import { WebSocketGateway, WebSocketServer, SubscribeMessage, OnGatewayConnection, OnGatewayDisconnect, ConnectedSocket, MessageBody, } from '@nestjs/websockets';
+import {
+  WebSocketGateway,
+  WebSocketServer,
+  SubscribeMessage,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  ConnectedSocket,
+  MessageBody,
+} from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { ContentService } from './content.service';
 import { UsersService } from '../users/users.service';
@@ -181,7 +189,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   private getISTTime(): string {
     return new Date().toLocaleString('en-IN', {
@@ -222,7 +230,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   // Helper method to check if user is blocked
-  private async checkUserIsBlocked(userId: string): Promise<{ isBlocked: boolean; user?: UserLean | null }> {
+  private async checkUserIsBlocked(
+    userId: string,
+  ): Promise<{ isBlocked: boolean; user?: UserLean | null }> {
     try {
       const user = await this.usersService.findById(userId);
       if (!user) {
@@ -243,7 +253,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Extract token from Authorization header
       const authHeader = client.handshake.headers.authorization;
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        client.emit('error_response', { message: 'Authorization token required' });
+        client.emit('error_response', {
+          message: 'Authorization token required',
+        });
         client.disconnect();
         return;
       }
@@ -253,7 +265,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Verify and decode token
       let decoded: JwtPayload;
       try {
-        decoded = this.jwtService.verify(token) as JwtPayload;
+        decoded = this.jwtService.verify(token);
       } catch (error) {
         client.emit('error_response', { message: 'Invalid or expired token' });
         client.disconnect();
@@ -263,7 +275,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Extract userId from token (token contains { id, role })
       const userId = decoded.id || decoded.userId;
       if (!userId) {
-        client.emit('error_response', { message: 'Invalid token: userId not found' });
+        client.emit('error_response', {
+          message: 'Invalid token: userId not found',
+        });
         client.disconnect();
         return;
       }
@@ -350,14 +364,17 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         // Check if user is in a room and remove them on disconnect
         const existingRoom = this.contentService.getRoomByUserId(userId);
         if (existingRoom) {
-
           // Check if there's an active multiplayer game for this room
-          const multiplayerState = this.multiplayerGames.get(existingRoom.roomId);
+          const multiplayerState = this.multiplayerGames.get(
+            existingRoom.roomId,
+          );
           let shouldContinueGame = false;
 
           // Check if disconnecting user is the host (first participant who created the game)
           const normalizedUserId = this.normalizeId(userId);
-          const isHost = normalizedUserId && existingRoom.participants[0] === normalizedUserId;
+          const isHost =
+            normalizedUserId &&
+            existingRoom.participants[0] === normalizedUserId;
 
           if (multiplayerState) {
             // If host disconnects, always end the game regardless of mode
@@ -371,17 +388,24 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             } else {
               // Get game from database to check mode
               const gameModel = this.contentService.getGameModel();
-              const game = await gameModel.findOne({ gameId: multiplayerState.gameId }).lean().exec();
+              const game = await gameModel
+                .findOne({ gameId: multiplayerState.gameId })
+                .lean()
+                .exec();
 
               if (game) {
                 const isBrawlMode = game.gameMode === 'brawl';
                 const remainingPlayers = multiplayerState.players.filter(
-                  (p) => this.normalizeId(p) !== normalizedUserId
+                  (p) => this.normalizeId(p) !== normalizedUserId,
                 );
 
                 // If BRAWL mode and at least 2 players remain, remove user and continue game
                 if (isBrawlMode && remainingPlayers.length >= 2) {
-                  await this.removePlayerFromGame(multiplayerState, userId, existingRoom.roomId);
+                  await this.removePlayerFromGame(
+                    multiplayerState,
+                    userId,
+                    existingRoom.roomId,
+                  );
                   shouldContinueGame = true;
 
                   // Notify remaining players in room that a player disconnected but game continues
@@ -420,7 +444,10 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
           // Remove user from room (only delete room if game is not continuing)
           try {
             if (shouldContinueGame) {
-              await this.contentService.removeUserFromRoomParticipants(existingRoom.roomId, userId);
+              await this.contentService.removeUserFromRoomParticipants(
+                existingRoom.roomId,
+                userId,
+              );
             } else {
               await this.contentService.leaveUser(userId);
             }
@@ -435,13 +462,17 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             // Emit only to the disconnecting user
             const normalizedDisconnectingUserId = this.normalizeId(userId);
             if (normalizedDisconnectingUserId) {
-              const disconnectingUserSocket = this.userSockets.get(normalizedDisconnectingUserId);
+              const disconnectingUserSocket = this.userSockets.get(
+                normalizedDisconnectingUserId,
+              );
               if (disconnectingUserSocket) {
-                disconnectingUserSocket.emit('userDisconnected', userDisconnectedPayload);
+                disconnectingUserSocket.emit(
+                  'userDisconnected',
+                  userDisconnectedPayload,
+                );
               }
             }
-          } catch (roomError) {
-          }
+          } catch (roomError) {}
         }
 
         // Clean up auto-invite state if user disconnects
@@ -450,7 +481,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
           const autoInviteState = this.autoInviteStates.get(normalizedUserId);
           if (autoInviteState) {
             // Clear all pending timeouts
-            autoInviteState.timeoutIds.forEach((timeoutId) => clearTimeout(timeoutId));
+            autoInviteState.timeoutIds.forEach((timeoutId) =>
+              clearTimeout(timeoutId),
+            );
             this.autoInviteStates.delete(normalizedUserId);
           }
 
@@ -479,8 +512,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         // this.server.emit('USER_OFFLINE', { userId, lastSeen: now });
       } else {
       }
-    } catch (error) {
-    }
+    } catch (error) {}
   }
 
   // -------------------------------------------------------------
@@ -501,14 +533,17 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Check if user is blocked
     const { isBlocked } = await this.checkUserIsBlocked(userId);
     if (isBlocked) {
-      return client.emit('errorMessage', { message: 'Your account is blocked' });
+      return client.emit('errorMessage', {
+        message: 'Your account is blocked',
+      });
     }
 
     // Check if user is online
     const isOnline = await this.checkUserIsOnline(userId);
     if (!isOnline) {
       return client.emit('errorMessage', {
-        message: 'You must be online to play games. Please set your status to online.',
+        message:
+          'You must be online to play games. Please set your status to online.',
       });
     }
 
@@ -533,7 +568,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!subTopicId) {
       return client.emit('errorMessage', { message: 'subTopicId is required' });
     }
-
 
     try {
       const {
@@ -579,7 +613,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         isCorrect: false,
       };
       this.activeGames.set(userId, gameState);
-
 
       client.emit('gameStart', {
         gameId: gameState.gameId,
@@ -627,14 +660,17 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Check if user is blocked
     const { isBlocked } = await this.checkUserIsBlocked(userId);
     if (isBlocked) {
-      return client.emit('errorMessage', { message: 'Your account is blocked' });
+      return client.emit('errorMessage', {
+        message: 'Your account is blocked',
+      });
     }
 
     // Check if user is online
     const isOnline = await this.checkUserIsOnline(userId);
     if (!isOnline) {
       return client.emit('errorMessage', {
-        message: 'You must be online to create games. Please set your status to online.',
+        message:
+          'You must be online to create games. Please set your status to online.',
       });
     }
 
@@ -653,11 +689,15 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const normalizedUserId = this.normalizeId(userId);
 
     if (topicType === 'random' && normalizedUserId) {
-      const storedRandomDeck = this.userSelectedRandomDeck.get(normalizedUserId);
+      const storedRandomDeck =
+        this.userSelectedRandomDeck.get(normalizedUserId);
       if (storedRandomDeck) {
         // Use the stored random deck as if it was selected
         finalTopicType = 'selected';
-        finalDeckId = this.normalizeId(storedRandomDeck._id) || this.normalizeId(storedRandomDeck.id) || deckId;
+        finalDeckId =
+          this.normalizeId(storedRandomDeck._id) ||
+          this.normalizeId(storedRandomDeck.id) ||
+          deckId;
 
         // Clear the stored deck after using it (optional - you can keep it if you want to reuse)
         // this.userSelectedRandomDeck.delete(normalizedUserId);
@@ -667,7 +707,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Validate topicType and deckId
     if (finalTopicType === 'selected' && !finalDeckId) {
       return client.emit('errorMessage', {
-        message: 'deckId is required when topicType is "selected". Please select a random deck first or provide deckId.',
+        message:
+          'deckId is required when topicType is "selected". Please select a random deck first or provide deckId.',
       });
     }
 
@@ -697,7 +738,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const room = this.contentService.getRoomByUserId(userId);
       if (!room) {
         return client.emit('errorMessage', {
-          message: 'You must be in a room to create a game. Accept an invite first.',
+          message:
+            'You must be in a room to create a game. Accept an invite first.',
         });
       }
 
@@ -713,7 +755,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Validate DUEL mode requires exactly 2 players
       if (mode === 'DUEL' && room.participants.length !== 2) {
         return client.emit('errorMessage', {
-          message: 'DUEL mode requires exactly 2 players. Current players: ' + room.participants.length,
+          message:
+            'DUEL mode requires exactly 2 players. Current players: ' +
+            room.participants.length,
         });
       }
 
@@ -721,12 +765,16 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (mode === 'BRAWL') {
         if (member === 3 && room.participants.length !== 3) {
           return client.emit('errorMessage', {
-            message: 'BRAWL mode with 3 members requires exactly 3 players. Current players: ' + room.participants.length,
+            message:
+              'BRAWL mode with 3 members requires exactly 3 players. Current players: ' +
+              room.participants.length,
           });
         }
         if (member === 4 && room.participants.length !== 4) {
           return client.emit('errorMessage', {
-            message: 'BRAWL mode with 4 members requires exactly 4 players. Current players: ' + room.participants.length,
+            message:
+              'BRAWL mode with 4 members requires exactly 4 players. Current players: ' +
+              room.participants.length,
           });
         }
       }
@@ -753,10 +801,15 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Get game from database to start it
       const gameModel = this.contentService.getGameModel();
-      const game = await gameModel.findOne({ gameId: result.gameId }).lean().exec();
+      const game = await gameModel
+        .findOne({ gameId: result.gameId })
+        .lean()
+        .exec();
 
       if (!game) {
-        return client.emit('errorMessage', { message: 'Game not found after creation' });
+        return client.emit('errorMessage', {
+          message: 'Game not found after creation',
+        });
       }
 
       // Clear stored random deck after successful game creation (so next randomDeckSelected gets fresh deck)
@@ -818,7 +871,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         playerScores: new Map(),
         playerWrongAnswers: new Map(),
         eliminatedPlayers: new Set(),
-        gameMode: (game.metadata as unknown as GameMetadata)?.gameMode as 'Regular' | 'Knockout' | undefined,
+        gameMode: (game.metadata as unknown as GameMetadata)?.gameMode,
         startedAt: new Date(),
         isCompleted: false,
       };
@@ -851,11 +904,15 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Build per-player coins map: { [userId]: coins }
       const playerCoins: Record<string, number> = {};
       // Build per-player user info map: { [userId]: { name, profileImage, isHost } }
-      const playerInfo: Record<string, { name: string; profileImage: string | null; isHost: boolean }> = {};
+      const playerInfo: Record<
+        string,
+        { name: string; profileImage: string | null; isHost: boolean }
+      > = {};
       // Build per-player points map: { [userId]: points }
       const playerPoints: Record<string, number> = {};
       // Build per-player level map: { [userId]: { levelName, name } }
-      const playerLevel: Record<string, { levelName: string; name: string }> = {};
+      const playerLevel: Record<string, { levelName: string; name: string }> =
+        {};
       // Build per-player winner rate map: { [userId]: winnerRate }
       const winnerRate: Record<string, number> = {};
       // Get host ID (first participant)
@@ -863,7 +920,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Batch fetch all users and game progress
       const participantIds = room.participants
-        .map(p => this.normalizeId(p))
+        .map((p) => this.normalizeId(p))
         .filter((id): id is string => !!id);
 
       const userModel = this.contentService.getUserModel();
@@ -882,9 +939,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         .exec();
 
       // 3. Create maps
-      const usersMap = new Map(allUsers.map(u => [this.normalizeId(u._id) || '', u]));
+      const usersMap = new Map(
+        allUsers.map((u) => [this.normalizeId(u._id) || '', u]),
+      );
       const progressMap = new Map(
-        allGameProgress.map(gp => [this.normalizeId(gp.userId) || '', gp])
+        allGameProgress.map((gp) => [this.normalizeId(gp.userId) || '', gp]),
       );
 
       // 4. Process participants using maps (no queries)
@@ -916,15 +975,19 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
           // Get GameProgress for points, level, and winner rate
           if (gameProgress) {
             // Points
-            const points = typeof gameProgress.points === 'number' && Number.isFinite(gameProgress.points)
-              ? gameProgress.points
-              : 0;
+            const points =
+              typeof gameProgress.points === 'number' &&
+              Number.isFinite(gameProgress.points)
+                ? gameProgress.points
+                : 0;
             playerPoints[normalizedId] = points;
 
             // Level name with name
-            const level = typeof gameProgress.level === 'number' && Number.isFinite(gameProgress.level)
-              ? gameProgress.level
-              : 1;
+            const level =
+              typeof gameProgress.level === 'number' &&
+              Number.isFinite(gameProgress.level)
+                ? gameProgress.level
+                : 1;
             const levelName = this.contentService.getLevelNameForLevel(level);
             playerLevel[normalizedId] = {
               levelName: levelName,
@@ -932,15 +995,21 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             };
 
             // Winner rate: totalWins / totalGamesPlayed
-            const totalWins = typeof gameProgress.totalWins === 'number' && Number.isFinite(gameProgress.totalWins)
-              ? gameProgress.totalWins
-              : 0;
-            const totalGamesPlayed = typeof gameProgress.totalGamesPlayed === 'number' && Number.isFinite(gameProgress.totalGamesPlayed)
-              ? gameProgress.totalGamesPlayed
-              : 0;
-            const calculatedWinnerRate = totalGamesPlayed > 0 ? (totalWins / totalGamesPlayed) : 0;
+            const totalWins =
+              typeof gameProgress.totalWins === 'number' &&
+              Number.isFinite(gameProgress.totalWins)
+                ? gameProgress.totalWins
+                : 0;
+            const totalGamesPlayed =
+              typeof gameProgress.totalGamesPlayed === 'number' &&
+              Number.isFinite(gameProgress.totalGamesPlayed)
+                ? gameProgress.totalGamesPlayed
+                : 0;
+            const calculatedWinnerRate =
+              totalGamesPlayed > 0 ? totalWins / totalGamesPlayed : 0;
             // Round to 2 decimal places
-            winnerRate[normalizedId] = Math.round(calculatedWinnerRate * 100) / 100;
+            winnerRate[normalizedId] =
+              Math.round(calculatedWinnerRate * 100) / 100;
           } else {
             // Default values if GameProgress not found
             playerPoints[normalizedId] = 0;
@@ -950,7 +1019,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             };
             winnerRate[normalizedId] = 0;
           }
-
         } catch (error) {
           playerCoins[normalizedId] = 0;
           // Check if this player is the host (first participant)
@@ -1034,7 +1102,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const isOnline = await this.checkUserIsOnline(userId);
     if (!isOnline) {
       return client.emit('errorMessage', {
-        message: 'You must be online to restart games. Please set your status to online.',
+        message:
+          'You must be online to restart games. Please set your status to online.',
       });
     }
 
@@ -1043,7 +1112,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!roomId) {
       return client.emit('errorMessage', { message: 'roomId is required' });
     }
-
 
     try {
       // Check if user is in an active room
@@ -1071,7 +1139,10 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // First, try to find game using gameId from existing state (if available)
       if (existingState?.gameId) {
-        existingGame = await gameModel.findOne({ gameId: existingState.gameId }).lean().exec() as GameLean | null;
+        existingGame = (await gameModel
+          .findOne({ gameId: existingState.gameId })
+          .lean()
+          .exec()) as GameLean | null;
       }
 
       // If not found and we have existing state, that's an error
@@ -1084,31 +1155,31 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // If no existing state, try to find the most recent completed game for players in this room
       if (!existingGame) {
         const normalizedRoomParticipants = room.participants
-          .map(p => this.normalizeId(p))
+          .map((p) => this.normalizeId(p))
           .filter((id): id is string => !!id);
 
-
         // Find most recent game where all room participants were players
-        existingGame = await gameModel
+        existingGame = (await gameModel
           .findOne({
             players: { $all: normalizedRoomParticipants },
-            $expr: { $eq: [{ $size: '$players' }, normalizedRoomParticipants.length] },
+            $expr: {
+              $eq: [{ $size: '$players' }, normalizedRoomParticipants.length],
+            },
           })
           .sort({ startTime: -1 })
           .lean()
-          .exec() as GameLean | null;
+          .exec()) as GameLean | null;
 
         // If still not found, try with $in (any of the participants)
         if (!existingGame) {
-          existingGame = await gameModel
+          existingGame = (await gameModel
             .findOne({
               players: { $in: normalizedRoomParticipants },
             })
             .sort({ startTime: -1 })
             .lean()
-            .exec() as GameLean | null;
+            .exec()) as GameLean | null;
         }
-
       }
 
       if (!existingGame) {
@@ -1119,25 +1190,33 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Get eliminated players from previous game (from database or game state)
       const existingGameTyped = existingGame as unknown as GameLean;
-      const eliminatedPlayersFromDB: string[] = Array.isArray(existingGameTyped.eliminatedPlayers)
-        ? existingGameTyped.eliminatedPlayers.map((id) => this.normalizeId(id)).filter((id): id is string => !!id)
+      const eliminatedPlayersFromDB: string[] = Array.isArray(
+        existingGameTyped.eliminatedPlayers,
+      )
+        ? existingGameTyped.eliminatedPlayers
+            .map((id) => this.normalizeId(id))
+            .filter((id): id is string => !!id)
         : [];
 
       const eliminatedPlayersFromState = existingState
-        ? Array.from(existingState.eliminatedPlayers).map(id => this.normalizeId(id)).filter((id): id is string => !!id)
+        ? Array.from(existingState.eliminatedPlayers)
+            .map((id) => this.normalizeId(id))
+            .filter((id): id is string => !!id)
         : [];
 
       // Combine eliminated players from both sources
-      const allEliminatedPlayers = Array.from(new Set([
-        ...eliminatedPlayersFromDB,
-        ...eliminatedPlayersFromState,
-      ]));
-
+      const allEliminatedPlayers = Array.from(
+        new Set([...eliminatedPlayersFromDB, ...eliminatedPlayersFromState]),
+      );
 
       // Build list of players to include in restart:
       // 1. Current room participants (always included)
       // 2. Eliminated players who are still connected (have active socket)
-      const playersToInclude = new Set<string>(room.participants.map(p => this.normalizeId(p)).filter((id): id is string => !!id));
+      const playersToInclude = new Set<string>(
+        room.participants
+          .map((p) => this.normalizeId(p))
+          .filter((id): id is string => !!id),
+      );
 
       // Add eliminated players who are still connected (have socket)
       allEliminatedPlayers.forEach((eliminatedPlayerId) => {
@@ -1148,7 +1227,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       const finalPlayersList = Array.from(playersToInclude);
-
 
       if (finalPlayersList.length === 0) {
         return client.emit('errorMessage', {
@@ -1166,17 +1244,19 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       // Extract game parameters from existing game (reuse existingGameTyped from above)
-      const mode = existingGame.gameMode?.toUpperCase() as 'DUEL' | 'BRAWL' || 'DUEL';
+      const mode =
+        (existingGame.gameMode?.toUpperCase() as 'DUEL' | 'BRAWL') || 'DUEL';
       const topicType = existingGame.deckSelectionMethod || 'random';
       const deckId = existingGame.selectedDeckId || undefined;
-      const gameMetadata = existingGameTyped.metadata as unknown as GameMetadata;
-      const gameMode = gameMetadata?.gameMode as 'Regular' | 'Knockout' | undefined;
-      const member = gameMetadata?.member as number | undefined;
+      const gameMetadata = existingGameTyped.metadata as GameMetadata;
+      const gameMode = gameMetadata?.gameMode;
+      const member = gameMetadata?.member;
 
       // Get previous round and increment it
-      const previousRound = typeof existingGameTyped.round === 'number'
-        ? existingGameTyped.round
-        : 1;
+      const previousRound =
+        typeof existingGameTyped.round === 'number'
+          ? existingGameTyped.round
+          : 1;
       const newRound = previousRound + 1;
 
       // Generate new gameId for the restarted game (to avoid duplicate key error)
@@ -1196,7 +1276,10 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       );
 
       // Get new game from database to start it
-      const newGame = await gameModel.findOne({ gameId: result.gameId }).lean().exec();
+      const newGame = await gameModel
+        .findOne({ gameId: result.gameId })
+        .lean()
+        .exec();
 
       if (!newGame) {
         return client.emit('errorMessage', {
@@ -1217,8 +1300,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         newGame.subTopicId,
       ) as string;
       const newSubTopicIndex =
-        newOrderedSubTopicIds.findIndex((id) => id === newNormalizedSubTopicId) +
-        1;
+        newOrderedSubTopicIds.findIndex(
+          (id) => id === newNormalizedSubTopicId,
+        ) + 1;
       const newTotalSubTopics = newOrderedSubTopicIds.length;
 
       const aiService = this.contentService.getAiService();
@@ -1250,7 +1334,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Create multiplayer game state
       const newGameTyped = newGame as unknown as GameLean;
-      const newGameMetadata = newGameTyped.metadata as unknown as GameMetadata;
+      const newGameMetadata = newGameTyped.metadata as GameMetadata;
       const multiplayerState: MultiplayerGameState = {
         gameId: result.gameId,
         roomId: room.roomId,
@@ -1262,7 +1346,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         playerScores: new Map(),
         playerWrongAnswers: new Map(),
         eliminatedPlayers: new Set(),
-        gameMode: newGameMetadata?.gameMode as 'Regular' | 'Knockout' | undefined,
+        gameMode: newGameMetadata?.gameMode,
         startedAt: new Date(),
         isCompleted: false,
       };
@@ -1286,11 +1370,15 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Build per-player coins map: { [userId]: coins }
       const playerCoins: Record<string, number> = {};
       // Build per-player user info map: { [userId]: { name, profileImage, isHost } }
-      const playerInfo: Record<string, { name: string; profileImage: string | null; isHost: boolean }> = {};
+      const playerInfo: Record<
+        string,
+        { name: string; profileImage: string | null; isHost: boolean }
+      > = {};
       // Build per-player points map: { [userId]: points }
       const playerPoints: Record<string, number> = {};
       // Build per-player level map: { [userId]: { levelName, name } }
-      const playerLevel: Record<string, { levelName: string; name: string }> = {};
+      const playerLevel: Record<string, { levelName: string; name: string }> =
+        {};
       // Build per-player winner rate map: { [userId]: winnerRate }
       const winnerRate: Record<string, number> = {};
       // Get host ID (first participant)
@@ -1298,7 +1386,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Batch fetch all users and game progress
       const participantIds = finalPlayersList
-        .map(p => this.normalizeId(p))
+        .map((p) => this.normalizeId(p))
         .filter((id): id is string => !!id);
 
       const userModel = this.contentService.getUserModel();
@@ -1317,9 +1405,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         .exec();
 
       // 3. Create maps
-      const usersMap = new Map(allUsers.map(u => [this.normalizeId(u._id) || '', u]));
+      const usersMap = new Map(
+        allUsers.map((u) => [this.normalizeId(u._id) || '', u]),
+      );
       const progressMap = new Map(
-        allGameProgress.map(gp => [this.normalizeId(gp.userId) || '', gp])
+        allGameProgress.map((gp) => [this.normalizeId(gp.userId) || '', gp]),
       );
 
       // 4. Process participants using maps (no queries)
@@ -1351,15 +1441,19 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
           // Get GameProgress for points, level, and winner rate
           if (gameProgress) {
             // Points
-            const points = typeof gameProgress.points === 'number' && Number.isFinite(gameProgress.points)
-              ? gameProgress.points
-              : 0;
+            const points =
+              typeof gameProgress.points === 'number' &&
+              Number.isFinite(gameProgress.points)
+                ? gameProgress.points
+                : 0;
             playerPoints[normalizedId] = points;
 
             // Level name with name
-            const level = typeof gameProgress.level === 'number' && Number.isFinite(gameProgress.level)
-              ? gameProgress.level
-              : 1;
+            const level =
+              typeof gameProgress.level === 'number' &&
+              Number.isFinite(gameProgress.level)
+                ? gameProgress.level
+                : 1;
             const levelName = this.contentService.getLevelNameForLevel(level);
             playerLevel[normalizedId] = {
               levelName: levelName,
@@ -1367,15 +1461,21 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             };
 
             // Winner rate: totalWins / totalGamesPlayed
-            const totalWins = typeof gameProgress.totalWins === 'number' && Number.isFinite(gameProgress.totalWins)
-              ? gameProgress.totalWins
-              : 0;
-            const totalGamesPlayed = typeof gameProgress.totalGamesPlayed === 'number' && Number.isFinite(gameProgress.totalGamesPlayed)
-              ? gameProgress.totalGamesPlayed
-              : 0;
-            const calculatedWinnerRate = totalGamesPlayed > 0 ? (totalWins / totalGamesPlayed) : 0;
+            const totalWins =
+              typeof gameProgress.totalWins === 'number' &&
+              Number.isFinite(gameProgress.totalWins)
+                ? gameProgress.totalWins
+                : 0;
+            const totalGamesPlayed =
+              typeof gameProgress.totalGamesPlayed === 'number' &&
+              Number.isFinite(gameProgress.totalGamesPlayed)
+                ? gameProgress.totalGamesPlayed
+                : 0;
+            const calculatedWinnerRate =
+              totalGamesPlayed > 0 ? totalWins / totalGamesPlayed : 0;
             // Round to 2 decimal places
-            winnerRate[normalizedId] = Math.round(calculatedWinnerRate * 100) / 100;
+            winnerRate[normalizedId] =
+              Math.round(calculatedWinnerRate * 100) / 100;
           } else {
             // Default values if GameProgress not found
             playerPoints[normalizedId] = 0;
@@ -1477,7 +1577,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const isOnline = await this.checkUserIsOnline(userId);
     if (!isOnline) {
       return client.emit('errorMessage', {
-        message: 'You must be online to start games. Please set your status to online.',
+        message:
+          'You must be online to start games. Please set your status to online.',
       });
     }
 
@@ -1486,7 +1587,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!gameId) {
       return client.emit('errorMessage', { message: 'gameId is required' });
     }
-
 
     try {
       // Get game from database
@@ -1544,7 +1644,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Update game with questions
       // Set round to 1 if it doesn't exist (for backward compatibility)
       const gameTyped = game as unknown as GameLean;
-      const existingRound = typeof gameTyped.round === 'number' ? gameTyped.round : 1;
+      const existingRound =
+        typeof gameTyped.round === 'number' ? gameTyped.round : 1;
       await gameModel.updateOne(
         { gameId },
         {
@@ -1570,7 +1671,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         playerScores: new Map(),
         playerWrongAnswers: new Map(),
         eliminatedPlayers: new Set(),
-        gameMode: (game.metadata as unknown as GameMetadata)?.gameMode as 'Regular' | 'Knockout' | undefined,
+        gameMode: (game.metadata as unknown as GameMetadata)?.gameMode,
         startedAt: new Date(),
         isCompleted: false,
       };
@@ -1611,7 +1712,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         questions,
         players: game.players,
       });
-
     } catch (error) {
       client.emit('errorMessage', {
         message: error?.message || 'Failed to start game',
@@ -1657,9 +1757,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // -------------------------------------------------------------
   // SEND NEXT MULTIPLAYER QUESTION
   // -------------------------------------------------------------
-  private sendNextMultiplayerQuestion(
-    gameState: MultiplayerGameState,
-  ) {
+  private sendNextMultiplayerQuestion(gameState: MultiplayerGameState) {
     const { roomId, questions, currentIndex } = gameState;
 
     if (currentIndex >= questions.length) {
@@ -1669,9 +1767,10 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const q = questions[currentIndex];
 
     // Get list of eliminated players for Knockout mode
-    const eliminatedPlayersList = gameState.gameMode === 'Knockout'
-      ? Array.from(gameState.eliminatedPlayers)
-      : [];
+    const eliminatedPlayersList =
+      gameState.gameMode === 'Knockout'
+        ? Array.from(gameState.eliminatedPlayers)
+        : [];
 
     // Send question to all players in room
     this.server.to(roomId).emit('question', {
@@ -1707,7 +1806,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('submitanswer')
   async answerQuestion(
     @ConnectedSocket() client: Socket,
-    @MessageBody() body: { index: number; answer: string | null; gameId?: string },
+    @MessageBody()
+    body: { index: number; answer: string | null; gameId?: string },
   ) {
     const userId = client.data.userId;
 
@@ -1718,14 +1818,17 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Check if user is blocked
     const { isBlocked } = await this.checkUserIsBlocked(userId);
     if (isBlocked) {
-      return client.emit('errorMessage', { message: 'Your account is blocked' });
+      return client.emit('errorMessage', {
+        message: 'Your account is blocked',
+      });
     }
 
     // Check if user is online
     const isOnline = await this.checkUserIsOnline(userId);
     if (!isOnline) {
       return client.emit('errorMessage', {
-        message: 'You must be online to submit answers. Please set your status to online.',
+        message:
+          'You must be online to submit answers. Please set your status to online.',
       });
     }
 
@@ -1781,10 +1884,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
 
     // 🔥🔥🔥 Update player progress immediately
-    await this.contentService.updateProgressAfterQuestion(
-      userId,
-      isCorrect,
-    );
+    await this.contentService.updateProgressAfterQuestion(userId, isCorrect);
 
     if (isCorrect) {
       gameState.score++;
@@ -1879,7 +1979,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     } else {
       // Track wrong answers for Knockout mode
       if (gameState.gameMode === 'Knockout') {
-        const currentWrongAnswers = gameState.playerWrongAnswers.get(normalizedUserId) || 0;
+        const currentWrongAnswers =
+          gameState.playerWrongAnswers.get(normalizedUserId) || 0;
         const newWrongAnswers = currentWrongAnswers + 1;
         gameState.playerWrongAnswers.set(normalizedUserId, newWrongAnswers);
 
@@ -1895,8 +1996,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 { $addToSet: { eliminatedPlayers: normalizedUserId } },
               )
               .exec();
-          } catch (dbErr) {
-          }
+          } catch (dbErr) {}
 
           // Get all eliminated players list
           const allEliminatedPlayers = Array.from(gameState.eliminatedPlayers);
@@ -1909,7 +2009,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             wrongAnswers: newWrongAnswers,
             allEliminatedPlayers: allEliminatedPlayers, // List of all eliminated players
             activePlayers: gameState.players.filter(
-              (p) => !gameState.eliminatedPlayers.has(p)
+              (p) => !gameState.eliminatedPlayers.has(p),
             ), // List of active players
           });
 
@@ -1926,7 +2026,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
           // Check if game should end (only one player remaining)
           const activePlayers = gameState.players.filter(
-            (p) => !gameState.eliminatedPlayers.has(p)
+            (p) => !gameState.eliminatedPlayers.has(p),
           );
           if (activePlayers.length <= 1) {
             // End game early
@@ -1957,7 +2057,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     // Check if all active (non-eliminated) players have answered
     const activePlayers = gameState.players.filter(
-      (p) => !gameState.eliminatedPlayers.has(p)
+      (p) => !gameState.eliminatedPlayers.has(p),
     );
     const allAnswered = activePlayers.every((playerId) => {
       const answers = gameState.playerAnswers.get(playerId) || [];
@@ -1970,7 +2070,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const allUserAnswers = gameState.players
         .map((playerId) => {
           const playerAnswers = gameState.playerAnswers.get(playerId) || [];
-          const currentQuestionAnswer = playerAnswers.find((a) => a.index === currentIndex);
+          const currentQuestionAnswer = playerAnswers.find(
+            (a) => a.index === currentIndex,
+          );
           if (currentQuestionAnswer) {
             return {
               userId: playerId,
@@ -1981,12 +2083,16 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
           }
           return null;
         })
-        .filter((answer): answer is {
-          userId: string;
-          userAnswer: string | null;
-          isCorrect: boolean;
-          score: number;
-        } => answer !== null);
+        .filter(
+          (
+            answer,
+          ): answer is {
+            userId: string;
+            userAnswer: string | null;
+            isCorrect: boolean;
+            score: number;
+          } => answer !== null,
+        );
 
       // Broadcast all user answers to all participants in the room
       this.server.to(gameState.roomId).emit('alluseranswerresult', {
@@ -2025,7 +2131,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     // Mark unanswered active (non-eliminated) players as wrong
     const activePlayers = gameState.players.filter(
-      (p) => !gameState.eliminatedPlayers.has(p)
+      (p) => !gameState.eliminatedPlayers.has(p),
     );
 
     for (const playerId of activePlayers) {
@@ -2064,8 +2170,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
                   { $addToSet: { eliminatedPlayers: playerId } },
                 )
                 .exec();
-            } catch (dbErr) {
-            }
+            } catch (dbErr) {}
 
             // Get all eliminated players list
             const allEliminatedPlayers = Array.from(
@@ -2108,8 +2213,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             questionIndex: currentIndex,
             correctAnswer: currentQ.correctAnswer,
             timeout: true,
-            wrongAnswers:
-              gameState.playerWrongAnswers.get(playerId) || 0,
+            wrongAnswers: gameState.playerWrongAnswers.get(playerId) || 0,
             isEliminated: gameState.eliminatedPlayers.has(playerId),
           });
         }
@@ -2120,7 +2224,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const allUserAnswers = gameState.players
       .map((playerId) => {
         const playerAnswers = gameState.playerAnswers.get(playerId) || [];
-        const currentQuestionAnswer = playerAnswers.find((a) => a.index === currentIndex);
+        const currentQuestionAnswer = playerAnswers.find(
+          (a) => a.index === currentIndex,
+        );
         if (currentQuestionAnswer) {
           return {
             userId: playerId,
@@ -2131,12 +2237,16 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
         return null;
       })
-      .filter((answer): answer is {
-        userId: string;
-        userAnswer: string | null;
-        isCorrect: boolean;
-        score: number;
-      } => answer !== null);
+      .filter(
+        (
+          answer,
+        ): answer is {
+          userId: string;
+          userAnswer: string | null;
+          isCorrect: boolean;
+          score: number;
+        } => answer !== null,
+      );
 
     // Broadcast all user answers to all participants in the room
     this.server.to(gameState.roomId).emit('alluseranswerresult', {
@@ -2149,7 +2259,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     // Check if game should end (only one player remaining)
     const remainingActivePlayers = gameState.players.filter(
-      (p) => !gameState.eliminatedPlayers.has(p)
+      (p) => !gameState.eliminatedPlayers.has(p),
     );
     if (remainingActivePlayers.length <= 1) {
       // End game early
@@ -2236,7 +2346,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     // Remove player from game state
     gameState.players = gameState.players.filter(
-      (p) => this.normalizeId(p) !== normalizedLeavingUserId
+      (p) => this.normalizeId(p) !== normalizedLeavingUserId,
     );
 
     // Remove player's answers and scores
@@ -2257,7 +2367,10 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     );
 
     // Remove user from room but keep room active for remaining players
-    await this.contentService.removeUserFromRoomParticipants(roomId, normalizedLeavingUserId);
+    await this.contentService.removeUserFromRoomParticipants(
+      roomId,
+      normalizedLeavingUserId,
+    );
   }
 
   // -------------------------------------------------------------
@@ -2268,7 +2381,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     skipPointsAndCoins: boolean = false,
     leavingUserId?: string,
   ) {
-
     if (gameState.timer) clearTimeout(gameState.timer);
 
     const { gameId, players, questions, playerAnswers, playerScores } =
@@ -2285,7 +2397,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Calculate accuracy: (correct answers / total questions) * 100
       const totalQuestions = questions.length;
-      const accuracy = totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0;
+      const accuracy =
+        totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0;
       const accuracyRounded = Math.round(accuracy * 100) / 100;
       playerAccuracies.set(playerId, accuracyRounded);
     });
@@ -2296,12 +2409,15 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     // Find highest score and determine winners
     const highestScore = scores.length > 0 ? scores[0][1] : 0;
-    const winners = scores.filter(([_, score]) => score === highestScore).map(([userId]) => userId);
+    const winners = scores
+      .filter(([_, score]) => score === highestScore)
+      .map(([userId]) => userId);
     const isDraw = winners.length > 1;
 
     // Track points awarded to each player
     const playerPoints: Map<string, number> = new Map();
-    const playerResults: Map<string, 'win' | 'loss' | 'draw' | 'eliminated'> = new Map();
+    const playerResults: Map<string, 'win' | 'loss' | 'draw' | 'eliminated'> =
+      new Map();
 
     // Determine result for each player (without awarding points yet)
     for (const playerId of players) {
@@ -2350,7 +2466,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const awardPromises = players.map(async (playerId) => {
         const points = playerPoints.get(playerId) || 0;
         const result = playerResults.get(playerId);
-        
+
         // Determine coins based on result
         let coins = 0;
         if (result === 'win') {
@@ -2360,10 +2476,10 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         } else {
           coins = 0;
         }
-        
+
         return this.contentService.awardPointsAndCoins(playerId, points, coins);
       });
-      
+
       await Promise.all(awardPromises);
     }
 
@@ -2376,11 +2492,27 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const player2Score = playerCorrectCounts.get(player2Id) || 0;
 
     const result: {
-      player1: { userId: string; result: 'win' | 'loss' | 'draw' | 'eliminated'; score: number };
-      player2: { userId: string; result: 'win' | 'loss' | 'draw' | 'eliminated'; score: number };
+      player1: {
+        userId: string;
+        result: 'win' | 'loss' | 'draw' | 'eliminated';
+        score: number;
+      };
+      player2: {
+        userId: string;
+        result: 'win' | 'loss' | 'draw' | 'eliminated';
+        score: number;
+      };
     } = {
-      player1: { userId: player1Id, result: player1Result, score: player1Score },
-      player2: { userId: player2Id, result: player2Result, score: player2Score },
+      player1: {
+        userId: player1Id,
+        result: player1Result,
+        score: player1Score,
+      },
+      player2: {
+        userId: player2Id,
+        result: player2Result,
+        score: player2Score,
+      },
     };
 
     // Update game in database
@@ -2438,10 +2570,10 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Get daily streak info for all players
       const playerDailyStreaks: Record<string, DailyStreakInfo> = {};
-      
+
       // Collect players that need fallback query
       const playersNeedingFallback: string[] = [];
-      
+
       for (let i = 0; i < players.length; i++) {
         const playerId = players[i];
         const streakUpdate = streakUpdates[i];
@@ -2456,7 +2588,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
           playersNeedingFallback.push(playerId);
         }
       }
-      
+
       // Batch query daily streaks for players that need fallback
       if (playersNeedingFallback.length > 0) {
         const fallbackStreaks = await Promise.all(
@@ -2464,7 +2596,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             this.contentService.getDailyStreak(playerId),
           ),
         );
-        
+
         // Map fallback results back to players
         for (let j = 0; j < playersNeedingFallback.length; j++) {
           const playerId = playersNeedingFallback[j];
@@ -2474,7 +2606,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Batch fetch all users
       const playerIds = players
-        .map(p => this.normalizeId(p))
+        .map((p) => this.normalizeId(p))
         .filter((id): id is string => !!id);
 
       const userModel = this.contentService.getUserModel();
@@ -2486,7 +2618,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         .exec();
 
       // Create map
-      const usersMap = new Map(allUsers.map(u => [this.normalizeId(u._id) || '', u]));
+      const usersMap = new Map(
+        allUsers.map((u) => [this.normalizeId(u._id) || '', u]),
+      );
 
       // Send personalized gameOver to each player
       await Promise.all(
@@ -2502,13 +2636,18 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
             // Get user info (userId and name)
             let userInfo = '';
-            let currentPlayerInfo: { name: string; profileImage: string | null } = {
+            let currentPlayerInfo: {
+              name: string;
+              profileImage: string | null;
+            } = {
               name: '',
               profileImage: null,
             };
             try {
               const normalizedPlayerId = this.normalizeId(playerId);
-              const user = normalizedPlayerId ? usersMap.get(normalizedPlayerId) : null;
+              const user = normalizedPlayerId
+                ? usersMap.get(normalizedPlayerId)
+                : null;
               const userTyped = user as unknown as UserLean;
               const userName = userTyped?.name || userTyped?.username || '';
               userInfo = `${playerId}|${userName}`;
@@ -2556,7 +2695,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     } else {
       // Batch fetch all users
       const playerIds = players
-        .map(p => this.normalizeId(p))
+        .map((p) => this.normalizeId(p))
         .filter((id): id is string => !!id);
 
       const userModel = this.contentService.getUserModel();
@@ -2568,7 +2707,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         .exec();
 
       // Create map
-      const usersMap = new Map(allUsers.map(u => [this.normalizeId(u._id) || '', u]));
+      const usersMap = new Map(
+        allUsers.map((u) => [this.normalizeId(u._id) || '', u]),
+      );
 
       // Send personalized gameOver to each player (without streak updates)
       await Promise.all(
@@ -2583,13 +2724,18 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
             // Get user info (userId and name)
             let userInfo = '';
-            let currentPlayerInfo: { name: string; profileImage: string | null } = {
+            let currentPlayerInfo: {
+              name: string;
+              profileImage: string | null;
+            } = {
               name: '',
               profileImage: null,
             };
             try {
               const normalizedPlayerId = this.normalizeId(playerId);
-              const user = normalizedPlayerId ? usersMap.get(normalizedPlayerId) : null;
+              const user = normalizedPlayerId
+                ? usersMap.get(normalizedPlayerId)
+                : null;
               const userTyped = user as unknown as UserLean;
               const userName = userTyped?.name || userTyped?.username || '';
               userInfo = `${playerId}|${userName}`;
@@ -2643,7 +2789,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // END GAME — SEND SUMMARY AND UPDATE TOTAL GAMES PLAYED
   // -------------------------------------------------------------
   private async endGame(gameState: GameState) {
-
     if (gameState.timer) clearTimeout(gameState.timer);
 
     const { socket, score, questions, answers, startedAt } = gameState;
@@ -2673,7 +2818,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     await this.contentService.incrementTotalGamesPlayed(gameState.userId);
 
     // Update daily streak (Type 1: 7-day icons, Type 2: current streak)
-    const updatedStreak = await this.contentService.updateDailyStreak(gameState.userId);
+    const updatedStreak = await this.contentService.updateDailyStreak(
+      gameState.userId,
+    );
 
     // Award points based on score (1 point per correct answer)
     const pointsToAward = score;
@@ -2704,12 +2851,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Get updated daily streak info to send to client
     const dailyStreakInfo = updatedStreak
       ? {
-        currentDailyStreak: updatedStreak.currentDailyStreak || 0,
-        longestDailyStreak: updatedStreak.longestDailyStreak || 0,
-        dailyStreakIcons: updatedStreak.dailyStreakIcons || [],
-      }
+          currentDailyStreak: updatedStreak.currentDailyStreak || 0,
+          longestDailyStreak: updatedStreak.longestDailyStreak || 0,
+          dailyStreakIcons: updatedStreak.dailyStreakIcons || [],
+        }
       : await this.contentService.getDailyStreak(gameState.userId);
-
 
     const singlePlayerGameOverPayload = {
       gameId: gameState.gameId,
@@ -2746,14 +2892,17 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Check if user is blocked
     const { isBlocked } = await this.checkUserIsBlocked(inviterId);
     if (isBlocked) {
-      return client.emit('errorMessage', { message: 'Your account is blocked' });
+      return client.emit('errorMessage', {
+        message: 'Your account is blocked',
+      });
     }
 
     // Check if user is online
     const isOnline = await this.checkUserIsOnline(inviterId);
     if (!isOnline) {
       return client.emit('errorMessage', {
-        message: 'You must be online to send invites. Please set your status to online.',
+        message:
+          'You must be online to send invites. Please set your status to online.',
       });
     }
 
@@ -2764,7 +2913,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Allow host (first participant) to send additional invites to add users to existing room
     if (existingRoom && existingRoom.participants.length > 1) {
       // Check if inviter is the host (first participant)
-      const isHost = normalizedInviterId && existingRoom.participants[0] === normalizedInviterId;
+      const isHost =
+        normalizedInviterId &&
+        existingRoom.participants[0] === normalizedInviterId;
 
       if (isHost) {
         // Host can send additional invites to add users to existing room
@@ -2776,7 +2927,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       } else {
         // Non-host cannot send invites when already in a room
         return client.emit('errorMessage', {
-          message: 'You are already in an active room. Please leave the current room before sending a new invite.',
+          message:
+            'You are already in an active room. Please leave the current room before sending a new invite.',
         });
       }
     }
@@ -2811,7 +2963,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const invitedUserIds: string[] = [];
       if (data.userIds && Array.isArray(data.userIds)) {
         // Multiple invites
-        invitedUserIds.push(...data.userIds.map(id => this.normalizeId(id)).filter((id): id is string => !!id));
+        invitedUserIds.push(
+          ...data.userIds
+            .map((id) => this.normalizeId(id))
+            .filter((id): id is string => !!id),
+        );
       } else if (data.userId) {
         // Single invite (backward compatibility)
         const normalizedId = this.normalizeId(data.userId);
@@ -2858,7 +3014,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const isOnline = await this.checkUserIsOnline(acceptorId);
     if (!isOnline) {
       return client.emit('errorMessage', {
-        message: 'You must be online to accept invites. Please set your status to online.',
+        message:
+          'You must be online to accept invites. Please set your status to online.',
       });
     }
 
@@ -2875,7 +3032,10 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Get all participants from the room
       const activeRoom = this.contentService.getRoomByRoomId(room.roomId);
-      const participants = activeRoom?.participants || [room.inviterId, room.inviteeId];
+      const participants = activeRoom?.participants || [
+        room.inviterId,
+        room.inviteeId,
+      ];
 
       // Join all participants to the room
       participants.forEach((participantId) => {
@@ -2888,7 +3048,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Check if this is an auto-invite and start game automatically when enough users accept
       const normalizedInviterId = this.normalizeId(room.inviterId);
-      const autoInviteState = normalizedInviterId ? this.autoInviteStates.get(normalizedInviterId) : null;
+      const autoInviteState = normalizedInviterId
+        ? this.autoInviteStates.get(normalizedInviterId)
+        : null;
       if (autoInviteState && !autoInviteState.isGameStarted) {
         // Increment accepted count
         autoInviteState.acceptedCount += 1;
@@ -2900,11 +3062,12 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
 
         // Check if enough users have accepted to start the game
-        if (autoInviteState.acceptedCount >= autoInviteState.requiredAcceptances) {
+        if (
+          autoInviteState.acceptedCount >= autoInviteState.requiredAcceptances
+        ) {
           // Verify room has at least the required number of participants
-          const expectedParticipants = autoInviteState.mode === 'DUEL'
-            ? 2
-            : (autoInviteState.member || 2);
+          const expectedParticipants =
+            autoInviteState.mode === 'DUEL' ? 2 : autoInviteState.member || 2;
 
           if (activeRoom.participants.length < expectedParticipants) {
             // Wait for more participants
@@ -2913,7 +3076,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
           }
 
           // Clear all pending timeouts to stop sequential invites
-          autoInviteState.timeoutIds.forEach((timeoutId) => clearTimeout(timeoutId));
+          autoInviteState.timeoutIds.forEach((timeoutId) =>
+            clearTimeout(timeoutId),
+          );
           autoInviteState.timeoutIds = [];
           autoInviteState.isGameStarted = true;
           autoInviteState.gameId = room.roomId;
@@ -2935,7 +3100,10 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             );
 
             const gameModel = this.contentService.getGameModel();
-            const game = await gameModel.findOne({ gameId: result.gameId }).lean().exec();
+            const game = await gameModel
+              .findOne({ gameId: result.gameId })
+              .lean()
+              .exec();
 
             if (!game) {
               throw new Error('Game not found after creation');
@@ -2993,7 +3161,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
               playerScores: new Map(),
               playerWrongAnswers: new Map(),
               eliminatedPlayers: new Set(),
-              gameMode: (game.metadata as unknown as GameMetadata)?.gameMode as 'Regular' | 'Knockout' | undefined,
+              gameMode: (game.metadata as unknown as GameMetadata)?.gameMode,
               startedAt: new Date(),
               isCompleted: false,
             };
@@ -3016,11 +3184,17 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             // Build per-player coins map: { [userId]: coins }
             const playerCoins: Record<string, number> = {};
             // Build per-player user info map: { [userId]: { name, profileImage, isHost } }
-            const playerInfo: Record<string, { name: string; profileImage: string | null; isHost: boolean }> = {};
+            const playerInfo: Record<
+              string,
+              { name: string; profileImage: string | null; isHost: boolean }
+            > = {};
             // Build per-player points map: { [userId]: points }
             const playerPoints: Record<string, number> = {};
             // Build per-player level map: { [userId]: { levelName, name } }
-            const playerLevel: Record<string, { levelName: string; name: string }> = {};
+            const playerLevel: Record<
+              string,
+              { levelName: string; name: string }
+            > = {};
             // Build per-player winner rate map: { [userId]: winnerRate }
             const winnerRate: Record<string, number> = {};
             // Get host ID (first participant)
@@ -3028,11 +3202,12 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
             // Batch fetch all users and game progress
             const participantIds = activeRoom.participants
-              .map(p => this.normalizeId(p))
+              .map((p) => this.normalizeId(p))
               .filter((id): id is string => !!id);
 
             const userModel = this.contentService.getUserModel();
-            const gameProgressModel = this.contentService.getGameProgressModel();
+            const gameProgressModel =
+              this.contentService.getGameProgressModel();
 
             // 1. Fetch all users in one query
             const allUsers = await userModel
@@ -3047,9 +3222,14 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
               .exec();
 
             // 3. Create maps
-            const usersMap = new Map(allUsers.map(u => [this.normalizeId(u._id) || '', u]));
+            const usersMap = new Map(
+              allUsers.map((u) => [this.normalizeId(u._id) || '', u]),
+            );
             const progressMap = new Map(
-              allGameProgress.map(gp => [this.normalizeId(gp.userId) || '', gp])
+              allGameProgress.map((gp) => [
+                this.normalizeId(gp.userId) || '',
+                gp,
+              ]),
             );
 
             // 4. Process participants using maps (no queries)
@@ -3061,14 +3241,15 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 const playerTyped = player as unknown as UserLean;
                 const coins =
                   player &&
-                    typeof playerTyped?.coins === 'number' &&
-                    Number.isFinite(playerTyped.coins)
+                  typeof playerTyped?.coins === 'number' &&
+                  Number.isFinite(playerTyped.coins)
                     ? playerTyped.coins
                     : 0;
                 playerCoins[normalizedId] = coins;
 
                 // Get user name and profile image
-                const userName = playerTyped?.name || playerTyped?.username || '';
+                const userName =
+                  playerTyped?.name || playerTyped?.username || '';
                 const userProfileImage = playerTyped?.profileImage || null;
                 // Check if this player is the host (first participant)
                 const isHost = normalizedId === hostId;
@@ -3081,31 +3262,42 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 // Get GameProgress for points, level, and winner rate
                 if (gameProgress) {
                   // Points
-                  const points = typeof gameProgress.points === 'number' && Number.isFinite(gameProgress.points)
-                    ? gameProgress.points
-                    : 0;
+                  const points =
+                    typeof gameProgress.points === 'number' &&
+                    Number.isFinite(gameProgress.points)
+                      ? gameProgress.points
+                      : 0;
                   playerPoints[normalizedId] = points;
 
                   // Level name with name
-                  const level = typeof gameProgress.level === 'number' && Number.isFinite(gameProgress.level)
-                    ? gameProgress.level
-                    : 1;
-                  const levelName = this.contentService.getLevelNameForLevel(level);
+                  const level =
+                    typeof gameProgress.level === 'number' &&
+                    Number.isFinite(gameProgress.level)
+                      ? gameProgress.level
+                      : 1;
+                  const levelName =
+                    this.contentService.getLevelNameForLevel(level);
                   playerLevel[normalizedId] = {
                     levelName: levelName,
                     name: userName,
                   };
 
                   // Winner rate: totalWins / totalGamesPlayed
-                  const totalWins = typeof gameProgress.totalWins === 'number' && Number.isFinite(gameProgress.totalWins)
-                    ? gameProgress.totalWins
-                    : 0;
-                  const totalGamesPlayed = typeof gameProgress.totalGamesPlayed === 'number' && Number.isFinite(gameProgress.totalGamesPlayed)
-                    ? gameProgress.totalGamesPlayed
-                    : 0;
-                  const calculatedWinnerRate = totalGamesPlayed > 0 ? (totalWins / totalGamesPlayed) : 0;
+                  const totalWins =
+                    typeof gameProgress.totalWins === 'number' &&
+                    Number.isFinite(gameProgress.totalWins)
+                      ? gameProgress.totalWins
+                      : 0;
+                  const totalGamesPlayed =
+                    typeof gameProgress.totalGamesPlayed === 'number' &&
+                    Number.isFinite(gameProgress.totalGamesPlayed)
+                      ? gameProgress.totalGamesPlayed
+                      : 0;
+                  const calculatedWinnerRate =
+                    totalGamesPlayed > 0 ? totalWins / totalGamesPlayed : 0;
                   // Round to 2 decimal places
-                  winnerRate[normalizedId] = Math.round(calculatedWinnerRate * 100) / 100;
+                  winnerRate[normalizedId] =
+                    Math.round(calculatedWinnerRate * 100) / 100;
                 } else {
                   // Default values if GameProgress not found
                   playerPoints[normalizedId] = 0;
@@ -3168,8 +3360,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
               eliminatedPlayers: [], // Empty at start, will be updated as players get eliminated
             });
             // NOTE: No separate gameStart event needed - all data is in gameCreated
-          } catch (error) {
-          }
+          } catch (error) {}
         } else {
           // Not enough users accepted yet, wait for more
           // Don't start the game, just wait
@@ -3189,7 +3380,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Batch fetch all users
       const participantIds = participants
-        .map(p => this.normalizeId(p))
+        .map((p) => this.normalizeId(p))
         .filter((id): id is string => !!id);
 
       const userModel = this.contentService.getUserModel();
@@ -3201,11 +3392,15 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         .exec();
 
       // Create map
-      const usersMap = new Map(allUsers.map(u => [this.normalizeId(u._id) || '', u]));
+      const usersMap = new Map(
+        allUsers.map((u) => [this.normalizeId(u._id) || '', u]),
+      );
 
       // Get acceptor's name and profile image from batch query result
       const normalizedAcceptorId = this.normalizeId(acceptorId);
-      const acceptor = normalizedAcceptorId ? usersMap.get(normalizedAcceptorId) : null;
+      const acceptor = normalizedAcceptorId
+        ? usersMap.get(normalizedAcceptorId)
+        : null;
       const acceptorTyped = acceptor as unknown as UserLean;
       const acceptorName = acceptorTyped?.name || acceptorTyped?.username || '';
       const acceptorProfileImage = acceptorTyped?.profileImage || null;
@@ -3216,7 +3411,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
         try {
           const participantTyped = participant as unknown as UserLean;
-          const userName = participantTyped?.name || participantTyped?.username || '';
+          const userName =
+            participantTyped?.name || participantTyped?.username || '';
           const userProfileImage = participantTyped?.profileImage || null;
           const isHost = normalizedId === hostId;
 
@@ -3226,7 +3422,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             profileImage: userProfileImage,
             isHost: isHost,
           });
-
         } catch (error) {
           // Add participant with default values
           participantDetails.push({
@@ -3261,7 +3456,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         participants: participantDetails, // Array of participants with name, profileImage, isHost
       };
       this.server.to(room.roomId).emit('roomDetails', roomDetailsPayload);
-
     } catch (error) {
       client.emit('errorMessage', {
         message: error?.message || 'Failed to accept invite',
@@ -3333,7 +3527,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         });
       }
 
-
       // Check if there's an active multiplayer game for this room
       const multiplayerState = this.multiplayerGames.get(room.roomId);
       let shouldContinueGame = false;
@@ -3354,17 +3547,24 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         } else {
           // Get game from database to check mode
           const gameModel = this.contentService.getGameModel();
-          const game = await gameModel.findOne({ gameId: multiplayerState.gameId }).lean().exec();
+          const game = await gameModel
+            .findOne({ gameId: multiplayerState.gameId })
+            .lean()
+            .exec();
 
           if (game) {
             const isBrawlMode = game.gameMode === 'brawl';
             const remainingPlayers = multiplayerState.players.filter(
-              (p) => this.normalizeId(p) !== normalizedUserId
+              (p) => this.normalizeId(p) !== normalizedUserId,
             );
 
             // If BRAWL mode and at least 2 players remain, remove user and continue game
             if (isBrawlMode && remainingPlayers.length >= 2) {
-              await this.removePlayerFromGame(multiplayerState, userId, room.roomId);
+              await this.removePlayerFromGame(
+                multiplayerState,
+                userId,
+                room.roomId,
+              );
               shouldContinueGame = true;
 
               // Notify remaining players in room that a player left but game continues
@@ -3402,9 +3602,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Remove user from room (only delete room if game is not continuing)
       const result = shouldContinueGame
-        ? await this.contentService.removeUserFromRoomParticipants(room.roomId, userId)
+        ? await this.contentService.removeUserFromRoomParticipants(
+            room.roomId,
+            userId,
+          )
         : await this.contentService.leaveUser(userId);
-
 
       client.emit('leaveUserResponse', {
         success: true,
@@ -3445,18 +3647,22 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         });
       }
 
-
       // Check if there's an active multiplayer game for this room
       const multiplayerState = this.multiplayerGames.get(room.roomId);
       let shouldContinueGame = false;
 
       // Check if target user being removed is the host (first participant who created the game)
       const normalizedTargetUserId = this.normalizeId(targetUserId);
-      const isHost = normalizedTargetUserId && room.participants[0] === normalizedTargetUserId;
+      const isHost =
+        normalizedTargetUserId &&
+        room.participants[0] === normalizedTargetUserId;
 
       if (multiplayerState) {
         // Check if target user is a player in the game
-        if (normalizedTargetUserId && multiplayerState.players.includes(normalizedTargetUserId)) {
+        if (
+          normalizedTargetUserId &&
+          multiplayerState.players.includes(normalizedTargetUserId)
+        ) {
           // If host is being removed, always end the game regardless of mode
           if (isHost) {
             await this.endMultiplayerGame(multiplayerState, true, targetUserId);
@@ -3468,17 +3674,24 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
           } else {
             // Get game from database to check mode
             const gameModel = this.contentService.getGameModel();
-            const game = await gameModel.findOne({ gameId: multiplayerState.gameId }).lean().exec();
+            const game = await gameModel
+              .findOne({ gameId: multiplayerState.gameId })
+              .lean()
+              .exec();
 
             if (game) {
               const isBrawlMode = game.gameMode === 'brawl';
               const remainingPlayers = multiplayerState.players.filter(
-                (p) => this.normalizeId(p) !== normalizedTargetUserId
+                (p) => this.normalizeId(p) !== normalizedTargetUserId,
               );
 
               // If BRAWL mode and at least 2 players remain, remove user and continue game
               if (isBrawlMode && remainingPlayers.length >= 2) {
-                await this.removePlayerFromGame(multiplayerState, targetUserId, room.roomId);
+                await this.removePlayerFromGame(
+                  multiplayerState,
+                  targetUserId,
+                  room.roomId,
+                );
                 shouldContinueGame = true;
 
                 // Notify remaining players in room that a player was removed but game continues
@@ -3493,7 +3706,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
               } else {
                 // End the game without awarding points and coins
                 // Mark removed user as loser and remaining player as winner
-                await this.endMultiplayerGame(multiplayerState, true, targetUserId);
+                await this.endMultiplayerGame(
+                  multiplayerState,
+                  true,
+                  targetUserId,
+                );
 
                 // Notify all players in room that game was aborted
                 this.server.to(room.roomId).emit('gameAborted', {
@@ -3504,7 +3721,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
               }
             } else {
               // If game not found in DB, end the game
-              await this.endMultiplayerGame(multiplayerState, true, targetUserId);
+              await this.endMultiplayerGame(
+                multiplayerState,
+                true,
+                targetUserId,
+              );
               this.server.to(room.roomId).emit('gameAborted', {
                 message: 'A player was removed from the room',
                 roomId: room.roomId,
@@ -3517,9 +3738,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Remove user from room (only delete room if game is not continuing)
       const result = shouldContinueGame
-        ? await this.contentService.removeUserFromRoomParticipants(room.roomId, targetUserId)
+        ? await this.contentService.removeUserFromRoomParticipants(
+            room.roomId,
+            targetUserId,
+          )
         : await this.contentService.removeUserFromRoom(userId, targetUserId);
-
 
       client.emit('removeUserFromRoomResponse', {
         success: true,
@@ -3558,7 +3781,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         result = await this.contentService.toggleUserOnlineStatus(userId);
       }
 
-      client.emit('isOnline', { success: true, result, isOnline: result.isOnline });
+      client.emit('isOnline', {
+        success: true,
+        result,
+        isOnline: result.isOnline,
+      });
       return result;
     } catch (error) {
       return client.emit('errorMessage', {
@@ -3814,7 +4041,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     try {
       // Default to 5 coins if amount is not provided or is invalid
-      const amount = data?.amount !== undefined && data.amount > 0 ? data.amount : 5;
+      const amount =
+        data?.amount !== undefined && data.amount > 0 ? data.amount : 5;
       const result = await this.contentService.deductCoins(userId, amount);
       client.emit('deductCoins', result);
       return result;
@@ -3849,7 +4077,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const isOnline = await this.checkUserIsOnline(inviterId);
     if (!isOnline) {
       return client.emit('errorMessage', {
-        message: 'You must be online to auto-start games. Please set your status to online.',
+        message:
+          'You must be online to auto-start games. Please set your status to online.',
       });
     }
 
@@ -3919,9 +4148,13 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         const userId = this.normalizeId(user._id);
         const userTyped = user as unknown as UserLean;
         const userType = userTyped?.userType;
-        
+
         // Skip if invalid userId, is inviter, or not individual type
-        if (!userId || userId === normalizedInviterId || userType !== USER_TYPE[0]) {
+        if (
+          !userId ||
+          userId === normalizedInviterId ||
+          userType !== USER_TYPE[0]
+        ) {
           continue;
         }
 
@@ -3932,13 +4165,12 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
 
         availableUsers.push(user);
-        
+
         // Stop if we have enough users
         if (availableUsers.length >= maxUsersToInvite) {
           break;
         }
       }
-
 
       if (availableUsers.length === 0) {
         return client.emit('errorMessage', {
@@ -3971,7 +4203,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         .map((u) => this.normalizeId(u._id))
         .filter((id): id is string => id !== null);
 
-
       this.sendSequentialInvites(
         normalizedInviterId,
         userIdsToInvite,
@@ -3979,7 +4210,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         sharedRoomId,
         mode,
       );
-
 
       client.emit('autostartgameResponse', {
         success: true,
@@ -4007,7 +4237,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     roomId?: string,
     mode: 'DUEL' | 'BRAWL' = 'DUEL',
   ) {
-
     const autoInviteState = this.autoInviteStates.get(inviterId);
 
     if (!autoInviteState) {
@@ -4028,17 +4257,28 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     // If we've sent all 6 invites and not enough users accepted, throw error
-    if (currentIndex >= userIds.length || currentIndex >= autoInviteState.maxUsers) {
+    if (
+      currentIndex >= userIds.length ||
+      currentIndex >= autoInviteState.maxUsers
+    ) {
       // Check if enough users have accepted
       if (autoInviteState.acceptedCount < autoInviteState.requiredAcceptances) {
         // Clear all timeouts
-        autoInviteState.timeoutIds.forEach((timeoutId) => clearTimeout(timeoutId));
+        autoInviteState.timeoutIds.forEach((timeoutId) =>
+          clearTimeout(timeoutId),
+        );
         this.autoInviteStates.delete(inviterId);
 
         const inviterSocket = this.userSockets.get(inviterId);
         if (inviterSocket) {
-          const modeText = mode === 'DUEL' ? 'DUEL' : `BRAWL (${autoInviteState.member} members)`;
-          const requiredText = mode === 'DUEL' ? '1 user' : `${autoInviteState.requiredAcceptances} users`;
+          const modeText =
+            mode === 'DUEL'
+              ? 'DUEL'
+              : `BRAWL (${autoInviteState.member} members)`;
+          const requiredText =
+            mode === 'DUEL'
+              ? '1 user'
+              : `${autoInviteState.requiredAcceptances} users`;
           const errorMessage = `Not enough users accepted the invite. Required: ${requiredText}, Accepted: ${autoInviteState.acceptedCount} after ${autoInviteState.maxUsers} attempts for ${modeText}`;
           inviterSocket.emit('errorMessage', {
             message: errorMessage,
@@ -4052,7 +4292,13 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!targetUserId) {
       // Move to next user
       const timeoutId = setTimeout(() => {
-        this.sendSequentialInvites(inviterId, userIds, currentIndex + 1, roomId, mode);
+        this.sendSequentialInvites(
+          inviterId,
+          userIds,
+          currentIndex + 1,
+          roomId,
+          mode,
+        );
       }, 15000);
       autoInviteState.timeoutIds.push(timeoutId);
       return;
@@ -4061,7 +4307,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Use the shared roomId from autoInviteState if available, otherwise use passed roomId
     const sharedRoomId = autoInviteState.gameId || roomId;
 
-
     // Send invite to current user
     try {
       const invite = await this.contentService.inviteUserToGame(inviterId, {
@@ -4069,7 +4314,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         gameMode: mode,
         gameId: sharedRoomId, // Use shared roomId for all invites
       });
-
 
       // Get inviter's name for the response
       let inviterName = '';
@@ -4102,7 +4346,13 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         if (state && !state.isGameStarted) {
           // Only continue if we haven't reached required acceptances
           if (state.acceptedCount < state.requiredAcceptances) {
-            this.sendSequentialInvites(inviterId, userIds, currentIndex + 1, sharedRoomId, mode);
+            this.sendSequentialInvites(
+              inviterId,
+              userIds,
+              currentIndex + 1,
+              sharedRoomId,
+              mode,
+            );
           } else {
           }
         } else {
@@ -4115,7 +4365,13 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // If invite fails, move to next user immediately
       const sharedRoomId = autoInviteState.gameId || roomId;
       const timeoutId = setTimeout(() => {
-        this.sendSequentialInvites(inviterId, userIds, currentIndex + 1, sharedRoomId, mode);
+        this.sendSequentialInvites(
+          inviterId,
+          userIds,
+          currentIndex + 1,
+          sharedRoomId,
+          mode,
+        );
       }, 100);
       autoInviteState.timeoutIds.push(timeoutId);
     }

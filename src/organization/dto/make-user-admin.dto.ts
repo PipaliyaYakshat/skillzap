@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsString, IsMongoId, IsOptional } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  IsMongoId,
+  IsOptional,
+} from 'class-validator';
 
 export class MakeUserAdminDto {
   @ApiProperty({
@@ -12,7 +18,8 @@ export class MakeUserAdminDto {
 
   @ApiProperty({
     example: '69366f002af838888b16b0c9',
-    description: 'MongoDB ObjectId of the organization (optional - will be derived from admin user if not provided)',
+    description:
+      'MongoDB ObjectId of the organization (optional - will be derived from admin user if not provided)',
     required: false,
   })
   @IsOptional()
@@ -28,4 +35,3 @@ export class MakeUserAdminDto {
   @IsString({ message: 'Name must be a string' })
   name?: string;
 }
-

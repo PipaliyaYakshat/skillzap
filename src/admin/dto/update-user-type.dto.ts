@@ -19,4 +19,3 @@ export class UpdateUserTypeDto {
   @IsString({ message: 'User type must be a string' })
   userType: string;
 }
-

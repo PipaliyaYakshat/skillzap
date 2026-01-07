@@ -23,7 +23,10 @@ import { TeamMember, TeamMemberDocument } from './entities/team-member.entity';
 import { Deck, DeckDocument } from '../content/schemas/deck.schema';
 import { Topic, TopicDocument } from '../content/schemas/topic.schema';
 import { SubTopic, SubTopicDocument } from '../content/schemas/subtopic.schema';
-import { TeamGameScore, TeamGameScoreDocument } from './entities/team-game.entity';
+import {
+  TeamGameScore,
+  TeamGameScoreDocument,
+} from './entities/team-game.entity';
 import { Types } from 'mongoose';
 import { USER_TYPE } from 'src/common/enum';
 
@@ -47,7 +50,7 @@ type UserLean = {
   isBlocked?: boolean;
   userType?: string;
   lastSeen?: Date;
-}
+};
 
 type TeamMemberLean = {
   _id: Types.ObjectId;
@@ -62,7 +65,7 @@ type TeamMemberLean = {
   isAdmin?: boolean;
   status?: string;
   joinedAt?: Date;
-}
+};
 
 type Invite = {
   gameId?: string | null;
@@ -70,7 +73,7 @@ type Invite = {
   fromUserId?: string | Types.ObjectId;
   gameMode?: string;
   [key: string]: unknown; // Allow for other properties
-}
+};
 
 type PendingInvite = {
   inviteId: string;
@@ -83,7 +86,7 @@ type PendingInvite = {
   deckId?: string | null;
   topicId?: string | null;
   [key: string]: unknown; // Allow for other properties
-}
+};
 
 type TeamGameScoreLean = {
   _id?: Types.ObjectId;
@@ -91,25 +94,25 @@ type TeamGameScoreLean = {
   teamId?: string | Types.ObjectId;
   points?: number;
   [key: string]: unknown; // Allow for other properties
-}
+};
 
 type DeckLean = {
   _id: Types.ObjectId;
   name?: string;
   contentIds?: Types.ObjectId[];
-}
+};
 
 type TopicLean = {
   _id: Types.ObjectId;
   title?: string;
   subTopics?: (string | Types.ObjectId)[];
-}
+};
 
 type TeamLean = {
   _id: Types.ObjectId;
   teamName?: string;
   points?: number;
-}
+};
 
 type RoomWithMetadata = {
   roomId: string;
@@ -122,12 +125,12 @@ type RoomWithMetadata = {
   topicId?: Types.ObjectId | string;
   gameMode?: 'Regular' | 'Knockout' | string;
   mode?: 'Regular' | 'Knockout' | string;
-}
+};
 
 type GameMetadata = {
   gameMode?: 'Regular' | 'Knockout';
   [key: string]: unknown;
-}
+};
 
 type Question = {
   question: string;
@@ -191,7 +194,9 @@ type TeamGameState = {
 
 @UseFilters(new CustomWsExceptionFilter())
 @WebSocketGateway({ cors: { origin: '*' } })
-export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class TeamGameGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer() server: Server;
 
   private readonly logger = new Logger(TeamGameGateway.name);
@@ -210,11 +215,14 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     private readonly configService: ConfigService,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(Team.name) private readonly teamModel: Model<TeamDocument>,
-    @InjectModel(TeamMember.name) private readonly teamMemberModel: Model<TeamMemberDocument>,
+    @InjectModel(TeamMember.name)
+    private readonly teamMemberModel: Model<TeamMemberDocument>,
     @InjectModel(Deck.name) private readonly deckModel: Model<DeckDocument>,
     @InjectModel(Topic.name) private readonly topicModel: Model<TopicDocument>,
-    @InjectModel(SubTopic.name) private readonly subTopicModel: Model<SubTopicDocument>,
-    @InjectModel(TeamGameScore.name) private readonly teamGameScoreModel: Model<TeamGameScoreDocument>,
+    @InjectModel(SubTopic.name)
+    private readonly subTopicModel: Model<SubTopicDocument>,
+    @InjectModel(TeamGameScore.name)
+    private readonly teamGameScoreModel: Model<TeamGameScoreDocument>,
   ) {}
 
   private normalizeId<T = unknown>(value: T): string | null {
@@ -239,13 +247,18 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   // Helper method to check if user is blocked
-  private async checkUserIsBlocked(userId: string): Promise<{ isBlocked: boolean; user?: UserLean | null }> {
+  private async checkUserIsBlocked(
+    userId: string,
+  ): Promise<{ isBlocked: boolean; user?: UserLean | null }> {
     try {
       const user = await this.userModel.findById(userId).lean().exec();
       if (!user) {
         return { isBlocked: false, user: null };
       }
-      return { isBlocked: (user as unknown as UserLean)?.isBlocked === true, user: user as unknown as UserLean };
+      return {
+        isBlocked: (user as unknown as UserLean)?.isBlocked === true,
+        user: user as unknown as UserLean,
+      };
     } catch (error) {
       return { isBlocked: false, user: null };
     }
@@ -260,7 +273,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Extract token from Authorization header
       const authHeader = client.handshake.headers.authorization;
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        client.emit('error_response', { message: 'Authorization token required' });
+        client.emit('error_response', {
+          message: 'Authorization token required',
+        });
         client.disconnect();
         return;
       }
@@ -273,7 +288,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Extract userId from token (token contains { id, role })
       const userId = decoded.id || decoded.userId;
       if (!userId) {
-        client.emit('error_response', { message: 'Invalid token: userId not found' });
+        client.emit('error_response', {
+          message: 'Invalid token: userId not found',
+        });
         client.disconnect();
         return;
       }
@@ -329,14 +346,16 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       client.emit('authenticated', { success: true, userId });
     } catch (error) {
-      
       // Handle specific JWT verification errors
-      if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      if (
+        error.name === 'JsonWebTokenError' ||
+        error.name === 'TokenExpiredError'
+      ) {
         client.emit('error_response', { message: 'Invalid or expired token' });
       } else {
         client.emit('error_response', { message: 'Connection failed' });
       }
-      
+
       client.disconnect();
     }
   }
@@ -367,14 +386,15 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         // Check if user is in a room and remove them on disconnect
         const existingRoom = this.contentService.getRoomByUserId(userId);
         if (existingRoom) {
-
           // Check if there's an active team game for this room
           const teamGameState = this.teamGames.get(existingRoom.roomId);
           let shouldContinueGame = false;
 
           // Check if disconnecting user is the inviter (admin) - first participant who created the game
           const normalizedUserId = this.normalizeId(userId);
-          const isInviter = normalizedUserId && existingRoom.participants[0] === normalizedUserId;
+          const isInviter =
+            normalizedUserId &&
+            existingRoom.participants[0] === normalizedUserId;
 
           if (teamGameState) {
             // If inviter (admin) disconnects, always end the game
@@ -388,17 +408,23 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
             } else {
               // Get game from database to check if it's a team game
               const gameModel = this.contentService.getGameModel();
-              const game = await gameModel.findOne({ gameId: teamGameState.gameId }).lean().exec();
+              const game = await gameModel
+                .findOne({ gameId: teamGameState.gameId })
+                .lean()
+                .exec();
 
               if (game && game.gameMode === 'team' && normalizedUserId) {
                 const remainingPlayers = teamGameState.players.filter(
-                  (p) => this.normalizeId(p) !== normalizedUserId
+                  (p) => this.normalizeId(p) !== normalizedUserId,
                 );
 
                 // Count remaining teams after removing the player
                 const remainingTeams = new Set<string>();
                 remainingPlayers.forEach((playerId) => {
-                  for (const [teamId, playerIds] of teamGameState.teams.entries()) {
+                  for (const [
+                    teamId,
+                    playerIds,
+                  ] of teamGameState.teams.entries()) {
                     if (playerIds.includes(playerId)) {
                       remainingTeams.add(teamId);
                     }
@@ -409,11 +435,14 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
                 if (remainingTeams.size >= 2) {
                   // Remove player from game state
                   teamGameState.players = remainingPlayers;
-                  
+
                   // Remove player from their team
-                  for (const [teamId, playerIds] of teamGameState.teams.entries()) {
+                  for (const [
+                    teamId,
+                    playerIds,
+                  ] of teamGameState.teams.entries()) {
                     const updatedPlayers = playerIds.filter(
-                      (p) => this.normalizeId(p) !== normalizedUserId
+                      (p) => this.normalizeId(p) !== normalizedUserId,
                     );
                     if (updatedPlayers.length === 0) {
                       // Team has no players left, remove team
@@ -438,15 +467,17 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
                   shouldContinueGame = true;
 
                   // Notify remaining players in room that a player disconnected but game continues
-                  this.server.to(existingRoom.roomId).emit('teamPlayerLeftGame', {
-                    message: 'A player disconnected from the game',
-                    roomId: existingRoom.roomId,
-                    gameId: teamGameState.gameId,
-                    leavingUserId: userId,
-                    remainingPlayers: remainingPlayers,
-                    remainingTeams: Array.from(remainingTeams),
-                    gameContinues: true,
-                  });
+                  this.server
+                    .to(existingRoom.roomId)
+                    .emit('teamPlayerLeftGame', {
+                      message: 'A player disconnected from the game',
+                      roomId: existingRoom.roomId,
+                      gameId: teamGameState.gameId,
+                      leavingUserId: userId,
+                      remainingPlayers: remainingPlayers,
+                      remainingTeams: Array.from(remainingTeams),
+                      gameContinues: true,
+                    });
                 } else {
                   // End the game without awarding points and coins
                   await this.endTeamGame(teamGameState);
@@ -472,7 +503,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
           // Remove user from room (only delete room if game is not continuing)
           if (shouldContinueGame) {
-            await this.contentService.removeUserFromRoomParticipants(existingRoom.roomId, userId);
+            await this.contentService.removeUserFromRoomParticipants(
+              existingRoom.roomId,
+              userId,
+            );
           } else {
             await this.contentService.leaveUser(userId);
           }
@@ -487,9 +521,14 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           // Emit only to the disconnecting user
           const normalizedDisconnectingUserId = this.normalizeId(userId);
           if (normalizedDisconnectingUserId) {
-            const disconnectingUserSocket = this.userSockets.get(normalizedDisconnectingUserId);
+            const disconnectingUserSocket = this.userSockets.get(
+              normalizedDisconnectingUserId,
+            );
             if (disconnectingUserSocket) {
-              disconnectingUserSocket.emit('userDisconnected', userDisconnectedPayload);
+              disconnectingUserSocket.emit(
+                'userDisconnected',
+                userDisconnectedPayload,
+              );
             }
           }
         }
@@ -506,8 +545,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         }
       } else {
       }
-    } catch (error) {
-    }
+    } catch (error) {}
   }
 
   // -------------------------------------------------------------
@@ -559,14 +597,17 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     // Check if user is blocked
     const { isBlocked } = await this.checkUserIsBlocked(userId);
     if (isBlocked) {
-      return client.emit('errorMessage', { message: 'Your account is blocked' });
+      return client.emit('errorMessage', {
+        message: 'Your account is blocked',
+      });
     }
 
     // Check if user is online
     const isOnline = await this.checkUserIsOnline(userId);
     if (!isOnline) {
       return client.emit('errorMessage', {
-        message: 'You must be online to play games. Please set your status to online.',
+        message:
+          'You must be online to play games. Please set your status to online.',
       });
     }
 
@@ -591,7 +632,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     if (!subTopicId) {
       return client.emit('errorMessage', { message: 'subTopicId is required' });
     }
-
 
     try {
       const {
@@ -638,7 +678,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       };
       this.activeGames.set(userId, gameState);
 
-
       client.emit('gameStart', {
         gameId: gameState.gameId,
         totalQuestions: questions.length,
@@ -666,7 +705,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
   @SubscribeMessage('searchTeamMembersName')
   async searchTeamMembersName(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: {
+    @MessageBody()
+    data: {
       name: string;
       teamId?: string;
       organizationId?: string;
@@ -749,7 +789,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
   ) {
     const userId = client.data.userId;
     try {
-
       if (!userId) {
         return client.emit('errorMessage', { message: 'Unauthorized' });
       }
@@ -786,7 +825,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Check if sender is the inviter/host - host cannot send messages
       // First participant is always the inviter/host
       const normalizedInviterId = this.normalizeId(participants[0]);
-      
+
       if (normalizedUserId === normalizedInviterId) {
         return client.emit('errorMessage', {
           message: 'Host can only view the game, not send messages',
@@ -820,7 +859,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       // Check if game has started (teamGameState exists)
       const teamGameState = this.teamGames.get(room.roomId);
-      
+
       // If game has started, validate user is a player
       if (teamGameState) {
         if (!teamGameState.players.includes(normalizedUserId)) {
@@ -861,13 +900,16 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       // Get recipients: team members who are participants in the room (excluding host)
       const recipients = new Set<string>();
-      
+
       if (teamGameState) {
         // If game has started, use teamGameState.teams
         const teamPlayerIds = teamGameState.teams.get(data.teamId) || [];
         teamPlayerIds.forEach((playerId) => {
           const normalizedPlayerId = this.normalizeId(playerId);
-          if (normalizedPlayerId && normalizedPlayerId !== normalizedInviterId) {
+          if (
+            normalizedPlayerId &&
+            normalizedPlayerId !== normalizedInviterId
+          ) {
             recipients.add(normalizedPlayerId);
           }
         });
@@ -883,7 +925,11 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
         allTeamMembers.forEach((tm) => {
           const memberId = this.normalizeId(tm.user);
-          if (memberId && normalizedParticipants.includes(memberId) && memberId !== normalizedInviterId) {
+          if (
+            memberId &&
+            normalizedParticipants.includes(memberId) &&
+            memberId !== normalizedInviterId
+          ) {
             recipients.add(memberId);
           }
         });
@@ -915,11 +961,16 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
   @SubscribeMessage('inviteTeamUser')
   async inviteTeamUser(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { teamId: string[]; mode?: 'Regular' | 'Knockout'; deckId?: string; topicId?: string },
+    @MessageBody()
+    data: {
+      teamId: string[];
+      mode?: 'Regular' | 'Knockout';
+      deckId?: string;
+      topicId?: string;
+    },
   ) {
     const inviterId = client.data.userId;
     try {
-
       if (!inviterId) {
         return client.emit('errorMessage', { message: 'Unauthorized' });
       }
@@ -927,7 +978,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Check if user is blocked
       const { isBlocked } = await this.checkUserIsBlocked(inviterId);
       if (isBlocked) {
-        return client.emit('errorMessage', { message: 'Your account is blocked' });
+        return client.emit('errorMessage', {
+          message: 'Your account is blocked',
+        });
       }
 
       const { teamId, mode } = data;
@@ -938,7 +991,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       }
 
       // Validate and normalize mode
-      const validMode = mode && (mode === 'Regular' || mode === 'Knockout') ? mode : undefined;
+      const validMode =
+        mode && (mode === 'Regular' || mode === 'Knockout') ? mode : undefined;
       if (mode && !validMode) {
       }
       // Check if user has superAdmin or admin userType
@@ -965,19 +1019,19 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       }
 
       // Check if inviter already has an active room
-      const existingRoom = this.contentService.getRoomByUserId(normalizedInviterId);
+      const existingRoom =
+        this.contentService.getRoomByUserId(normalizedInviterId);
       const existingRoomId = existingRoom?.roomId || undefined;
       const existingParticipants = existingRoom?.participants || [];
-      
 
       // Collect all team members from all teams - OPTIMIZED: Batch query instead of loop
       const allTeamMembersMap = new Map<string, TeamMemberLean>(); // Use Map to track unique members by ID
-      
+
       // Filter out invalid team IDs
       const validTeamIds = teamId
         .map((id) => this.normalizeId(id))
         .filter((id): id is string => id !== null);
-      
+
       if (validTeamIds.length > 0) {
         // OPTIMIZATION: Single batch query for all teams instead of N queries
         const allTeamMembers = await this.teamMemberModel
@@ -985,14 +1039,21 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
             team: { $in: validTeamIds },
             status: 'approved',
           })
-          .populate('user', '_id name email username profileImage isOnline lastSeen isActive')
+          .populate(
+            'user',
+            '_id name email username profileImage isOnline lastSeen isActive',
+          )
           .lean()
           .exec();
-        
+
         // Process all team members and add to map (handles duplicates automatically)
         allTeamMembers.forEach((member) => {
           const user = member.user as unknown as UserLean;
-          if (user && typeof user === 'object' && (user as { isActive?: boolean }).isActive !== false) {
+          if (
+            user &&
+            typeof user === 'object' &&
+            (user as { isActive?: boolean }).isActive !== false
+          ) {
             const memberId = this.normalizeId(user._id);
             if (memberId && !allTeamMembersMap.has(memberId)) {
               allTeamMembersMap.set(memberId, {
@@ -1004,7 +1065,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
                 lastSeen: user.lastSeen,
                 teamMemberId: this.normalizeId(member._id) || undefined,
                 teamId: this.normalizeId(member.team) || undefined,
-                organizationId: this.normalizeId(member.organization) || undefined,
+                organizationId:
+                  this.normalizeId(member.organization) || undefined,
                 isAdmin: (member as { isAdmin?: boolean }).isAdmin,
                 status: (member as { status?: string }).status,
                 joinedAt: (member as { joinedAt?: Date }).joinedAt,
@@ -1015,13 +1077,12 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       }
 
       // Filter to only online users and exclude the inviter
-      const onlineTeamMembers = Array.from(allTeamMembersMap.values()).filter((member) => {
-        const memberId = this.normalizeId(member._id);
-        return (
-          member.isOnline === true &&
-          memberId !== normalizedInviterId
-        );
-      });
+      const onlineTeamMembers = Array.from(allTeamMembersMap.values()).filter(
+        (member) => {
+          const memberId = this.normalizeId(member._id);
+          return member.isOnline === true && memberId !== normalizedInviterId;
+        },
+      );
 
       if (onlineTeamMembers.length === 0) {
         return client.emit('errorMessage', {
@@ -1030,15 +1091,16 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       }
 
       // Extract user IDs from online team members
-      const allOnlineUserIds = onlineTeamMembers.map((member) =>
-        this.normalizeId(member._id),
-      ).filter((id): id is string => id !== null);
+      const allOnlineUserIds = onlineTeamMembers
+        .map((member) => this.normalizeId(member._id))
+        .filter((id): id is string => id !== null);
 
       // Filter out users who are already participants in the room (if room exists)
       const newUserIdsToInvite = existingRoom
-        ? allOnlineUserIds.filter((userId) => !existingParticipants.includes(userId))
+        ? allOnlineUserIds.filter(
+            (userId) => !existingParticipants.includes(userId),
+          )
         : allOnlineUserIds;
-
 
       if (newUserIdsToInvite.length === 0) {
         return client.emit('errorMessage', {
@@ -1060,7 +1122,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       const invites = Array.isArray(invite) ? invite : [invite];
 
       // Remove gameMode field from invite objects for inviteTeamUserResponse
-      const removeGameMode = (inv: PendingInvite): Omit<PendingInvite, 'gameMode'> => {
+      const removeGameMode = (
+        inv: PendingInvite,
+      ): Omit<PendingInvite, 'gameMode'> => {
         const { gameMode, ...inviteWithoutGameMode } = inv;
         return inviteWithoutGameMode;
       };
@@ -1078,21 +1142,29 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Fetch deck and topic names if deckId and topicId are provided
       let deckName: string | null = null;
       let topicName: string | null = null;
-      
+
       if (data.deckId) {
         const normalizedDeckId = this.normalizeId(data.deckId);
         if (normalizedDeckId) {
-          const deck = await this.deckModel.findById(normalizedDeckId).select('name').lean().exec();
+          const deck = await this.deckModel
+            .findById(normalizedDeckId)
+            .select('name')
+            .lean()
+            .exec();
           if (deck) {
             deckName = (deck as unknown as DeckLean)?.name || null;
           }
         }
       }
-      
+
       if (data.topicId) {
         const normalizedTopicId = this.normalizeId(data.topicId);
         if (normalizedTopicId) {
-          const topic = await this.topicModel.findById(normalizedTopicId).select('title').lean().exec();
+          const topic = await this.topicModel
+            .findById(normalizedTopicId)
+            .select('title')
+            .lean()
+            .exec();
           if (topic) {
             topicName = (topic as unknown as TopicLean)?.title || null;
           }
@@ -1105,10 +1177,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       newUserIdsToInvite.forEach((memberId) => {
         // Find the specific invite for this member (use original invite, not processed)
         const originalInvite = invites.find(
-          (inv) => this.normalizeId(inv.toUserId) === memberId
+          (inv) => this.normalizeId(inv.toUserId) === memberId,
         );
         const processedInvite = processedInvites.find(
-          (inv) => this.normalizeId(inv.toUserId) === memberId
+          (inv) => this.normalizeId(inv.toUserId) === memberId,
         );
 
         if (originalInvite && processedInvite) {
@@ -1125,7 +1197,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
               topicName: topicName || undefined,
             };
             memberSocket.emit('inviteTeamUserResponse', memberInviteResponse);
-            
+
             // Note: teamGameInvite event is already emitted by content.service.inviteUserToGame
             // when mode is 'Regular' or 'Knockout'. No need to emit it manually here.
           }
@@ -1133,12 +1205,18 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       });
 
       // Return success response to inviter with room info
-      const finalRoomId = existingRoomId || (Array.isArray(invite) && invite.length > 0 ? invite[0].gameId : undefined);
+      const finalRoomId =
+        existingRoomId ||
+        (Array.isArray(invite) && invite.length > 0
+          ? invite[0].gameId
+          : undefined);
       client.emit('inviteTeamUserSuccess', {
         success: true,
         roomId: finalRoomId || null,
         newInvitesCount: newUserIdsToInvite.length,
-        totalParticipants: existingRoom ? existingRoom.participants.length + newUserIdsToInvite.length : newUserIdsToInvite.length + 1, // +1 for inviter
+        totalParticipants: existingRoom
+          ? existingRoom.participants.length + newUserIdsToInvite.length
+          : newUserIdsToInvite.length + 1, // +1 for inviter
       });
     } catch (error) {
       client.emit('errorMessage', {
@@ -1155,11 +1233,11 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
   @SubscribeMessage('acceptTeamInvite')
   async acceptTeamInvite(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { userId?: string; deviceId?: string; gameId?: string },
+    @MessageBody()
+    data: { userId?: string; deviceId?: string; gameId?: string },
   ) {
     const acceptorId = client.data.userId;
     try {
-
       if (!acceptorId) {
         return client.emit('errorMessage', { message: 'Unauthorized' });
       }
@@ -1168,24 +1246,36 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       const normalizedAcceptorId = this.normalizeId(acceptorId);
       // For team invites, we don't need userId in data - it will be found from pending invites
       // If userId is provided but it's the acceptor's own ID, we'll ignore it and find from invite
-      const providedUserId = data?.userId ? this.normalizeId(data.userId) : null;
-      
+      const providedUserId = data?.userId
+        ? this.normalizeId(data.userId)
+        : null;
+
       // If provided userId is the same as acceptor, don't pass it (will be found from invite)
       // Only include userId if it's different from acceptor (i.e., it's the inviter ID)
-      const acceptData: { userId?: string; deviceId?: string; gameId?: string } = {
+      const acceptData: {
+        userId?: string;
+        deviceId?: string;
+        gameId?: string;
+      } = {
         deviceId: data?.deviceId,
         gameId: data?.gameId,
       };
-      
+
       if (providedUserId && providedUserId !== normalizedAcceptorId) {
         acceptData.userId = data.userId;
       }
-      
-      const room = await this.contentService.acceptInvite(acceptorId, acceptData);
+
+      const room = await this.contentService.acceptInvite(
+        acceptorId,
+        acceptData,
+      );
 
       // Get all participants from the room
       const activeRoom = this.contentService.getRoomByRoomId(room.roomId);
-      const participants = activeRoom?.participants || [room.inviterId, room.inviteeId];
+      const participants = activeRoom?.participants || [
+        room.inviterId,
+        room.inviteeId,
+      ];
 
       // Join all participants to the room
       participants.forEach((participantId) => {
@@ -1232,9 +1322,12 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       // Get all unique team IDs
       const teamIds = Array.from(new Set(userTeamMap.values()));
-      
+
       // Fetch team details (teamName) for all teams
-      const teamsInfoMap = new Map<string, { teamId: string; teamName: string }>();
+      const teamsInfoMap = new Map<
+        string,
+        { teamId: string; teamName: string }
+      >();
       if (teamIds.length > 0) {
         const teams = await this.teamModel
           .find({ _id: { $in: teamIds } })
@@ -1272,17 +1365,25 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       }> = [];
 
       // Batch query all participants
-      const participantIds = participants.map(p => this.normalizeId(p)).filter((id): id is string => id !== null);
-      const allParticipants = await this.userModel.find({ 
-        _id: { $in: participantIds } 
-      }).lean().exec();
+      const participantIds = participants
+        .map((p) => this.normalizeId(p))
+        .filter((id): id is string => id !== null);
+      const allParticipants = await this.userModel
+        .find({
+          _id: { $in: participantIds },
+        })
+        .lean()
+        .exec();
 
       // Create a map for quick lookup
       const participantsMap = new Map<string, UserLean>();
       allParticipants.forEach((participant) => {
         const participantId = this.normalizeId(participant._id);
         if (participantId) {
-          participantsMap.set(participantId, participant as unknown as UserLean);
+          participantsMap.set(
+            participantId,
+            participant as unknown as UserLean,
+          );
         }
       });
 
@@ -1292,16 +1393,19 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         if (!normalizedId) return;
 
         const participant = participantsMap.get(normalizedId);
-        
+
         if (participant) {
           const participantTyped = participant as unknown as UserLean;
-          const userName = participantTyped?.name || participantTyped?.username || '';
+          const userName =
+            participantTyped?.name || participantTyped?.username || '';
           const userProfileImage = participantTyped?.profileImage || null;
           const isHost = normalizedId === hostId;
 
           // Get team information for this participant
           const participantTeamId = userTeamMap.get(normalizedId);
-          const teamInfo = participantTeamId ? teamsInfoMap.get(participantTeamId) : null;
+          const teamInfo = participantTeamId
+            ? teamsInfoMap.get(participantTeamId)
+            : null;
 
           participantDetails.push({
             userId: normalizedId,
@@ -1311,11 +1415,12 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
             teamId: participantTeamId || undefined,
             teamName: teamInfo?.teamName || undefined,
           });
-
         } else {
           // Get team information even if user not found
           const participantTeamId = userTeamMap.get(normalizedId);
-          const teamInfo = participantTeamId ? teamsInfoMap.get(participantTeamId) : null;
+          const teamInfo = participantTeamId
+            ? teamsInfoMap.get(participantTeamId)
+            : null;
           // Add participant with default values
           participantDetails.push({
             userId: normalizedId,
@@ -1340,13 +1445,15 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         acceptorProfileImage: acceptorProfileImage, // Add acceptor's profile image so inviter can see who accepted
       };
       // Emit to room, not globally - ensures only users in the room receive it
-      this.server.to(room.roomId).emit('teamInviteAccepted', inviteAcceptedPayload);
+      this.server
+        .to(room.roomId)
+        .emit('teamInviteAccepted', inviteAcceptedPayload);
 
       // Emit inviteTeamMemberAccepted to the admin (inviter) who sent the invite
       // Format matches the specification: invitesendId, inviteaccpetId
       const normalizedInviterId = this.normalizeId(room.inviterId);
       // normalizedAcceptorId already declared above
-      
+
       if (normalizedInviterId) {
         const inviterSocket = this.userSockets.get(normalizedInviterId);
         if (inviterSocket) {
@@ -1360,7 +1467,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
             acceptorName: acceptorName,
             acceptorProfileImage: acceptorProfileImage,
           };
-          inviterSocket.emit('inviteTeamMemberAccepted', inviteTeamMemberAcceptedPayload);
+          inviterSocket.emit(
+            'inviteTeamMemberAccepted',
+            inviteTeamMemberAcceptedPayload,
+          );
         } else {
         }
       }
@@ -1370,27 +1480,34 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       let deckName: string | undefined = undefined;
       let topicId: string | undefined = undefined;
       let topicName: string | undefined = undefined;
-      
-      
+
       if (activeRoom) {
         const roomTyped = activeRoom as unknown as RoomWithMetadata;
         const roomDeckId = roomTyped.deckId;
         const roomTopicId = roomTyped.topicId;
-        
+
         if (roomDeckId) {
           deckId = this.normalizeId(roomDeckId) || undefined;
           if (deckId) {
-            const deck = await this.deckModel.findById(deckId).select('name').lean().exec();
+            const deck = await this.deckModel
+              .findById(deckId)
+              .select('name')
+              .lean()
+              .exec();
             if (deck) {
               deckName = (deck as unknown as DeckLean)?.name || undefined;
             }
           }
         }
-        
+
         if (roomTopicId) {
           topicId = this.normalizeId(roomTopicId) || undefined;
           if (topicId) {
-            const topic = await this.topicModel.findById(topicId).select('title').lean().exec();
+            const topic = await this.topicModel
+              .findById(topicId)
+              .select('title')
+              .lean()
+              .exec();
             if (topic) {
               topicName = (topic as unknown as TopicLean)?.title || undefined;
             }
@@ -1402,10 +1519,16 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Format matches the specification: invitsendId, invitaccpetedId
       // Reuse normalizedInviterId and normalizedAcceptorId from above
       // Determine mode (Regular | Knockout) from active room or room object if available
-      const activeRoomTyped = activeRoom ? (activeRoom as unknown as RoomWithMetadata) : null;
+      const activeRoomTyped = activeRoom
+        ? (activeRoom as unknown as RoomWithMetadata)
+        : null;
       const roomTyped = room as unknown as RoomWithMetadata;
-      const mode = (activeRoomTyped?.gameMode || activeRoomTyped?.mode) ||
-        (roomTyped?.gameMode || roomTyped?.mode) || undefined;
+      const mode =
+        activeRoomTyped?.gameMode ||
+        activeRoomTyped?.mode ||
+        roomTyped?.gameMode ||
+        roomTyped?.mode ||
+        undefined;
 
       const roomDetailsPayload: {
         roomId: string;
@@ -1437,7 +1560,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         teamMemberCount: teamMemberCounts, // Count of members in each team in the room
         mode: mode,
       };
-      
+
       // Add deck and topic information if available
       if (deckId) {
         roomDetailsPayload.deckId = deckId;
@@ -1452,7 +1575,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         roomDetailsPayload.topicName = topicName;
       }
       this.server.to(room.roomId).emit('roomDetails', roomDetailsPayload);
-
     } catch (error) {
       client.emit('errorMessage', {
         message: error?.message || 'Failed to accept team invite',
@@ -1472,7 +1594,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
   ) {
     const userId = client.data.userId;
     try {
-
       if (!userId) {
         return client.emit('errorMessage', { message: 'Unauthorized' });
       }
@@ -1481,7 +1602,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         success: true,
         result,
       });
-      
+
       // Get room details after cancel to emit updated roomDetails
       let roomId = data.gameId;
       if (!roomId) {
@@ -1537,9 +1658,12 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
           // Get all unique team IDs
           const teamIds = Array.from(new Set(userTeamMap.values()));
-          
+
           // Fetch team details (teamName) for all teams
-          const teamsInfoMap = new Map<string, { teamId: string; teamName: string }>();
+          const teamsInfoMap = new Map<
+            string,
+            { teamId: string; teamName: string }
+          >();
           if (teamIds.length > 0) {
             const teams = await this.teamModel
               .find({ _id: { $in: teamIds } })
@@ -1562,7 +1686,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           normalizedParticipants.forEach((participantId) => {
             const participantTeamId = userTeamMap.get(participantId);
             if (participantTeamId) {
-              teamMemberCounts[participantTeamId] = (teamMemberCounts[participantTeamId] || 0) + 1;
+              teamMemberCounts[participantTeamId] =
+                (teamMemberCounts[participantTeamId] || 0) + 1;
             }
           });
 
@@ -1580,17 +1705,25 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           }> = [];
 
           // Batch query all participants
-          const participantIds = participants.map(p => this.normalizeId(p)).filter((id): id is string => id !== null);
-          const allParticipants = await this.userModel.find({ 
-            _id: { $in: participantIds } 
-          }).lean().exec();
+          const participantIds = participants
+            .map((p) => this.normalizeId(p))
+            .filter((id): id is string => id !== null);
+          const allParticipants = await this.userModel
+            .find({
+              _id: { $in: participantIds },
+            })
+            .lean()
+            .exec();
 
           // Create a map for quick lookup
           const participantsMap = new Map<string, UserLean>();
           allParticipants.forEach((participant) => {
             const participantId = this.normalizeId(participant._id);
             if (participantId) {
-              participantsMap.set(participantId, participant as unknown as UserLean);
+              participantsMap.set(
+                participantId,
+                participant as unknown as UserLean,
+              );
             }
           });
 
@@ -1600,16 +1733,19 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
             if (!normalizedId) return;
 
             const participant = participantsMap.get(normalizedId);
-            
+
             if (participant) {
               const participantTyped = participant as unknown as UserLean;
-              const userName = participantTyped?.name || participantTyped?.username || '';
+              const userName =
+                participantTyped?.name || participantTyped?.username || '';
               const userProfileImage = participantTyped?.profileImage || null;
               const isHost = normalizedId === hostId;
 
               // Get team information for this participant
               const participantTeamId = userTeamMap.get(normalizedId);
-              const teamInfo = participantTeamId ? teamsInfoMap.get(participantTeamId) : null;
+              const teamInfo = participantTeamId
+                ? teamsInfoMap.get(participantTeamId)
+                : null;
 
               participantDetails.push({
                 userId: normalizedId,
@@ -1622,7 +1758,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
             } else {
               // Get team information even if user not found
               const participantTeamId = userTeamMap.get(normalizedId);
-              const teamInfo = participantTeamId ? teamsInfoMap.get(participantTeamId) : null;
+              const teamInfo = participantTeamId
+                ? teamsInfoMap.get(participantTeamId)
+                : null;
               participantDetails.push({
                 userId: normalizedId,
                 name: '',
@@ -1634,38 +1772,48 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
             }
           });
 
-          const normalizedInviterId = this.normalizeId(activeRoom.participants[0]);
-          
+          const normalizedInviterId = this.normalizeId(
+            activeRoom.participants[0],
+          );
+
           // Get deck and topic information from active room
           let deckId: string | undefined = undefined;
           let deckName: string | undefined = undefined;
           let topicId: string | undefined = undefined;
           let topicName: string | undefined = undefined;
-          
+
           const activeRoomTyped = activeRoom as unknown as RoomWithMetadata;
           const roomDeckId = activeRoomTyped.deckId;
           const roomTopicId = activeRoomTyped.topicId;
-          
+
           if (roomDeckId) {
             deckId = this.normalizeId(roomDeckId) || undefined;
             if (deckId) {
-              const deck = await this.deckModel.findById(deckId).select('name').lean().exec();
+              const deck = await this.deckModel
+                .findById(deckId)
+                .select('name')
+                .lean()
+                .exec();
               if (deck) {
                 deckName = (deck as unknown as DeckLean)?.name || undefined;
               }
             }
           }
-          
+
           if (roomTopicId) {
             topicId = this.normalizeId(roomTopicId) || undefined;
             if (topicId) {
-              const topic = await this.topicModel.findById(topicId).select('title').lean().exec();
+              const topic = await this.topicModel
+                .findById(topicId)
+                .select('title')
+                .lean()
+                .exec();
               if (topic) {
                 topicName = (topic as unknown as TopicLean)?.title || undefined;
               }
             }
           }
-          
+
           const roomDetailsPayload: {
             roomId: string;
             invitsendId?: string;
@@ -1695,7 +1843,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
             participants: participantDetails,
             teamMemberCount: teamMemberCounts,
           };
-          
+
           // Add deck and topic information if available
           if (deckId) {
             roomDetailsPayload.deckId = deckId;
@@ -1711,7 +1859,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           }
 
           // Include mode if available on activeRoom (reuse activeRoomTyped from above)
-          const cancelMode = activeRoomTyped?.gameMode || activeRoomTyped?.mode || undefined;
+          const cancelMode =
+            activeRoomTyped?.gameMode || activeRoomTyped?.mode || undefined;
           if (cancelMode) {
             roomDetailsPayload.mode = cancelMode;
           }
@@ -1770,7 +1919,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       for (const [teamId, playerIds] of gameState.teams.entries()) {
         if (playerIds.includes(normalizedUserId)) {
           leftTeamId = teamId;
-          const updatedPlayers = playerIds.filter((p) => p !== normalizedUserId);
+          const updatedPlayers = playerIds.filter(
+            (p) => p !== normalizedUserId,
+          );
           if (updatedPlayers.length === 0) {
             gameState.teams.delete(teamId);
             gameState.teamScores.delete(teamId);
@@ -1781,7 +1932,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         }
       }
 
-      gameState.players = gameState.players.filter((p) => p !== normalizedUserId);
+      gameState.players = gameState.players.filter(
+        (p) => p !== normalizedUserId,
+      );
       gameState.playerAnswers.delete(normalizedUserId);
       gameState.playerWrongAnswers.delete(normalizedUserId);
       gameState.eliminatedPlayers.delete(normalizedUserId);
@@ -1792,38 +1945,38 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         normalizedUserId,
       );
 
-    // Emit left event to room, not globally - ensures only users in the room receive it
-    this.server.to(gameState.roomId).emit('teamUserLeft', {
-      gameId: gameState.gameId,
-      roomId: gameState.roomId,
-      userId: normalizedUserId,
-      teamId: leftTeamId,
-      remainingPlayers: gameState.players,
-      remainingTeams: Array.from(gameState.teams.keys()),
-    });
+      // Emit left event to room, not globally - ensures only users in the room receive it
+      this.server.to(gameState.roomId).emit('teamUserLeft', {
+        gameId: gameState.gameId,
+        roomId: gameState.roomId,
+        userId: normalizedUserId,
+        teamId: leftTeamId,
+        remainingPlayers: gameState.players,
+        remainingTeams: Array.from(gameState.teams.keys()),
+      });
 
-    // Re-broadcast updated team scores without the removed team if applicable
-    const teamScoresObj: Record<string, number> = {};
-    gameState.teamScores.forEach((score, teamId) => {
-      teamScoresObj[teamId] = score;
-    });
+      // Re-broadcast updated team scores without the removed team if applicable
+      const teamScoresObj: Record<string, number> = {};
+      gameState.teamScores.forEach((score, teamId) => {
+        teamScoresObj[teamId] = score;
+      });
 
-    // Emit to room, not globally - ensures only users in the room receive it
-    this.server.to(gameState.roomId).emit('teamScoresUpdate', {
-      gameId: gameState.gameId,
-      roomId: gameState.roomId,
-      teamScores: teamScoresObj,
-    });
+      // Emit to room, not globally - ensures only users in the room receive it
+      this.server.to(gameState.roomId).emit('teamScoresUpdate', {
+        gameId: gameState.gameId,
+        roomId: gameState.roomId,
+        teamScores: teamScoresObj,
+      });
 
-    // Check if game should end (no players or only one team left)
-    const activeTeams = new Set<string>();
-    gameState.players.forEach((playerId) => {
-      for (const [teamId, playerIds] of gameState.teams.entries()) {
-        if (playerIds.includes(playerId)) {
-          activeTeams.add(teamId);
+      // Check if game should end (no players or only one team left)
+      const activeTeams = new Set<string>();
+      gameState.players.forEach((playerId) => {
+        for (const [teamId, playerIds] of gameState.teams.entries()) {
+          if (playerIds.includes(playerId)) {
+            activeTeams.add(teamId);
+          }
         }
-      }
-    });
+      });
 
       if (gameState.players.length === 0 || activeTeams.size <= 1) {
         setTimeout(() => {
@@ -1836,8 +1989,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       });
     }
   }
-
-
 
   // -------------------------------------------------------------
   // CREATE AND START TEAM GAME
@@ -1860,7 +2011,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
   ) {
     const userId = client.data.userId as string;
     try {
-
       if (!userId) {
         return client.emit('errorMessage', { message: 'Unauthorized' });
       }
@@ -1877,7 +2027,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       const room = this.contentService.getRoomByUserId(userId);
       if (!room) {
         return client.emit('errorMessage', {
-          message: 'You must be in a room to create a game. Accept an invite first.',
+          message:
+            'You must be in a room to create a game. Accept an invite first.',
         });
       }
 
@@ -1892,7 +2043,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Check if user is the host (inviter) - only the user who sent the invites can start the game
       const normalizedUserId = this.normalizeId(userId);
       const inviterId = this.normalizeId(room.participants[0]);
-      
+
       if (!inviterId || inviterId !== normalizedUserId) {
         return client.emit('errorMessage', {
           message: 'Only the user who sent the invites can start the game',
@@ -1901,10 +2052,11 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       // Validate team-based acceptance (all teams must have equal accepted players)
       // Exclude inviter (admin) from validation - they can only view, not play
-      const teamValidation = await this.teamGameService.validateTeamBasedAcceptance(
-        room.participants,
-        inviterId,
-      );
+      const teamValidation =
+        await this.teamGameService.validateTeamBasedAcceptance(
+          room.participants,
+          inviterId,
+        );
 
       if (!teamValidation.isValid) {
         return client.emit('errorMessage', {
@@ -1925,10 +2077,15 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       // Get game from database to start it
       const gameModel = this.contentService.getGameModel();
-      const game = await gameModel.findOne({ gameId: result.gameId }).lean().exec();
+      const game = await gameModel
+        .findOne({ gameId: result.gameId })
+        .lean()
+        .exec();
 
       if (!game) {
-        return client.emit('errorMessage', { message: 'Game not found after creation' });
+        return client.emit('errorMessage', {
+          message: 'Game not found after creation',
+        });
       }
 
       // Generate questions - if deckId is provided, get topicId from deck and generate from all subtopics
@@ -1946,7 +2103,11 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         // Get topicId from deck (first topic in deck)
         const normalizedDeckId = this.normalizeId(deckId);
         if (normalizedDeckId) {
-          const deck = await this.deckModel.findById(normalizedDeckId).select('contentIds').lean().exec();
+          const deck = await this.deckModel
+            .findById(normalizedDeckId)
+            .select('contentIds')
+            .lean()
+            .exec();
           if (deck && deck.contentIds && deck.contentIds.length > 0) {
             resolvedTopicId = this.normalizeId(deck.contentIds[0]);
           }
@@ -1958,7 +2119,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         const normalizedTopicId = resolvedTopicId;
 
         // Get the topic
-        const fetchedTopic = await this.topicModel.findById(normalizedTopicId).lean().exec();
+        const fetchedTopic = await this.topicModel
+          .findById(normalizedTopicId)
+          .lean()
+          .exec();
         if (!fetchedTopic) {
           return client.emit('errorMessage', {
             message: 'Topic not found',
@@ -2020,9 +2184,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         );
       } else {
         // Use existing logic - generate questions for single subtopic
-        const { subTopic, topic: fetchedTopic } = await this.contentService.getSubTopicAndTopic(
-          game.subTopicId,
-        );
+        const { subTopic, topic: fetchedTopic } =
+          await this.contentService.getSubTopicAndTopic(game.subTopicId);
 
         if (!fetchedTopic) {
           return client.emit('errorMessage', {
@@ -2078,7 +2241,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       // Create team game state (reuse teamValidation from above)
       // inviterId is already defined above
-      
+
       const teamGameState: TeamGameState = {
         gameId: result.gameId,
         roomId: room.roomId,
@@ -2092,7 +2255,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         teamScores: new Map(),
         playerWrongAnswers: new Map(),
         eliminatedPlayers: new Set(),
-        gameMode: (game.metadata as unknown as GameMetadata)?.gameMode as 'Regular' | 'Knockout' | undefined,
+        gameMode: (game.metadata as unknown as GameMetadata)?.gameMode,
         inviterId: inviterId,
         startedAt: new Date(),
         questionStartTimes: new Map(),
@@ -2113,21 +2276,32 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       this.teamGames.set(room.roomId, teamGameState);
 
       // Get player info (name, profileImage, isHost) for all participants
-      const playerInfo: Record<string, { name: string; profileImage: string | null; isHost: boolean }> = {};
+      const playerInfo: Record<
+        string,
+        { name: string; profileImage: string | null; isHost: boolean }
+      > = {};
       const hostId = this.normalizeId(room.participants[0]);
-      
+
       // Batch query all participants
-      const participantIds = room.participants.map(p => this.normalizeId(p)).filter((id): id is string => id !== null);
-      const allParticipants = await this.userModel.find({ 
-        _id: { $in: participantIds } 
-      }).lean().exec();
+      const participantIds = room.participants
+        .map((p) => this.normalizeId(p))
+        .filter((id): id is string => id !== null);
+      const allParticipants = await this.userModel
+        .find({
+          _id: { $in: participantIds },
+        })
+        .lean()
+        .exec();
 
       // Create a map for quick lookup
       const participantsMap = new Map<string, UserLean>();
       allParticipants.forEach((participant) => {
         const participantId = this.normalizeId(participant._id);
         if (participantId) {
-          participantsMap.set(participantId, participant as unknown as UserLean);
+          participantsMap.set(
+            participantId,
+            participant as unknown as UserLean,
+          );
         }
       });
 
@@ -2137,10 +2311,11 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         if (!normalizedId) return;
 
         const participant = participantsMap.get(normalizedId);
-        
+
         if (participant) {
           const participantTyped = participant as unknown as UserLean;
-          const userName = participantTyped?.name || participantTyped?.username || '';
+          const userName =
+            participantTyped?.name || participantTyped?.username || '';
           const userProfileImage = participantTyped?.profileImage || null;
           const isHost = normalizedId === hostId;
           playerInfo[normalizedId] = {
@@ -2173,7 +2348,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         teams.forEach((team) => {
           const teamId = this.normalizeId(team._id);
           if (teamId) {
-            teampoint[teamId] = typeof team.points === 'number' && Number.isFinite(team.points) ? team.points : 0;
+            teampoint[teamId] =
+              typeof team.points === 'number' && Number.isFinite(team.points)
+                ? team.points
+                : 0;
             teamsInfo[teamId] = {
               teamName: (team as unknown as TeamLean)?.teamName || '',
             };
@@ -2187,7 +2365,11 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Get deck name
       let deckName: string | null = null;
       if (result.deckId) {
-        const deck = await this.deckModel.findById(result.deckId).select('name').lean().exec();
+        const deck = await this.deckModel
+          .findById(result.deckId)
+          .select('name')
+          .lean()
+          .exec();
         if (deck) {
           deckName = (deck as unknown as DeckLean)?.name || null;
         }
@@ -2207,7 +2389,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         topicName: string;
         totalQuestions: number;
         timePerQuestion: number;
-        playerInfo: Record<string, { name: string; profileImage: string | null; isHost: boolean }>;
+        playerInfo: Record<
+          string,
+          { name: string; profileImage: string | null; isHost: boolean }
+        >;
         teams: Record<string, { teamName: string }>;
         teampoint: Record<string, number>;
         totalmember: Record<string, number>;
@@ -2247,7 +2432,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         teamGameCreatedPayload.subTopicIndex = subTopicIndex;
         teamGameCreatedPayload.totalSubTopics = totalSubTopics;
       }
-      this.server.to(room.roomId).emit('teamGameCreated', teamGameCreatedPayload);
+      this.server
+        .to(room.roomId)
+        .emit('teamGameCreated', teamGameCreatedPayload);
 
       // Send first question to all players
       this.sendNextTeamQuestion(teamGameState);
@@ -2272,9 +2459,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       const q = questions[currentIndex];
 
       // Get list of eliminated players for Knockout mode
-      const eliminatedPlayersList = gameState.gameMode === 'Knockout' 
-        ? Array.from(gameState.eliminatedPlayers)
-        : [];
+      const eliminatedPlayersList =
+        gameState.gameMode === 'Knockout'
+          ? Array.from(gameState.eliminatedPlayers)
+          : [];
 
       // Emit question event (same as regular game gateway for consistency)
       // Admin/inviter can view questions but cannot answer
@@ -2299,8 +2487,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       gameState.questionStartTimes.set(currentIndex, questionStartTime);
 
       // Timer removed - no auto-submit
-    } catch (error) {
-    }
+    } catch (error) {}
   }
 
   // -------------------------------------------------------------
@@ -2311,11 +2498,16 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
   @SubscribeMessage('teamSubmitAnswer')
   async teamAnswerQuestion(
     @ConnectedSocket() client: Socket,
-    @MessageBody() body: { index: number; answer: string | null; gameId?: string; responstime?: number },
+    @MessageBody()
+    body: {
+      index: number;
+      answer: string | null;
+      gameId?: string;
+      responstime?: number;
+    },
   ) {
     const userId = client.data.userId;
     try {
-
       if (!userId) {
         return client.emit('errorMessage', { message: 'Unauthorized' });
       }
@@ -2324,86 +2516,85 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       const isOnline = await this.checkUserIsOnline(userId);
       if (!isOnline) {
         return client.emit('errorMessage', {
-          message: 'You must be online to submit answers. Please set your status to online.',
+          message:
+            'You must be online to submit answers. Please set your status to online.',
         });
       }
 
       const { answer, index, gameId, responstime } = body;
 
-    // Check if it's a team game
-    if (gameId) {
-      const room = this.contentService.getRoomByRoomId(gameId);
-      if (room) {
-        const teamGameState = this.teamGames.get(room.roomId);
-        if (teamGameState) {
-          return this.handleTeamAnswer(
-            client,
-            teamGameState,
-            userId,
-            index,
-            answer,
-            responstime,
-          );
+      // Check if it's a team game
+      if (gameId) {
+        const room = this.contentService.getRoomByRoomId(gameId);
+        if (room) {
+          const teamGameState = this.teamGames.get(room.roomId);
+          if (teamGameState) {
+            return this.handleTeamAnswer(
+              client,
+              teamGameState,
+              userId,
+              index,
+              answer,
+              responstime,
+            );
+          }
         }
       }
-    }
 
-    // Single player game
-    const gameState = this.activeGames.get(userId);
-    if (!gameState) {
-      return client.emit('errorMessage', { message: 'No active game' });
-    }
-
-    const currentIndex = gameState.currentIndex;
-
-    if (Number(index) !== Number(currentIndex)) {
-      return client.emit('errorMessage', {
-        message: 'Invalid question index',
-      });
-    }
-
-    const currentQ = gameState.questions[currentIndex];
-
-    // Handle null answer - treat as incorrect
-    const isCorrect = answer !== null &&
-      currentQ.correctAnswer.trim().toLowerCase() ===
-      answer.trim().toLowerCase();
-    gameState.isCorrect = isCorrect;
-
-    gameState.answers.push({
-      index: currentIndex,
-      question: currentQ.question,
-      userAnswer: answer,
-      correctAnswer: currentQ.correctAnswer,
-      isCorrect,
-      timestamp: new Date(),
-    });
-
-    // Update player progress immediately
-    await this.contentService.updateProgressAfterQuestion(
-      userId,
-      isCorrect,
-    );
-    
-    if (isCorrect) {
-      gameState.score++;
-
-      client.emit('answerResult', {
-        correct: true,
-        score: gameState.score,
-        lives: gameState.lives,
-        questionIndex: currentIndex,
-      });
-
-      gameState.currentIndex++;
-      if (gameState.currentIndex >= gameState.questions.length) {
-        return this.endGame(gameState);
+      // Single player game
+      const gameState = this.activeGames.get(userId);
+      if (!gameState) {
+        return client.emit('errorMessage', { message: 'No active game' });
       }
-      this.sendNextQuestion(gameState);
-    } else {
-      // WRONG ANSWER
-      await this.handleWrongAnswer(gameState, answer, client);
-    }
+
+      const currentIndex = gameState.currentIndex;
+
+      if (Number(index) !== Number(currentIndex)) {
+        return client.emit('errorMessage', {
+          message: 'Invalid question index',
+        });
+      }
+
+      const currentQ = gameState.questions[currentIndex];
+
+      // Handle null answer - treat as incorrect
+      const isCorrect =
+        answer !== null &&
+        currentQ.correctAnswer.trim().toLowerCase() ===
+          answer.trim().toLowerCase();
+      gameState.isCorrect = isCorrect;
+
+      gameState.answers.push({
+        index: currentIndex,
+        question: currentQ.question,
+        userAnswer: answer,
+        correctAnswer: currentQ.correctAnswer,
+        isCorrect,
+        timestamp: new Date(),
+      });
+
+      // Update player progress immediately
+      await this.contentService.updateProgressAfterQuestion(userId, isCorrect);
+
+      if (isCorrect) {
+        gameState.score++;
+
+        client.emit('answerResult', {
+          correct: true,
+          score: gameState.score,
+          lives: gameState.lives,
+          questionIndex: currentIndex,
+        });
+
+        gameState.currentIndex++;
+        if (gameState.currentIndex >= gameState.questions.length) {
+          return this.endGame(gameState);
+        }
+        this.sendNextQuestion(gameState);
+      } else {
+        // WRONG ANSWER
+        await this.handleWrongAnswer(gameState, answer, client);
+      }
     } catch (error) {
       client.emit('errorMessage', {
         message: error?.message || 'Failed to submit answer',
@@ -2468,9 +2659,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       const currentQ = gameState.questions[currentIndex];
       // Handle null answer - treat as incorrect
-      const isCorrect = answer !== null &&
+      const isCorrect =
+        answer !== null &&
         currentQ.correctAnswer.trim().toLowerCase() ===
-        answer.trim().toLowerCase();
+          answer.trim().toLowerCase();
 
       // Record answer
       const answerRecord: AnswerRecord = {
@@ -2499,17 +2691,20 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       } else {
         // Track wrong answers for Knockout mode
         if (gameState.gameMode === 'Knockout') {
-          const currentWrongAnswers = gameState.playerWrongAnswers.get(normalizedUserId) || 0;
+          const currentWrongAnswers =
+            gameState.playerWrongAnswers.get(normalizedUserId) || 0;
           const newWrongAnswers = currentWrongAnswers + 1;
           gameState.playerWrongAnswers.set(normalizedUserId, newWrongAnswers);
 
           // Check if player should be eliminated (3 wrong answers)
           if (newWrongAnswers >= 3) {
             gameState.eliminatedPlayers.add(normalizedUserId);
-            
+
             // Get all eliminated players list
-            const allEliminatedPlayers = Array.from(gameState.eliminatedPlayers);
-            
+            const allEliminatedPlayers = Array.from(
+              gameState.eliminatedPlayers,
+            );
+
             // Find which team the eliminated player belongs to
             let eliminatedPlayerTeamId: string | null = null;
             for (const [teamId, playerIds] of gameState.teams.entries()) {
@@ -2518,17 +2713,23 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
                 break;
               }
             }
-            
+
             // Notify only the eliminated player's team members about elimination
             // Exclude inviter (admin) from receiving the event
             const normalizedInviterId = this.normalizeId(gameState.inviterId);
             if (eliminatedPlayerTeamId) {
-              const teamMembers = gameState.teams.get(eliminatedPlayerTeamId) || [];
+              const teamMembers =
+                gameState.teams.get(eliminatedPlayerTeamId) || [];
               teamMembers.forEach((teamMemberId) => {
                 const normalizedTeamMemberId = this.normalizeId(teamMemberId);
                 // Only send to team members (not the inviter/host)
-                if (normalizedTeamMemberId && normalizedTeamMemberId !== normalizedInviterId) {
-                  const teamMemberSocket = this.userSockets.get(normalizedTeamMemberId);
+                if (
+                  normalizedTeamMemberId &&
+                  normalizedTeamMemberId !== normalizedInviterId
+                ) {
+                  const teamMemberSocket = this.userSockets.get(
+                    normalizedTeamMemberId,
+                  );
                   if (teamMemberSocket) {
                     teamMemberSocket.emit('teamPlayerEliminated', {
                       eliminatedUserId: normalizedUserId,
@@ -2537,7 +2738,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
                       wrongAnswers: newWrongAnswers,
                       allEliminatedPlayers: allEliminatedPlayers,
                       activePlayers: gameState.players.filter(
-                        (p) => !gameState.eliminatedPlayers.has(p)
+                        (p) => !gameState.eliminatedPlayers.has(p),
                       ),
                     });
                   }
@@ -2593,7 +2794,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Send answer result to the player
       client.emit('teamAnswerResult', {
         correct: isCorrect,
-        teamScore: playerTeamId ? (gameState.teamScores.get(playerTeamId) || 0) : 0,
+        teamScore: playerTeamId
+          ? gameState.teamScores.get(playerTeamId) || 0
+          : 0,
         questionIndex: currentIndex,
         correctAnswer: currentQ.correctAnswer,
         wrongAnswers: gameState.playerWrongAnswers.get(normalizedUserId) || 0,
@@ -2617,7 +2820,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Check if all active (non-eliminated) players have answered
       // Exclude inviter (admin) from the check - they can only view, not answer
       const activePlayers = gameState.players.filter(
-        (p) => !gameState.eliminatedPlayers.has(p) && this.normalizeId(p) !== normalizedInviterId
+        (p) =>
+          !gameState.eliminatedPlayers.has(p) &&
+          this.normalizeId(p) !== normalizedInviterId,
       );
       const allAnswered = activePlayers.every((playerId) => {
         const answers = gameState.playerAnswers.get(playerId) || [];
@@ -2636,7 +2841,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         }> = [];
         for (const playerId of gameState.players) {
           const playerAnswers = gameState.playerAnswers.get(playerId) || [];
-          const currentQuestionAnswer = playerAnswers.find((a) => a.index === currentIndex);
+          const currentQuestionAnswer = playerAnswers.find(
+            (a) => a.index === currentIndex,
+          );
           if (currentQuestionAnswer) {
             // Get team ID for this player
             let playerTeamId: string | null = null;
@@ -2646,12 +2853,14 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
                 break;
               }
             }
-            
+
             allUserAnswers.push({
               userId: playerId,
               userAnswer: currentQuestionAnswer.userAnswer,
               isCorrect: currentQuestionAnswer.isCorrect,
-              teamScore: playerTeamId ? (gameState.teamScores.get(playerTeamId) || 0) : 0,
+              teamScore: playerTeamId
+                ? gameState.teamScores.get(playerTeamId) || 0
+                : 0,
               responstime: currentQuestionAnswer.responstime, // Include response time
             });
           }
@@ -2696,89 +2905,139 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Exclude inviter (admin) from timeout handling - they can only view, not answer
       const normalizedInviterId = this.normalizeId(gameState.inviterId);
       const activePlayers = gameState.players.filter(
-        (p) => !gameState.eliminatedPlayers.has(p) && this.normalizeId(p) !== normalizedInviterId
+        (p) =>
+          !gameState.eliminatedPlayers.has(p) &&
+          this.normalizeId(p) !== normalizedInviterId,
       );
 
       for (const playerId of activePlayers) {
-      const answers = gameState.playerAnswers.get(playerId) || [];
-      const alreadyAnswered = answers.some((a) => a.index === currentIndex);
+        const answers = gameState.playerAnswers.get(playerId) || [];
+        const alreadyAnswered = answers.some((a) => a.index === currentIndex);
 
-      if (!alreadyAnswered) {
-        const answerRecord: AnswerRecord = {
-          index: currentIndex,
-          question: currentQ.question,
-          userAnswer: null,
-          correctAnswer: currentQ.correctAnswer,
-          isCorrect: false,
-          timestamp: new Date(),
-        };
+        if (!alreadyAnswered) {
+          const answerRecord: AnswerRecord = {
+            index: currentIndex,
+            question: currentQ.question,
+            userAnswer: null,
+            correctAnswer: currentQ.correctAnswer,
+            isCorrect: false,
+            timestamp: new Date(),
+          };
 
-        answers.push(answerRecord);
-        gameState.playerAnswers.set(playerId, answers);
+          answers.push(answerRecord);
+          gameState.playerAnswers.set(playerId, answers);
 
-        // Track wrong answers for Knockout mode
-        if (gameState.gameMode === 'Knockout') {
-          const currentWrongAnswers = gameState.playerWrongAnswers.get(playerId) || 0;
-          const newWrongAnswers = currentWrongAnswers + 1;
-          gameState.playerWrongAnswers.set(playerId, newWrongAnswers);
+          // Track wrong answers for Knockout mode
+          if (gameState.gameMode === 'Knockout') {
+            const currentWrongAnswers =
+              gameState.playerWrongAnswers.get(playerId) || 0;
+            const newWrongAnswers = currentWrongAnswers + 1;
+            gameState.playerWrongAnswers.set(playerId, newWrongAnswers);
 
-          // Check if player should be eliminated (3 wrong answers)
-          if (newWrongAnswers >= 3) {
-            gameState.eliminatedPlayers.add(playerId);
-            
-            // Get all eliminated players list
-            const allEliminatedPlayers = Array.from(gameState.eliminatedPlayers);
-            
-            // Find which team the eliminated player belongs to
-            let eliminatedPlayerTeamId: string | null = null;
+            // Check if player should be eliminated (3 wrong answers)
+            if (newWrongAnswers >= 3) {
+              gameState.eliminatedPlayers.add(playerId);
+
+              // Get all eliminated players list
+              const allEliminatedPlayers = Array.from(
+                gameState.eliminatedPlayers,
+              );
+
+              // Find which team the eliminated player belongs to
+              let eliminatedPlayerTeamId: string | null = null;
+              for (const [teamId, playerIds] of gameState.teams.entries()) {
+                if (playerIds.includes(playerId)) {
+                  eliminatedPlayerTeamId = teamId;
+                  break;
+                }
+              }
+
+              // Notify only the eliminated player's team members about elimination
+              // Exclude inviter (admin) from receiving the event
+              const normalizedInviterId = this.normalizeId(gameState.inviterId);
+              if (eliminatedPlayerTeamId) {
+                const teamMembers =
+                  gameState.teams.get(eliminatedPlayerTeamId) || [];
+                teamMembers.forEach((teamMemberId) => {
+                  const normalizedTeamMemberId = this.normalizeId(teamMemberId);
+                  // Only send to team members (not the inviter/host)
+                  if (
+                    normalizedTeamMemberId &&
+                    normalizedTeamMemberId !== normalizedInviterId
+                  ) {
+                    const teamMemberSocket = this.userSockets.get(
+                      normalizedTeamMemberId,
+                    );
+                    if (teamMemberSocket) {
+                      teamMemberSocket.emit('teamPlayerEliminated', {
+                        eliminatedUserId: playerId,
+                        gameId: gameState.gameId,
+                        roomId: gameState.roomId,
+                        wrongAnswers: newWrongAnswers,
+                        allEliminatedPlayers: allEliminatedPlayers,
+                        activePlayers: gameState.players.filter(
+                          (p) => !gameState.eliminatedPlayers.has(p),
+                        ),
+                      });
+                    }
+                  }
+                });
+              }
+
+              // Notify the eliminated player specifically
+              const playerSocket = this.userSockets.get(playerId);
+              if (playerSocket) {
+                playerSocket.emit('youAreEliminated', {
+                  message: 'You have been eliminated after 3 wrong answers',
+                  wrongAnswers: newWrongAnswers,
+                  eliminatedPlayers: allEliminatedPlayers,
+                });
+              }
+            }
+          }
+
+          // Send timeout result to player
+          const playerSocket = this.userSockets.get(playerId);
+          if (playerSocket) {
+            // Get team ID for this player
+            let playerTeamId: string | null = null;
             for (const [teamId, playerIds] of gameState.teams.entries()) {
               if (playerIds.includes(playerId)) {
-                eliminatedPlayerTeamId = teamId;
+                playerTeamId = teamId;
                 break;
               }
             }
-            
-            // Notify only the eliminated player's team members about elimination
-            // Exclude inviter (admin) from receiving the event
-            const normalizedInviterId = this.normalizeId(gameState.inviterId);
-            if (eliminatedPlayerTeamId) {
-              const teamMembers = gameState.teams.get(eliminatedPlayerTeamId) || [];
-              teamMembers.forEach((teamMemberId) => {
-                const normalizedTeamMemberId = this.normalizeId(teamMemberId);
-                // Only send to team members (not the inviter/host)
-                if (normalizedTeamMemberId && normalizedTeamMemberId !== normalizedInviterId) {
-                  const teamMemberSocket = this.userSockets.get(normalizedTeamMemberId);
-                  if (teamMemberSocket) {
-                    teamMemberSocket.emit('teamPlayerEliminated', {
-                      eliminatedUserId: playerId,
-                      gameId: gameState.gameId,
-                      roomId: gameState.roomId,
-                      wrongAnswers: newWrongAnswers,
-                      allEliminatedPlayers: allEliminatedPlayers,
-                      activePlayers: gameState.players.filter(
-                        (p) => !gameState.eliminatedPlayers.has(p)
-                      ),
-                    });
-                  }
-                }
-              });
-            }
 
-            // Notify the eliminated player specifically
-            const playerSocket = this.userSockets.get(playerId);
-            if (playerSocket) {
-              playerSocket.emit('youAreEliminated', {
-                message: 'You have been eliminated after 3 wrong answers',
-                wrongAnswers: newWrongAnswers,
-                eliminatedPlayers: allEliminatedPlayers,
-              });
-            }
+            playerSocket.emit('teamAnswerResult', {
+              correct: false,
+              teamScore: playerTeamId
+                ? gameState.teamScores.get(playerTeamId) || 0
+                : 0,
+              questionIndex: currentIndex,
+              correctAnswer: currentQ.correctAnswer,
+              timeout: true,
+              wrongAnswers: gameState.playerWrongAnswers.get(playerId) || 0,
+              isEliminated: gameState.eliminatedPlayers.has(playerId),
+              responstime: undefined, // No response time for timeout
+            });
           }
         }
+      }
 
-        // Send timeout result to player
-        const playerSocket = this.userSockets.get(playerId);
-        if (playerSocket) {
+      // Collect all answers for current question from all players (including timeout answers)
+      const allUserAnswers: Array<{
+        userId: string;
+        userAnswer: string | null;
+        isCorrect: boolean;
+        teamScore: number;
+        responstime?: number;
+      }> = [];
+      for (const playerId of gameState.players) {
+        const playerAnswers = gameState.playerAnswers.get(playerId) || [];
+        const currentQuestionAnswer = playerAnswers.find(
+          (a) => a.index === currentIndex,
+        );
+        if (currentQuestionAnswer) {
           // Get team ID for this player
           let playerTeamId: string | null = null;
           for (const [teamId, playerIds] of gameState.teams.entries()) {
@@ -2788,79 +3047,46 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
             }
           }
 
-          playerSocket.emit('teamAnswerResult', {
-            correct: false,
-            teamScore: playerTeamId ? (gameState.teamScores.get(playerTeamId) || 0) : 0,
-            questionIndex: currentIndex,
-            correctAnswer: currentQ.correctAnswer,
-            timeout: true,
-            wrongAnswers: gameState.playerWrongAnswers.get(playerId) || 0,
-            isEliminated: gameState.eliminatedPlayers.has(playerId),
-            responstime: undefined, // No response time for timeout
+          allUserAnswers.push({
+            userId: playerId,
+            userAnswer: currentQuestionAnswer.userAnswer,
+            isCorrect: currentQuestionAnswer.isCorrect,
+            teamScore: playerTeamId
+              ? gameState.teamScores.get(playerTeamId) || 0
+              : 0,
+            responstime: currentQuestionAnswer.responstime, // Include response time
           });
         }
       }
-    }
 
-    // Collect all answers for current question from all players (including timeout answers)
-    const allUserAnswers: Array<{
-      userId: string;
-      userAnswer: string | null;
-      isCorrect: boolean;
-      teamScore: number;
-      responstime?: number;
-    }> = [];
-    for (const playerId of gameState.players) {
-      const playerAnswers = gameState.playerAnswers.get(playerId) || [];
-      const currentQuestionAnswer = playerAnswers.find((a) => a.index === currentIndex);
-      if (currentQuestionAnswer) {
-        // Get team ID for this player
-        let playerTeamId: string | null = null;
-        for (const [teamId, playerIds] of gameState.teams.entries()) {
-          if (playerIds.includes(playerId)) {
-            playerTeamId = teamId;
-            break;
+      // Broadcast all user answers to all participants in the room
+      this.server.to(gameState.roomId).emit('alluseranswerresult', {
+        gameId: gameState.gameId,
+        roomId: gameState.roomId,
+        questionIndex: currentIndex,
+        correctAnswer: currentQ.correctAnswer,
+        allAnswers: allUserAnswers,
+      });
+
+      // Check if game should end (only one team remaining)
+      const activeTeams = new Set<string>();
+      gameState.players.forEach((playerId) => {
+        if (!gameState.eliminatedPlayers.has(playerId)) {
+          for (const [teamId, playerIds] of gameState.teams.entries()) {
+            if (playerIds.includes(playerId)) {
+              activeTeams.add(teamId);
+            }
           }
         }
-        
-        allUserAnswers.push({
-          userId: playerId,
-          userAnswer: currentQuestionAnswer.userAnswer,
-          isCorrect: currentQuestionAnswer.isCorrect,
-          teamScore: playerTeamId ? (gameState.teamScores.get(playerTeamId) || 0) : 0,
-          responstime: currentQuestionAnswer.responstime, // Include response time
-        });
+      });
+
+      if (activeTeams.size <= 1) {
+        // End game early
+        setTimeout(() => {
+          this.endTeamGame(gameState);
+        }, 2000);
+        return;
       }
-    }
-
-    // Broadcast all user answers to all participants in the room
-    this.server.to(gameState.roomId).emit('alluseranswerresult', {
-      gameId: gameState.gameId,
-      roomId: gameState.roomId,
-      questionIndex: currentIndex,
-      correctAnswer: currentQ.correctAnswer,
-      allAnswers: allUserAnswers,
-    });
-
-    // Check if game should end (only one team remaining)
-    const activeTeams = new Set<string>();
-    gameState.players.forEach((playerId) => {
-      if (!gameState.eliminatedPlayers.has(playerId)) {
-        for (const [teamId, playerIds] of gameState.teams.entries()) {
-          if (playerIds.includes(playerId)) {
-            activeTeams.add(teamId);
-          }
-        }
-      }
-    });
-
-    if (activeTeams.size <= 1) {
-      // End game early
-      setTimeout(() => {
-        this.endTeamGame(gameState);
-      }, 2000);
-      return;
-    }
 
       // Move to next question
       setTimeout(() => {
@@ -2872,8 +3098,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           this.sendNextTeamQuestion(gameState);
         }
       }, 1000);
-    } catch (error) {
-    }
+    } catch (error) {}
   }
 
   // -------------------------------------------------------------
@@ -2905,8 +3130,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       gameState.questionStartAt = new Date();
 
       // Timer removed - no auto-submit
-    } catch (error) {
-    }
+    } catch (error) {}
   }
 
   // -------------------------------------------------------------
@@ -2927,7 +3151,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         gameState.answers.push({
           index: currentIndex,
           question: currentQ.question,
-          userAnswer:userAnswer ? userAnswer : null,
+          userAnswer: userAnswer ? userAnswer : null,
           correctAnswer: currentQ.correctAnswer,
           isCorrect: false,
           timestamp: new Date(),
@@ -2953,7 +3177,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         livesLeft: gameState.lives,
         correctAnswer: currentQ.correctAnswer,
         questionIndex: currentIndex,
-        userAnswer:userAnswer ? userAnswer : null
+        userAnswer: userAnswer ? userAnswer : null,
       });
 
       if (gameState.lives <= 0) {
@@ -2962,8 +3186,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       gameState.currentIndex++;
       setTimeout(() => this.sendNextQuestion(gameState), 700);
-    } catch (error) {
-    }
+    } catch (error) {}
   }
 
   // -------------------------------------------------------------
@@ -2975,12 +3198,14 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       const { socket, score, questions, answers, startedAt } = gameState;
 
-    // Calculate accuracy: (correct answers / total questions) * 100
-    const totalQuestions = questions.length;
-    const correctAnswers = answers.filter((answer) => answer.isCorrect).length;
-    const accuracy =
-      totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
-    const accuracyRounded = Math.round(accuracy * 100) / 100;
+      // Calculate accuracy: (correct answers / total questions) * 100
+      const totalQuestions = questions.length;
+      const correctAnswers = answers.filter(
+        (answer) => answer.isCorrect,
+      ).length;
+      const accuracy =
+        totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+      const accuracyRounded = Math.round(accuracy * 100) / 100;
 
       // Persist flashcard accuracy to deck (if this game was tied to a deck)
       // Always try to find deck from subtopicId -> topicId -> deck
@@ -2990,26 +3215,26 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         .select('selectedDeckId subTopicId')
         .lean();
       let selectedDeckId = this.normalizeId(gameDoc?.selectedDeckId);
-      
+
       // Always try to find deck by topicId from subtopicId if we have subtopicId
       // This ensures we always get the deck even if selectedDeckId is not set
       if (gameState.subTopicId || gameDoc?.subTopicId) {
         const subtopicId = gameState.subTopicId || gameDoc?.subTopicId;
         if (subtopicId) {
-          const { topic } = await this.contentService.getSubTopicAndTopic(
-            subtopicId,
-          );
+          const { topic } =
+            await this.contentService.getSubTopicAndTopic(subtopicId);
           const topicId = this.normalizeId(topic._id);
           if (topicId) {
             // Find deck that contains this topic
-            const deckIdFromTopic = await this.teamGameService.findDeckIdByTopicId(topicId);
+            const deckIdFromTopic =
+              await this.teamGameService.findDeckIdByTopicId(topicId);
             if (deckIdFromTopic) {
               selectedDeckId = deckIdFromTopic;
             }
           }
         }
       }
-      
+
       // Record flashcard accuracy to deck
       if (selectedDeckId) {
         await this.teamGameService.recordDeckAccuracy(
@@ -3033,38 +3258,38 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         }
       }
 
-    await this.contentService.completeGame(gameState.gameId, {
-      currentQuestion: gameState.currentIndex,
-      scores: { [gameState.userId]: score },
-      playerAnswers: answers.map((answer) => ({
-        userId: gameState.userId,
-        questionIndex: answer.index,
-        answer: answer.userAnswer ?? '',
-        isCorrect: answer.isCorrect,
-        timestamp: answer.timestamp ?? new Date(),
-      })),
-      lastQuestionTimestamp: new Date(),
-      accuracy: { [gameState.userId]: accuracyRounded },
-    });
+      await this.contentService.completeGame(gameState.gameId, {
+        currentQuestion: gameState.currentIndex,
+        scores: { [gameState.userId]: score },
+        playerAnswers: answers.map((answer) => ({
+          userId: gameState.userId,
+          questionIndex: answer.index,
+          answer: answer.userAnswer ?? '',
+          isCorrect: answer.isCorrect,
+          timestamp: answer.timestamp ?? new Date(),
+        })),
+        lastQuestionTimestamp: new Date(),
+        accuracy: { [gameState.userId]: accuracyRounded },
+      });
 
       // Update team-member accuracy aggregates (flashcard/battle/game)
       await this.teamGameService.refreshMemberAccuracies(gameState.userId);
 
-    // Increment totalGamesPlayed when game is completed
-    await this.contentService.incrementTotalGamesPlayed(gameState.userId);
+      // Increment totalGamesPlayed when game is completed
+      await this.contentService.incrementTotalGamesPlayed(gameState.userId);
 
-    // Update daily streak (Type 1: 7-day icons, Type 2: current streak)
-    // await this.contentService.updateDailyStreak(gameState.userId);
+      // Update daily streak (Type 1: 7-day icons, Type 2: current streak)
+      // await this.contentService.updateDailyStreak(gameState.userId);
 
-    // Award points based on score (1 point per correct answer)
-    const pointsToAward = score;
-    if (pointsToAward > 0) {
-      await this.contentService.awardPointsAndCoins(
-        gameState.userId,
-        pointsToAward,
-        0, // No coins for single player
-      );
-    }
+      // Award points based on score (1 point per correct answer)
+      const pointsToAward = score;
+      if (pointsToAward > 0) {
+        await this.contentService.awardPointsAndCoins(
+          gameState.userId,
+          pointsToAward,
+          0, // No coins for single player
+        );
+      }
 
       if (gameState.subTopicId) {
         await this.contentService.updateSubTopicUserAccuracy(
@@ -3085,15 +3310,17 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         if (user && user.lives <= 0) {
           // Set nextLivesRefillAt to 5 minutes from now if not already set
           const fiveMinutesFromNow = new Date(Date.now() + 5 * 60 * 1000);
-          if (!user.nextLivesRefillAt || user.nextLivesRefillAt.getTime() > fiveMinutesFromNow.getTime()) {
-            await this.userModel.findByIdAndUpdate(
-              gameState.userId,
-              {
+          if (
+            !user.nextLivesRefillAt ||
+            user.nextLivesRefillAt.getTime() > fiveMinutesFromNow.getTime()
+          ) {
+            await this.userModel
+              .findByIdAndUpdate(gameState.userId, {
                 $set: {
                   nextLivesRefillAt: fiveMinutesFromNow,
                 },
-              },
-            ).exec();
+              })
+              .exec();
           }
         }
       }
@@ -3111,8 +3338,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       });
 
       this.activeGames.delete(gameState.userId);
-    } catch (error) {
-    }
+    } catch (error) {}
   }
 
   // -------------------------------------------------------------
@@ -3122,7 +3348,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     try {
       // Timer removed - no cleanup needed
 
-      const { gameId, players, questions, playerAnswers, teamScores, teams } = gameState;
+      const { gameId, players, questions, playerAnswers, teamScores, teams } =
+        gameState;
 
       // Calculate team correct answers and accuracy
       const teamCorrectCounts: Map<string, number> = new Map();
@@ -3140,10 +3367,11 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         });
 
         teamCorrectCounts.set(teamId, teamCorrectCount);
-        
+
         // Calculate accuracy: (correct answers / total questions) * 100
         const totalQuestions = questions.length;
-        const accuracy = totalQuestions > 0 ? (teamCorrectCount / totalQuestions) * 100 : 0;
+        const accuracy =
+          totalQuestions > 0 ? (teamCorrectCount / totalQuestions) * 100 : 0;
         const accuracyRounded = Math.round(accuracy * 100) / 100;
         teamAccuracies.set(teamId, accuracyRounded);
       });
@@ -3155,7 +3383,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       players.forEach((playerId) => {
         const answers = playerAnswers.get(playerId) || [];
         const correctCount = answers.filter((a) => a.isCorrect).length;
-        const accuracy = totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0;
+        const accuracy =
+          totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0;
         const accuracyRounded = Math.round(accuracy * 100) / 100;
         playerAccuracies.set(playerId, accuracyRounded);
       });
@@ -3173,14 +3402,13 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       if (deckIdForGame) {
         await Promise.all(
-          Array.from(playerAccuracies.entries()).map(
-            ([playerId, accuracy]) =>
-              this.teamGameService.recordDeckAccuracy(
-                deckIdForGame,
-                playerId,
-                accuracy,
-                'battle',
-              ),
+          Array.from(playerAccuracies.entries()).map(([playerId, accuracy]) =>
+            this.teamGameService.recordDeckAccuracy(
+              deckIdForGame,
+              playerId,
+              accuracy,
+              'battle',
+            ),
           ),
         );
       }
@@ -3188,14 +3416,13 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Record battle accuracy to subtopic and update topic for each player
       if (gameState.subTopicId) {
         await Promise.all(
-          Array.from(playerAccuracies.entries()).map(
-            ([playerId, accuracy]) =>
-              this.teamGameService.recordSubTopicAccuracy(
-                gameState.subTopicId,
-                playerId,
-                accuracy,
-                'battle',
-              ),
+          Array.from(playerAccuracies.entries()).map(([playerId, accuracy]) =>
+            this.teamGameService.recordSubTopicAccuracy(
+              gameState.subTopicId,
+              playerId,
+              accuracy,
+              'battle',
+            ),
           ),
         );
       }
@@ -3206,16 +3433,17 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         const answers = playerAnswers.get(playerId) || [];
         // Filter answers that have response time (exclude null/undefined)
         const answersWithResponseTime = answers.filter(
-          (a) => a.responstime !== undefined && a.responstime !== null
+          (a) => a.responstime !== undefined && a.responstime !== null,
         );
-        
+
         if (answersWithResponseTime.length > 0) {
           // Calculate average response time: sum of all response times / number of answered questions
           const totalResponseTime = answersWithResponseTime.reduce(
             (sum, answer) => sum + (answer.responstime || 0),
-            0
+            0,
           );
-          const averageResponseTime = totalResponseTime / answersWithResponseTime.length;
+          const averageResponseTime =
+            totalResponseTime / answersWithResponseTime.length;
           playerAverageResponseTimes.set(playerId, averageResponseTime);
         }
       });
@@ -3254,7 +3482,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           const answers = playerAnswers.get(playerId) || [];
           answers.forEach((answer) => {
             // Sum all response times (only for answered questions, ignore null/undefined)
-            if (answer.responstime !== undefined && answer.responstime !== null) {
+            if (
+              answer.responstime !== undefined &&
+              answer.responstime !== null
+            ) {
               totalResponseTime += answer.responstime;
             }
           });
@@ -3264,7 +3495,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       // Get team information (teamName, points) BEFORE awarding points
       // This way we can show the points before the game
-      const teamsInfoMapBeforeAward: Map<string, { teamName: string; points: number }> = new Map();
+      const teamsInfoMapBeforeAward: Map<
+        string,
+        { teamName: string; points: number }
+      > = new Map();
       const teamIds = Array.from(teams.keys());
       if (teamIds.length > 0) {
         const teamsData = await this.teamModel
@@ -3277,7 +3511,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           if (teamId) {
             teamsInfoMapBeforeAward.set(teamId, {
               teamName: (team as unknown as TeamLean)?.teamName || '',
-              points: typeof team.points === 'number' && Number.isFinite(team.points) ? team.points : 0,
+              points:
+                typeof team.points === 'number' && Number.isFinite(team.points)
+                  ? team.points
+                  : 0,
             });
           }
         });
@@ -3297,12 +3534,15 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         return responseTimeA - responseTimeB;
       });
 
-      const winnerTeamId = teamScoresArray.length > 0 ? teamScoresArray[0][0] : null;
+      const winnerTeamId =
+        teamScoresArray.length > 0 ? teamScoresArray[0][0] : null;
       const winnerScore = winnerTeamId ? teamScores.get(winnerTeamId) || 0 : 0;
-      
+
       // Check if there's a tie at the top score
-      const topScoreTeams = teamScoresArray.filter(([_, score]) => score === winnerScore);
-      
+      const topScoreTeams = teamScoresArray.filter(
+        ([_, score]) => score === winnerScore,
+      );
+
       // Determine final winner: if multiple teams tied on score, use response time tiebreaker
       let finalWinnerTeamId: string | null = null;
       if (topScoreTeams.length > 1) {
@@ -3311,16 +3551,18 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           teamId,
           responseTime: teamResponseTimeSums.get(teamId) || Infinity,
         }));
-        
+
         // Sort by response time (ascending - lower is better)
-        topScoreTeamResponseTimes.sort((a, b) => a.responseTime - b.responseTime);
-        
+        topScoreTeamResponseTimes.sort(
+          (a, b) => a.responseTime - b.responseTime,
+        );
+
         // Check if there's a unique lowest response time
         const lowestResponseTime = topScoreTeamResponseTimes[0].responseTime;
         const teamsWithLowestResponseTime = topScoreTeamResponseTimes.filter(
-          (t) => t.responseTime === lowestResponseTime
+          (t) => t.responseTime === lowestResponseTime,
         );
-        
+
         if (teamsWithLowestResponseTime.length === 1) {
           // Unique winner based on response time
           finalWinnerTeamId = teamsWithLowestResponseTime[0].teamId;
@@ -3336,9 +3578,15 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Identify loser teams (lowest score). If all teams share the same score (including 0),
       // all team IDs will be included as losers per requirement.
       // Exclude the winner team from loser teams
-      const lowestScore = teamScoresArray.length > 0 ? teamScoresArray[teamScoresArray.length - 1][1] : 0;
+      const lowestScore =
+        teamScoresArray.length > 0
+          ? teamScoresArray[teamScoresArray.length - 1][1]
+          : 0;
       const loserTeamIds = teamScoresArray
-        .filter(([teamId, score]) => score === lowestScore && teamId !== finalWinnerTeamId)
+        .filter(
+          ([teamId, score]) =>
+            score === lowestScore && teamId !== finalWinnerTeamId,
+        )
         .map(([teamId]) => teamId);
 
       // Award 50 points to the winning team (if a unique winner exists)
@@ -3347,7 +3595,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       }
 
       // Get team information (teamName, points) AFTER awarding points (for host view)
-      const teamsInfoMap: Map<string, { teamName: string; points: number }> = new Map();
+      const teamsInfoMap: Map<string, { teamName: string; points: number }> =
+        new Map();
       if (teamIds.length > 0) {
         const teamsData = await this.teamModel
           .find({ _id: { $in: teamIds } })
@@ -3359,7 +3608,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           if (teamId) {
             teamsInfoMap.set(teamId, {
               teamName: (team as unknown as TeamLean)?.teamName || '',
-              points: typeof team.points === 'number' && Number.isFinite(team.points) ? team.points : 0,
+              points:
+                typeof team.points === 'number' && Number.isFinite(team.points)
+                  ? team.points
+                  : 0,
             });
           }
         });
@@ -3423,9 +3675,12 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       // Get player information (name, profileImage) and points for all players
       // OPTIMIZATION: Batch queries instead of N individual queries
-      const playerInfoMap: Map<string, { name: string; profileImage: string | null; points: number }> = new Map();
+      const playerInfoMap: Map<
+        string,
+        { name: string; profileImage: string | null; points: number }
+      > = new Map();
       const playerPointsMap: Map<string, number> = new Map();
-      
+
       // Build playerTeamIdMap (no query, just mapping)
       const playerTeamIdMap: Map<string, string> = new Map();
       players.forEach((playerId) => {
@@ -3438,7 +3693,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       });
 
       // OPTIMIZATION: Build query conditions for TeamGameScore batch query
-      const teamGameScoreConditions: Array<{ userId: string; teamId: string }> = [];
+      const teamGameScoreConditions: Array<{ userId: string; teamId: string }> =
+        [];
       players.forEach((playerId) => {
         const teamId = playerTeamIdMap.get(playerId);
         if (teamId) {
@@ -3449,25 +3705,26 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // OPTIMIZATION: Single batch query for all TeamGameScore records instead of N queries
       let teamGameScores: TeamGameScoreLean[] = [];
       if (teamGameScoreConditions.length > 0) {
-        teamGameScores = await this.teamGameScoreModel
+        teamGameScores = (await this.teamGameScoreModel
           .find({
-            $or: teamGameScoreConditions.map(cond => ({
+            $or: teamGameScoreConditions.map((cond) => ({
               userId: cond.userId,
               teamId: cond.teamId,
             })),
           })
           .select('userId teamId points')
           .lean()
-          .exec() as unknown as TeamGameScoreLean[];
+          .exec()) as unknown as TeamGameScoreLean[];
       }
 
       // Create map for quick lookup of player points
       teamGameScores.forEach((tgs) => {
         const userId = this.normalizeId(tgs.userId);
         if (userId) {
-          const points = typeof tgs.points === 'number' && Number.isFinite(tgs.points) 
-            ? tgs.points 
-            : 0;
+          const points =
+            typeof tgs.points === 'number' && Number.isFinite(tgs.points)
+              ? tgs.points
+              : 0;
           playerPointsMap.set(userId, points);
         }
       });
@@ -3516,7 +3773,11 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       for (const [teamId, playerIds] of teams.entries()) {
         // Build array of { playerId, points } for this team
         const teamPlayersWithPoints = playerIds.map((pid) => {
-          const info = playerInfoMap.get(pid) || { name: '', profileImage: null, points: 0 };
+          const info = playerInfoMap.get(pid) || {
+            name: '',
+            profileImage: null,
+            points: 0,
+          };
           return { playerId: pid, points: info.points };
         });
 
@@ -3557,20 +3818,38 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Match-only points for this match (50 for winner, 0 otherwise)
       const teamMatchPointsObj: Record<string, number> = {};
       for (const tid of teamIds) {
-        teamMatchPointsObj[tid] = finalWinnerTeamId && tid === finalWinnerTeamId ? 50 : 0;
+        teamMatchPointsObj[tid] =
+          finalWinnerTeamId && tid === finalWinnerTeamId ? 50 : 0;
       }
 
       const playerAccuracyObj = Object.fromEntries(playerAccuracies);
-      const playerAverageResponseTimesObj = Object.fromEntries(playerAverageResponseTimes);
+      const playerAverageResponseTimesObj = Object.fromEntries(
+        playerAverageResponseTimes,
+      );
 
       // Group player info by team: { teamId: { playerId: { name, profileImage, rank, points } }}
-      const playerInfoGrouped: Record<string, Record<string, { name: string; profileImage: string | null; rank: number; points: number }>> = {};
+      const playerInfoGrouped: Record<
+        string,
+        Record<
+          string,
+          {
+            name: string;
+            profileImage: string | null;
+            rank: number;
+            points: number;
+          }
+        >
+      > = {};
       for (const [teamId, memberIds] of teams.entries()) {
         playerInfoGrouped[teamId] = {};
         for (const memberId of memberIds) {
           const normalizedMemberId = this.normalizeId(memberId);
           if (!normalizedMemberId) continue;
-          const pInfo = playerInfoMap.get(memberId) || { name: '', profileImage: null, points: 0 };
+          const pInfo = playerInfoMap.get(memberId) || {
+            name: '',
+            profileImage: null,
+            points: 0,
+          };
           const rank = playerRankMap.get(memberId) || 0;
           playerInfoGrouped[teamId][normalizedMemberId] = {
             name: pInfo.name,
@@ -3582,7 +3861,16 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       }
 
       // Build playerAnswers object keyed by normalized playerId, trimmed to desired fields
-      const playerAnswersObj: Record<string, Array<{ index: number; userAnswer: string; correctAnswer: string; isCorrect: boolean; responstime?: number }>> = {};
+      const playerAnswersObj: Record<
+        string,
+        Array<{
+          index: number;
+          userAnswer: string;
+          correctAnswer: string;
+          isCorrect: boolean;
+          responstime?: number;
+        }>
+      > = {};
       for (const playerId of players) {
         const normalizedPlayerId = this.normalizeId(playerId);
         if (!normalizedPlayerId) continue;
@@ -3653,8 +3941,14 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         }
 
         // Get team info (use BEFORE award points for display)
-        const teamInfoBefore = teamsInfoMapBeforeAward.get(playerTeamId) || { teamName: '', points: 0 };
-        const teamInfo = teamsInfoMap.get(playerTeamId) || { teamName: '', points: 0 };
+        const teamInfoBefore = teamsInfoMapBeforeAward.get(playerTeamId) || {
+          teamName: '',
+          points: 0,
+        };
+        const teamInfo = teamsInfoMap.get(playerTeamId) || {
+          teamName: '',
+          points: 0,
+        };
         const teamScore = teamScores.get(playerTeamId) || 0;
         const teamResult = getTeamResult(playerTeamId);
 
@@ -3665,21 +3959,26 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
         // Get player's answers
         const myAnswers = playerAnswers.get(normalizedPlayerId) || [];
-        
+
         // Get player's individual score and accuracy
         const playerScore = myAnswers.filter((a) => a.isCorrect).length;
-        const playerAccuracyValue = playerAccuracies.get(normalizedPlayerId) || 0;
+        const playerAccuracyValue =
+          playerAccuracies.get(normalizedPlayerId) || 0;
 
         // Get player's average response time
-        const playerAverageResponseTime = playerAverageResponseTimes.get(normalizedPlayerId) || 0;
+        const playerAverageResponseTime =
+          playerAverageResponseTimes.get(normalizedPlayerId) || 0;
 
         // Get player info with rank and points for members of this player's team only
-        const playerInfoObj: Record<string, { 
-          name: string; 
-          profileImage: string | null; 
-          rank: number; 
-          points: number;
-        }> = {};
+        const playerInfoObj: Record<
+          string,
+          {
+            name: string;
+            profileImage: string | null;
+            rank: number;
+            points: number;
+          }
+        > = {};
 
         // teamMemberIds contains original playerIds for this team
         const teamMemberIds = teams.get(playerTeamId) || [];
@@ -3687,7 +3986,11 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         teamMemberIds.forEach((memberId) => {
           const normalizedMemberId = this.normalizeId(memberId);
           if (!normalizedMemberId) return;
-          const pInfo = playerInfoMap.get(memberId) || { name: '', profileImage: null, points: 0 };
+          const pInfo = playerInfoMap.get(memberId) || {
+            name: '',
+            profileImage: null,
+            points: 0,
+          };
           const rank = playerRankMap.get(memberId) || 0;
           playerInfoObj[normalizedMemberId] = {
             name: pInfo.name,
@@ -3698,14 +4001,19 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         });
 
         // Get current player info for user field
-        const currentPlayerInfo = playerInfoMap.get(normalizedPlayerId) || { name: '', profileImage: null, points: 0 };
+        const currentPlayerInfo = playerInfoMap.get(normalizedPlayerId) || {
+          name: '',
+          profileImage: null,
+          points: 0,
+        };
         const userField = `${normalizedPlayerId}|${currentPlayerInfo.name}`;
 
         // Get player points from the map
         const playerPoints = currentPlayerInfo.points;
 
         // Get team response time sum
-        const myTeamResponseTimeSum = teamResponseTimeSums.get(playerTeamId) || 0;
+        const myTeamResponseTimeSum =
+          teamResponseTimeSums.get(playerTeamId) || 0;
 
         // Get opponent teams information (all teams except player's own team)
         // Use points before award for consistency
@@ -3715,8 +4023,11 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           teamPoints: number;
           teamScore: number;
         }> = [];
-        
-        for (const [teamId, teamInfoData] of teamsInfoMapBeforeAward.entries()) {
+
+        for (const [
+          teamId,
+          teamInfoData,
+        ] of teamsInfoMapBeforeAward.entries()) {
           if (teamId !== playerTeamId) {
             const opponentTeamScore = teamScores.get(teamId) || 0;
             // Calculate points gained from this game for opponent team
@@ -3765,8 +4076,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       // Clean up
       this.teamGames.delete(gameState.roomId);
-    } catch (error) {
-    }
+    } catch (error) {}
   }
 }
-

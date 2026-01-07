@@ -7,11 +7,26 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './lib/jwt.strategy';
 import { User, UserSchema } from 'src/users/entities/user.entity';
 import { MailService } from '../common/mail.service';
-import { AdminCreation, AdminCreationSchema } from '../organization/entities/admin-creation.entity';
-import { TeamMember, TeamMemberSchema } from '../organization/entities/team-member.entity';
-import { ContentFileData, ContentFileDataSchema } from '../organization/entities/content-file-data.entity';
-import { GameProgress, GameProgressSchema } from '../content/schemas/game-progress.schema';
-import { TempRegistration, TempRegistrationSchema } from './schemas/temp-registration.schema';
+import {
+  AdminCreation,
+  AdminCreationSchema,
+} from '../organization/entities/admin-creation.entity';
+import {
+  TeamMember,
+  TeamMemberSchema,
+} from '../organization/entities/team-member.entity';
+import {
+  ContentFileData,
+  ContentFileDataSchema,
+} from '../organization/entities/content-file-data.entity';
+import {
+  GameProgress,
+  GameProgressSchema,
+} from '../content/schemas/game-progress.schema';
+import {
+  TempRegistration,
+  TempRegistrationSchema,
+} from './schemas/temp-registration.schema';
 @Module({
   imports: [
     MongooseModule.forFeature([

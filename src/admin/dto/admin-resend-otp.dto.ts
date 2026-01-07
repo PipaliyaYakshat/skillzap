@@ -10,4 +10,3 @@ export class AdminResendOtpDto {
   @IsNotEmpty()
   email: string;
 }
-

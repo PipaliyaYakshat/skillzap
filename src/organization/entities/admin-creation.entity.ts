@@ -9,7 +9,11 @@ export class AdminCreation extends Document {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: false })
   createdAdmin: MongooseSchema.Types.ObjectId;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Organization', required: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Organization',
+    required: true,
+  })
   organization: MongooseSchema.Types.ObjectId;
 
   @Prop({ required: true })
@@ -25,4 +29,4 @@ export class AdminCreation extends Document {
   createdAt: Date;
 }
 
-export const AdminCreationSchema = SchemaFactory.createForClass(AdminCreation); 
+export const AdminCreationSchema = SchemaFactory.createForClass(AdminCreation);

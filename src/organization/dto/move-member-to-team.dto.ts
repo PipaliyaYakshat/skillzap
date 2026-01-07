@@ -26,4 +26,3 @@ export class MoveMemberToTeamDto {
   @IsNotEmpty()
   moveTeamId: string;
 }
-

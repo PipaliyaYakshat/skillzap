@@ -10,7 +10,12 @@ import {
 } from 'class-validator';
 
 export class CreateUserDto {
-  @ApiProperty({ example: 'John', description: 'User first name', required: false, nullable: true })
+  @ApiProperty({
+    example: 'John',
+    description: 'User first name',
+    required: false,
+    nullable: true,
+  })
   @IsOptional()
   @IsString({ message: 'First name must be a string' })
   name?: string | null;

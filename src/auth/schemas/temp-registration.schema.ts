@@ -53,8 +53,8 @@ export class TempRegistration extends Document {
   pendingTeamMemberId: string | null;
 }
 
-export const TempRegistrationSchema = SchemaFactory.createForClass(TempRegistration);
+export const TempRegistrationSchema =
+  SchemaFactory.createForClass(TempRegistration);
 
 // Add TTL index to auto-delete expired registrations after 10 minutes
 TempRegistrationSchema.index({ otpSendDate: 1 }, { expireAfterSeconds: 600 });
-

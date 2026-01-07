@@ -27,7 +27,7 @@ export class ContentFileData extends Document {
   // @Prop({ required: true })
   // userId: string;
 
-  @Prop({ required: false,default:'pending' })
+  @Prop({ required: false, default: 'pending' })
   status: string;
 
   @Prop({ type: String, required: true })
@@ -35,7 +35,7 @@ export class ContentFileData extends Document {
 
   @Prop({ type: String, required: false, default: null })
   countryCode: string;
-  
 }
 
-export const ContentFileDataSchema = SchemaFactory.createForClass(ContentFileData); 
+export const ContentFileDataSchema =
+  SchemaFactory.createForClass(ContentFileData);

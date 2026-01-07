@@ -97,11 +97,12 @@ export class SubscriptionService {
         throw new BadRequestException('Invalid subscription plan ID.');
       }
 
-      const subscriptionPlan = await this.subscriptionPlanModel.findByIdAndUpdate(
-        id,
-        { isDeleted: true },
-        { new: true },
-      );
+      const subscriptionPlan =
+        await this.subscriptionPlanModel.findByIdAndUpdate(
+          id,
+          { isDeleted: true },
+          { new: true },
+        );
 
       if (!subscriptionPlan) {
         throw new NotFoundException('Subscription plan not found.');
@@ -120,4 +121,3 @@ export class SubscriptionService {
     }
   }
 }
-

@@ -19,4 +19,3 @@ export class PurchaseLiveDto {
   @MaxLength(20)
   cardNumber: string;
 }
-

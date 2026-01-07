@@ -35,7 +35,10 @@ import { PurchaseAvatarDto } from './dto/purchase-avatar.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ContentFileData } from 'src/organization/entities/content-file-data.entity';
 import { MailService } from 'src/common/mail.service';
-import { convertToPublicUrl, getPublicUrlPath } from 'src/common/multer.service';
+import {
+  convertToPublicUrl,
+  getPublicUrlPath,
+} from 'src/common/multer.service';
 import { ContentService } from 'src/content/content.service';
 import { USER_TYPE } from 'src/common/enum';
 
@@ -78,11 +81,7 @@ export class UsersService {
 
       const [dailyStreak, createdDecks, gameProgress] = await Promise.all([
         this.contentService.getDailyStreak(userId),
-        this.deckModel
-          .find({ userId })
-          .sort({ createdAt: -1 })
-          .lean()
-          .exec(),
+        this.deckModel.find({ userId }).sort({ createdAt: -1 }).lean().exec(),
         this.gameProgressModel.findOne({ userId }).lean().exec(),
       ]);
 
@@ -96,10 +95,16 @@ export class UsersService {
 
       if (userDoc.organization) {
         // Check if organization is populated (has name/logo properties) or just an ObjectId
-        const organization = userDoc.organization as unknown as OrganizationDocument | Types.ObjectId;
-        if (organization && typeof organization === 'object' && 'name' in organization) {
+        const organization = userDoc.organization as unknown as
+          | OrganizationDocument
+          | Types.ObjectId;
+        if (
+          organization &&
+          typeof organization === 'object' &&
+          'name' in organization
+        ) {
           // It's populated - it's an OrganizationDocument
-          const orgDoc = organization as OrganizationDocument;
+          const orgDoc = organization;
           organizerName = orgDoc.name || null;
           organizerLogo = orgDoc.logo || null;
           organizationId = orgDoc._id?.toString() || null;
@@ -116,7 +121,7 @@ export class UsersService {
           .findOne({ creatorId: userId })
           .lean()
           .exec();
-        
+
         if (createdOrganization) {
           organizerName = createdOrganization.name || null;
           organizerLogo = createdOrganization.logo || null;
@@ -201,11 +206,13 @@ export class UsersService {
           ...incomingAvatarIds,
         ].filter((id) => id !== '' && id !== undefined && id !== null);
 
-        user.avatarId = Array.from(new Set(mergedAvatarIds)) as string[];
-        
+        user.avatarId = Array.from(new Set(mergedAvatarIds));
+
         // Update profileImage to avatarId value when avatarId is set
         // Use the newly added avatarId (last one from incoming) for profileImage
-        const validIncomingIds = incomingAvatarIds.filter((id) => id !== '' && id !== undefined && id !== null);
+        const validIncomingIds = incomingAvatarIds.filter(
+          (id) => id !== '' && id !== undefined && id !== null,
+        );
         if (validIncomingIds.length > 0) {
           // Use the last incoming avatar ID (most recently added) for profileImage
           const newAvatarId = validIncomingIds[validIncomingIds.length - 1];
@@ -217,13 +224,18 @@ export class UsersService {
         }
       }
       if (updateUserDto.purchasedAvatars !== undefined) {
-        const existingPurchasedAvatars: string[] = Array.isArray(user.purchasedAvatars)
+        const existingPurchasedAvatars: string[] = Array.isArray(
+          user.purchasedAvatars,
+        )
           ? user.purchasedAvatars
-          : user.purchasedAvatars !== undefined && user.purchasedAvatars !== null
+          : user.purchasedAvatars !== undefined &&
+              user.purchasedAvatars !== null
             ? [String(user.purchasedAvatars)]
             : [];
 
-        const incomingPurchasedAvatars = Array.isArray(updateUserDto.purchasedAvatars)
+        const incomingPurchasedAvatars = Array.isArray(
+          updateUserDto.purchasedAvatars,
+        )
           ? updateUserDto.purchasedAvatars
           : [updateUserDto.purchasedAvatars];
 
@@ -232,11 +244,14 @@ export class UsersService {
           ...incomingPurchasedAvatars,
         ].filter((id) => id !== '' && id !== undefined && id !== null);
 
-        user.purchasedAvatars = Array.from(new Set(mergedPurchasedAvatars)) as string[];
+        user.purchasedAvatars = Array.from(new Set(mergedPurchasedAvatars));
       }
 
       if (profileImage) {
-        user.profileImage = getPublicUrlPath('profile-images', profileImage.filename);
+        user.profileImage = getPublicUrlPath(
+          'profile-images',
+          profileImage.filename,
+        );
       }
 
       const updatedUser = await user.save();
@@ -372,24 +387,27 @@ export class UsersService {
       __v,
       ...rest
     } = user.toObject();
-    
+
     // Convert profileImage filesystem path to public URL if needed
     // Only convert if it looks like a file path, not if it's just an avatarId
     if (rest.profileImage) {
       // If profileImage contains a path separator or starts with /, it's a file path
       // Otherwise, it's likely an avatarId and should be returned as is
-      if (rest.profileImage.includes('/') || rest.profileImage.startsWith('/')) {
+      if (
+        rest.profileImage.includes('/') ||
+        rest.profileImage.startsWith('/')
+      ) {
         rest.profileImage = convertToPublicUrl(rest.profileImage);
       }
       // If it's just a simple string (avatarId), keep it as is
     }
-    
+
     return rest;
   }
 
   private async refreshLivesIfNeeded(
     user: UserDocument | null,
-    ): Promise<UserDocument | null> {
+  ): Promise<UserDocument | null> {
     if (!user) {
       return null;
     }
@@ -404,11 +422,12 @@ export class UsersService {
       // Give different lives based on userType
       // "member" -> 50 lives
       // "individual"/"Individual" or any other type -> 15 lives
-      const isMember = user.userType?.toLowerCase() === USER_TYPE[3].toLowerCase();
-      const refillAmount = isMember 
-        ? UsersService.LIFE_REFILL_AMOUNT_MEMBER 
+      const isMember =
+        user.userType?.toLowerCase() === USER_TYPE[3].toLowerCase();
+      const refillAmount = isMember
+        ? UsersService.LIFE_REFILL_AMOUNT_MEMBER
         : UsersService.LIFE_REFILL_AMOUNT_INDIVIDUAL;
-      
+
       user.lives = refillAmount;
       user.nextLivesRefillAt = null;
       return user.save();
@@ -438,9 +457,7 @@ export class UsersService {
     return d;
   }
 
-  private buildWeeklyIcons(
-    dailyGamesCount: Record<string, number>,
-  ): string[] {
+  private buildWeeklyIcons(dailyGamesCount: Record<string, number>): string[] {
     const icons: string[] = [];
     const today = new Date();
     const todayStart = new Date(today);
@@ -522,9 +539,9 @@ export class UsersService {
 
     // Calculate points within the current 100-point cycle
     const pointsInCycle = userPoints % 100;
-    
+
     let unlockedBadgesCount = 0;
-    
+
     if (pointsInCycle >= 1 && pointsInCycle <= 20) {
       unlockedBadgesCount = 1; // Spark
     } else if (pointsInCycle >= 21 && pointsInCycle <= 40) {
@@ -569,7 +586,10 @@ export class UsersService {
         const isFuture = date > todayStart;
         defaultIcons.push(isToday || isFuture ? '' : 'cross');
       }
-      const dailyStreakWeek = this.buildWeeklyIconMeta(startOfWeek, defaultIcons);
+      const dailyStreakWeek = this.buildWeeklyIconMeta(
+        startOfWeek,
+        defaultIcons,
+      );
 
       return {
         currentDailyStreak: 0,
@@ -583,7 +603,10 @@ export class UsersService {
     const dailyGamesCount = progress.dailyGamesCount || {};
     const startOfWeek = this.getStartOfWeek(new Date());
     let dailyStreakIcons = this.buildWeeklyIcons(dailyGamesCount);
-    let dailyStreakWeek = this.buildWeeklyIconMeta(startOfWeek, dailyStreakIcons);
+    let dailyStreakWeek = this.buildWeeklyIconMeta(
+      startOfWeek,
+      dailyStreakIcons,
+    );
 
     // ensure 7 length fallback
     if (dailyStreakIcons.length !== 7) {
@@ -618,7 +641,6 @@ export class UsersService {
       lastGamePlayDate: progress.lastGamePlayDate || null,
     };
   }
-
 
   async buySubscriptionPlan(userId: string, buyPlanDto: BuyPlanDto) {
     try {
@@ -659,7 +681,7 @@ export class UsersService {
 
       user.isPayment = true;
       user.purchasePlanType = plan.subscriptionType;
-      user.purchasePlanId = plan._id as Types.ObjectId;
+      user.purchasePlanId = plan._id;
       user.startPlanDate = startDate;
       user.expirePlanDate = expireDate;
       user.cardNumber = cardNumber;
@@ -977,5 +999,4 @@ export class UsersService {
       );
     }
   }
-
 }

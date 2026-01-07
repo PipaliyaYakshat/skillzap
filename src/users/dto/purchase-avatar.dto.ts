@@ -11,4 +11,3 @@ export class PurchaseAvatarDto {
   @MaxLength(100)
   avatarId: string;
 }
-

@@ -15,43 +15,39 @@ export class MailService {
     });
   }
 
-//   async sendOtpEmail(to: string, username: string, otp: number) {
-//     const mailOptions = {
-//       from: 'pipaliyayakshat@gmail.com',
-//       to,
-//       subject: 'Your One-Time Password (OTP) for Password Reset',
-//       text: `Dear ${username},
+  //   async sendOtpEmail(to: string, username: string, otp: number) {
+  //     const mailOptions = {
+  //       from: 'pipaliyayakshat@gmail.com',
+  //       to,
+  //       subject: 'Your One-Time Password (OTP) for Password Reset',
+  //       text: `Dear ${username},
 
-// We received a request to reset your password. Please use the following One-Time Password (OTP) to proceed:
+  // We received a request to reset your password. Please use the following One-Time Password (OTP) to proceed:
 
-// OTP: ${otp}
+  // OTP: ${otp}
 
-// This OTP is valid for 2 minutes. For security reasons, do not share this code with anyone.
+  // This OTP is valid for 2 minutes. For security reasons, do not share this code with anyone.
 
-// If you did not request this password reset, please contact our support team immediately at support@example.com.
+  // If you did not request this password reset, please contact our support team immediately at support@example.com.
 
-// Best regards,
-// Your Company Team`,
-//     };
+  // Best regards,
+  // Your Company Team`,
+  //     };
 
-//     try {
-//       return await this.transporter.sendMail(mailOptions);
-//     } catch (error) {
-//       throw new HttpException(
-//         error.message,
-//         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
-//       );
-//     }
-//   }
+  //     try {
+  //       return await this.transporter.sendMail(mailOptions);
+  //     } catch (error) {
+  //       throw new HttpException(
+  //         error.message,
+  //         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+  //       );
+  //     }
+  //   }
 
-async sendOtpEmail(
-  to: string,
-  username: string,
-  otp: number,
-) {
-  const otpString = otp.toString().split('');
+  async sendOtpEmail(to: string, username: string, otp: number) {
+    const otpString = otp.toString().split('');
 
-  const html = `
+    const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -134,21 +130,20 @@ async sendOtpEmail(
 </html>
 `;
 
-  try {
-    return await this.transporter.sendMail({
-      from: 'SkillZap AI <pipaliyayakshat@gmail.com>',
-      to,
-      subject: 'Password Reset OTP – SkillZap AI',
-      html,
-    });
-  } catch (error) {
-    throw new HttpException(
-      error.message,
-      error.status || HttpStatus.INTERNAL_SERVER_ERROR,
-    );
+    try {
+      return await this.transporter.sendMail({
+        from: 'SkillZap AI <pipaliyayakshat@gmail.com>',
+        to,
+        subject: 'Password Reset OTP – SkillZap AI',
+        html,
+      });
+    } catch (error) {
+      throw new HttpException(
+        error.message,
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
-}
-
 
   async sendEnterpriseRegistrationEmail(registrationData: {
     firstName: string;
@@ -195,54 +190,54 @@ Skillzap System`,
     }
   }
 
-//   async sendEnterpriseApprovalEmail(
-//     email: string,
-//     firstName: string,
-//     lastName: string,
-//   ) {
-//     const mailOptions = {
-//       from: 'pipaliyayakshat@gmail.com',
-//       to: email,
-//       subject: 'Your Enterprise Account Has Been Approved',
-//       text: `Dear ${firstName} ${lastName},
+  //   async sendEnterpriseApprovalEmail(
+  //     email: string,
+  //     firstName: string,
+  //     lastName: string,
+  //   ) {
+  //     const mailOptions = {
+  //       from: 'pipaliyayakshat@gmail.com',
+  //       to: email,
+  //       subject: 'Your Enterprise Account Has Been Approved',
+  //       text: `Dear ${firstName} ${lastName},
 
-// Congratulations! Your enterprise user registration has been approved.
+  // Congratulations! Your enterprise user registration has been approved.
 
-// You can now login to your account using the following credentials:
+  // You can now login to your account using the following credentials:
 
-// Email: ${email}
-// Password: Pass@123
+  // Email: ${email}
+  // Password: Pass@123
 
-// Please login and change your password after your first login for security purposes.
+  // Please login and change your password after your first login for security purposes.
 
-// Best regards,
-// Skillzap Team`,
-//     };
+  // Best regards,
+  // Skillzap Team`,
+  //     };
 
-//     try {
-//       return await this.transporter.sendMail(mailOptions);
-//     } catch (error) {
-//       throw new HttpException(
-//         error.message,
-//         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
-//       );
-//     }
-//   }
+  //     try {
+  //       return await this.transporter.sendMail(mailOptions);
+  //     } catch (error) {
+  //       throw new HttpException(
+  //         error.message,
+  //         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+  //       );
+  //     }
+  //   }
 
-async sendEnterpriseApprovalEmail(
-  email: string,
-  firstName: string,
-  lastName: string,
-  companyName: string,
-) {
-  const tempPassword = 'Pass@123';
-  const fullName = `${firstName} ${lastName}`;
+  async sendEnterpriseApprovalEmail(
+    email: string,
+    firstName: string,
+    lastName: string,
+    companyName: string,
+  ) {
+    const tempPassword = 'Pass@123';
+    const fullName = `${firstName} ${lastName}`;
 
-  const mailOptions = {
-    from: '"SkillZap AI" <pipaliyayakshat@gmail.com>',
-    to: email,
-    subject: 'Your Enterprise Account Has Been Approved',
-    text: `Dear ${fullName},
+    const mailOptions = {
+      from: '"SkillZap AI" <pipaliyayakshat@gmail.com>',
+      to: email,
+      subject: 'Your Enterprise Account Has Been Approved',
+      text: `Dear ${fullName},
 
 Congratulations! Your Skillzap Enterprise account has been approved for ${companyName}.
 
@@ -256,7 +251,7 @@ Please change your password after first login.
 Best regards,
 Skillzap Team`,
 
-    html: `
+      html: `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -333,27 +328,22 @@ Congratulations! Your Skillzap Enterprise account has been approved for
 </body>
 </html>
 `,
-  };
+    };
 
-  try {
-    return await this.transporter.sendMail(mailOptions);
-  } catch (error) {
-    throw new HttpException(
-      error.message,
-      error.status || HttpStatus.INTERNAL_SERVER_ERROR,
-    );
+    try {
+      return await this.transporter.sendMail(mailOptions);
+    } catch (error) {
+      throw new HttpException(
+        error.message,
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
-}
 
+  async sendRegisteringEmail(to: string, username: string, otp: number) {
+    const otpString = otp.toString().split('');
 
-async sendRegisteringEmail(
-  to: string,
-  username: string,
-  otp: number,
-) {
-  const otpString = otp.toString().split('');
-
-  const html = `
+    const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -436,19 +426,18 @@ async sendRegisteringEmail(
 </html>
 `;
 
-  try {
-    return await this.transporter.sendMail({
-      from: 'SkillZap AI <pipaliyayakshat@gmail.com>',
-      to,
-      subject: 'Verify Your Email – SkillZap AI',
-      html,
-    });
-  } catch (error) {
-    throw new HttpException(
-      error.message,
-      error.status || HttpStatus.INTERNAL_SERVER_ERROR,
-    );
+    try {
+      return await this.transporter.sendMail({
+        from: 'SkillZap AI <pipaliyayakshat@gmail.com>',
+        to,
+        subject: 'Verify Your Email – SkillZap AI',
+        html,
+      });
+    } catch (error) {
+      throw new HttpException(
+        error.message,
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
-}
-
 }

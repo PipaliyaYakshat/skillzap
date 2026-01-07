@@ -20,4 +20,3 @@ export class MoveTopicsDto {
   @IsString()
   deckId: string;
 }
-

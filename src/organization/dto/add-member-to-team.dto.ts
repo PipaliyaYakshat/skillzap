@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsEmail, IsArray, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsEmail,
+  IsArray,
+  IsOptional,
+} from 'class-validator';
 
 export class AddMemberToTeamDto {
   @ApiProperty({
@@ -11,7 +17,8 @@ export class AddMemberToTeamDto {
   teamId: string;
 
   @ApiProperty({
-    description: 'Organization ID (optional - will be derived from admin/superAdmin user if not provided)',
+    description:
+      'Organization ID (optional - will be derived from admin/superAdmin user if not provided)',
     example: '69366f002af838888b16b0c9',
     required: false,
   })
@@ -29,4 +36,3 @@ export class AddMemberToTeamDto {
   @IsNotEmpty()
   memberEmails: string[];
 }
-

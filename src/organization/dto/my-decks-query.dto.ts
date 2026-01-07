@@ -17,4 +17,3 @@ export class MyDecksQueryDto {
   @IsString()
   name?: string;
 }
-

@@ -26,7 +26,8 @@ export class AdminChangePasswordDto {
     required: true,
   })
   @IsString({ message: 'Confirm password must be a string' })
-  @Match('newPassword', { message: 'New password and confirm password must match' })
+  @Match('newPassword', {
+    message: 'New password and confirm password must match',
+  })
   confirmPassword: string;
 }
-

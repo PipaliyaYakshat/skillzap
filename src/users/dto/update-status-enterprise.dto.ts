@@ -43,4 +43,3 @@ export class UpdateStatusEnterpriseDto {
   @IsString({ message: 'Subscription plan ID must be a string' })
   subscriptionPlanId?: string;
 }
-

@@ -296,15 +296,15 @@ CATEGORY: "${category}"
     };
   }
 
-async generateMCQQuestions(
-  topicTitle: string,
-  topicDescription: string,
-  difficulty?: 'easy' | 'medium' | 'hard',
-): Promise<Question[]> {
-  const sourceForLang = `${topicTitle}\n\n${topicDescription}`.slice(0, 3000);
-  const detectedLanguage = await this.detectLanguage(sourceForLang);
+  async generateMCQQuestions(
+    topicTitle: string,
+    topicDescription: string,
+    difficulty?: 'easy' | 'medium' | 'hard',
+  ): Promise<Question[]> {
+    const sourceForLang = `${topicTitle}\n\n${topicDescription}`.slice(0, 3000);
+    const detectedLanguage = await this.detectLanguage(sourceForLang);
 
-  const prompt = `
+    const prompt = `
 Generate EXACTLY 5 MCQ questions.
 IMPORTANT: Generate all content ONLY in ${detectedLanguage}. Do not use any other language.
 
@@ -327,87 +327,83 @@ DESCRIPTION: ${topicDescription}
 DIFFICULTY: ${difficulty}
 `;
 
-  const aiResponse = await this.openai.chat.completions.create({
-    model: this.modelName,
-    messages: [
-      { role: 'system', content: 'Return ONLY JSON. No explanation.' },
-      { role: 'user', content: prompt },
-    ],
-    // Force the model to return a strict JSON object so JSON.parse never
-    // breaks on unescaped quotes, extra text, or markdown fences.
-    response_format: { type: 'json_object' },
-    max_tokens: 800,
-  });
+    const aiResponse = await this.openai.chat.completions.create({
+      model: this.modelName,
+      messages: [
+        { role: 'system', content: 'Return ONLY JSON. No explanation.' },
+        { role: 'user', content: prompt },
+      ],
+      // Force the model to return a strict JSON object so JSON.parse never
+      // breaks on unescaped quotes, extra text, or markdown fences.
+      response_format: { type: 'json_object' },
+      max_tokens: 800,
+    });
 
-  const content = this.extractJson(aiResponse.choices[0]?.message?.content);
+    const content = this.extractJson(aiResponse.choices[0]?.message?.content);
 
-  let payload: QuestionsPayload;
-  try {
-    payload = JSON.parse(content);
-  } catch (error) {
-    throw new InternalServerErrorException('AI returned invalid JSON');
-  }
+    let payload: QuestionsPayload;
+    try {
+      payload = JSON.parse(content);
+    } catch (error) {
+      throw new InternalServerErrorException('AI returned invalid JSON');
+    }
 
-  const questions = Array.isArray(payload.questions) ? payload.questions : [];
+    const questions = Array.isArray(payload.questions) ? payload.questions : [];
 
-  // ⭐ IMPROVED CORRECT-ANSWER VALIDATION + AUTO-FIX
-  const fixed: Question[] = questions
-    .filter(
-      (q) =>
-        q?.question &&
-        Array.isArray(q?.options) &&
-        q.options.length === 4 &&
-        q.options.every((opt) => typeof opt === 'string'),
-    )
-    .map((q) => {
-      let correctAnswer = q.correctAnswer;
-      const hint = q.hint || "";
-      const lowerHint = hint.toLowerCase();
+    // ⭐ IMPROVED CORRECT-ANSWER VALIDATION + AUTO-FIX
+    const fixed: Question[] = questions
+      .filter(
+        (q) =>
+          q?.question &&
+          Array.isArray(q?.options) &&
+          q.options.length === 4 &&
+          q.options.every((opt) => typeof opt === 'string'),
+      )
+      .map((q) => {
+        let correctAnswer = q.correctAnswer;
+        const hint = q.hint || '';
+        const lowerHint = hint.toLowerCase();
 
-      // 1️⃣ Ensure correctAnswer exists in options
-      if (!correctAnswer || !q.options.includes(correctAnswer)) {
-        // 2️⃣ Try to detect correct answer from hint text
-        const hintedMatch = q.options.find((opt) =>
-          lowerHint.includes(opt.toLowerCase())
-        );
+        // 1️⃣ Ensure correctAnswer exists in options
+        if (!correctAnswer || !q.options.includes(correctAnswer)) {
+          // 2️⃣ Try to detect correct answer from hint text
+          const hintedMatch = q.options.find((opt) =>
+            lowerHint.includes(opt.toLowerCase()),
+          );
 
-        if (hintedMatch) {
-          correctAnswer = hintedMatch;
-        } else {
-          // 3️⃣ If no match found → fallback
-          correctAnswer = q.options[0];
+          if (hintedMatch) {
+            correctAnswer = hintedMatch;
+          } else {
+            // 3️⃣ If no match found → fallback
+            correctAnswer = q.options[0];
+          }
         }
-      }
 
-      return {
-        question: q.question,
-        options: q.options,
-        correctAnswer,
-        hint,
-      };
-    });
+        return {
+          question: q.question,
+          options: q.options,
+          correctAnswer,
+          hint,
+        };
+      });
 
-  // ⭐ Guarantee exactly 5 questions
-  while (fixed.length < 5) {
-    fixed.push({
-      question: `Placeholder question ${fixed.length + 1}`,
-      options: ['Option 1', 'Option 2', 'Option 3', 'Option 4'],
-      correctAnswer: 'Option 1',
-      hint: 'Think about the main concept discussed in this topic.',
-    });
+    // ⭐ Guarantee exactly 5 questions
+    while (fixed.length < 5) {
+      fixed.push({
+        question: `Placeholder question ${fixed.length + 1}`,
+        options: ['Option 1', 'Option 2', 'Option 3', 'Option 4'],
+        correctAnswer: 'Option 1',
+        hint: 'Think about the main concept discussed in this topic.',
+      });
+    }
+
+    return fixed.slice(0, 5);
   }
-
-  return fixed.slice(0, 5);
-}
-
 
   // =====================================================================
   // 🟨 Answer Question — language-aware Q&A
   // =====================================================================
-  async answerQuestion(
-    subTopicId: string,
-    question: string,
-  ): Promise<string> {
+  async answerQuestion(subTopicId: string, question: string): Promise<string> {
     if (!subTopicId || !question?.trim()) {
       throw new BadRequestException('subTopicId and question are required');
     }
@@ -420,7 +416,8 @@ DIFFICULTY: ${difficulty}
 
     const topicTitle = subTopic.title || '';
     const topicDescription = subTopic.description || '';
-    const sourceForLang = `${topicTitle}\n\n${topicDescription}\n\n${question}`.slice(0, 3000);
+    const sourceForLang =
+      `${topicTitle}\n\n${topicDescription}\n\n${question}`.slice(0, 3000);
     const detectedLanguage = await this.detectLanguage(sourceForLang);
 
     //     const prompt = `
@@ -467,8 +464,6 @@ DIFFICULTY: ${difficulty}
     ### Your Response
     Provide a clear, accurate answer in ${detectedLanguage}:
     `;
-
-
 
     try {
       const aiResponse = await this.openai.chat.completions.create({
@@ -531,7 +526,7 @@ DIFFICULTY: ${difficulty}
    * Resolves input text from either:
    * - Plain text string
    * - File path (absolute path from uploaded file)
-   * 
+   *
    * For file paths, extracts text using FileTextExtractionService
    * Supports: PDF, images, documents, and other textract-supported formats
    */
@@ -542,7 +537,7 @@ DIFFICULTY: ${difficulty}
     }
 
     const normalized = this.normalizePotentialFilePath(input);
-    
+
     // Check if input is a file path (absolute path from multer upload)
     if (!(await this.isReadableFile(normalized))) {
       // Not a file, treat as plain text
@@ -624,7 +619,8 @@ topic: ${description}
         messages: [
           {
             role: 'system',
-            content: 'You are a helpful content generator. Return ONLY valid JSON.',
+            content:
+              'You are a helpful content generator. Return ONLY valid JSON.',
           },
           { role: 'user', content: prompt },
         ],

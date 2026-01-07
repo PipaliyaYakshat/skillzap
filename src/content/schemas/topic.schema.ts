@@ -35,7 +35,11 @@ export class Topic {
     ],
     default: [],
   })
-  flashcardAccuracies: { userId: string; accuracy: number; gamesPlayed: number }[];
+  flashcardAccuracies: {
+    userId: string;
+    accuracy: number;
+    gamesPlayed: number;
+  }[];
 
   // Store per-user battle accuracy percentages for this topic (no subtopicId)
   @Prop({

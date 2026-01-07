@@ -18,4 +18,3 @@ import {
   exports: [SubscriptionService],
 })
 export class SubscriptionModule {}
-

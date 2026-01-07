@@ -88,7 +88,8 @@ export class MemberProgress extends Document {
   dailyGamesCount: Record<string, number>; // Key: date string (YYYY-MM-DD), Value: games count
 }
 
-export const MemberProgressSchema = SchemaFactory.createForClass(MemberProgress);
+export const MemberProgressSchema =
+  SchemaFactory.createForClass(MemberProgress);
 
 // Add compound index to ensure either userId or deviceId is present, but not both
 MemberProgressSchema.index(

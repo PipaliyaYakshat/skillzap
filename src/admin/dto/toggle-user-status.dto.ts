@@ -19,4 +19,3 @@ export class ToggleUserStatusDto {
   @IsBoolean({ message: 'isBlocked must be a boolean' })
   isBlocked: boolean;
 }
-

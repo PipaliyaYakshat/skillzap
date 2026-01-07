@@ -1,5 +1,17 @@
 import {
-  Controller, Get, Post, Body, Patch, Param, Delete, BadRequestException, Query, UseGuards, UseInterceptors, UploadedFile, Req,
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  BadRequestException,
+  Query,
+  UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { type Express, type Request } from 'express';
@@ -10,7 +22,14 @@ import { MoveTopicsDto } from './dto/move-topics.dto';
 import { DeckAIService } from './deck-ai.service';
 import { UpdateDeckNameDto } from './dto/update-deck-name.dto';
 import {
-  ApiBody, ApiBearerAuth, ApiConsumes, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags,
+  ApiBody,
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
 import { ListContentQueryDto } from './dto/list-content-query.dto';
 import { LibraryQueryDto, LibraryFilter } from './dto/library-query.dto';
@@ -35,12 +54,13 @@ export class ContentController {
   constructor(
     private readonly contentService: ContentService,
     private readonly deckAIService: DeckAIService,
-  ) { }
+  ) {}
 
   @Post()
   @ApiOperation({
     summary: 'Create new content',
-    description: 'Creates a new content item. Either userId or deviceId is required.',
+    description:
+      'Creates a new content item. Either userId or deviceId is required.',
   })
   create(@Body() createContentDto: CreateContentDto) {
     return this.contentService.create(createContentDto);
@@ -50,7 +70,8 @@ export class ContentController {
   @UseGuards(FlexibleAuthGuard)
   @ApiOperation({
     summary: 'Upload a file',
-    description: 'Uploads a file and creates content from it. Supports various file types (PDF, images, documents, etc.).',
+    description:
+      'Uploads a file and creates content from it. Supports various file types (PDF, images, documents, etc.).',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -90,11 +111,13 @@ export class ContentController {
         file: {
           type: 'string',
           format: 'binary',
-          description: 'Upload file (PDF, images, documents, etc.) - takes precedence over text',
+          description:
+            'Upload file (PDF, images, documents, etc.) - takes precedence over text',
         },
         text: {
           type: 'string',
-          description: 'Source text or file path (required if file is not provided)',
+          description:
+            'Source text or file path (required if file is not provided)',
         },
         category: { type: 'string', description: 'Deck category' },
         deckId: {
@@ -129,9 +152,7 @@ export class ContentController {
       throw new BadRequestException('category is required');
     }
     if (!file && !text) {
-      throw new BadRequestException(
-        'Either file upload or text is required',
-      );
+      throw new BadRequestException('Either file upload or text is required');
     }
 
     // If file is uploaded, use file path; otherwise use text
@@ -216,7 +237,8 @@ export class ContentController {
   @Get()
   @ApiOperation({
     summary: 'Get all content with filters',
-    description: 'Retrieves all content items with optional filtering by userId, deviceId, contentType, processingStatus, and isProcessed.',
+    description:
+      'Retrieves all content items with optional filtering by userId, deviceId, contentType, processingStatus, and isProcessed.',
   })
   findAll(@Query() query: ListContentQueryDto) {
     return this.contentService.findAll(query);
@@ -286,15 +308,14 @@ export class ContentController {
   @ApiBearerAuth('access-token')
   @ApiOperation({
     summary: 'Get all decks created by the authenticated user',
-    description: 'Returns all decks created by the user who is authenticated via JWT token.',
+    description:
+      'Returns all decks created by the user who is authenticated via JWT token.',
   })
   @ApiResponse({
     status: 200,
     description: 'List of user decks retrieved successfully',
   })
-  async getMyDecks(
-    @Req() req: Request & { user?: AuthUser },
-  ) {
+  async getMyDecks(@Req() req: Request & { user?: AuthUser }) {
     const userId = req.user?.id || req.user?._id || req.user?.userId;
     if (!userId) {
       throw new BadRequestException('User authentication required');
@@ -307,7 +328,8 @@ export class ContentController {
   @ApiBearerAuth('access-token')
   @ApiOperation({
     summary: 'Update deck name',
-    description: 'Updates only the name of a deck owned by the authenticated user.',
+    description:
+      'Updates only the name of a deck owned by the authenticated user.',
   })
   @ApiParam({
     name: 'deckId',
@@ -446,7 +468,7 @@ export class ContentController {
   @ApiOperation({
     summary: 'Get user topic progress',
     description:
-      'Returns the authenticated user\'s progress for a specific topic. If no progress exists, it will be created with default values.',
+      "Returns the authenticated user's progress for a specific topic. If no progress exists, it will be created with default values.",
   })
   @ApiParam({
     name: 'topicId',
@@ -462,7 +484,10 @@ export class ContentController {
         _id: '67501b23842d45d1c3d9f91a',
         userId: '67501b23842d45d1c3d9f91b',
         topicId: '67501b23842d45d1c3d9f91c',
-        completedSubTopicIds: ['67501b23842d45d1c3d9f91d', '67501b23842d45d1c3d9f91e'],
+        completedSubTopicIds: [
+          '67501b23842d45d1c3d9f91d',
+          '67501b23842d45d1c3d9f91e',
+        ],
         completedCycles: 1,
         lastCycleCompletedAt: '2024-01-01T00:00:00.000Z',
         createdAt: '2024-01-01T00:00:00.000Z',
@@ -535,7 +560,8 @@ export class ContentController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Bad request - User can only move topics from/to decks they created',
+    description:
+      'Bad request - User can only move topics from/to decks they created',
   })
   async moveTopics(
     @Req() req: Request & { user?: AuthUser },
@@ -553,7 +579,8 @@ export class ContentController {
   @Get(':id')
   @ApiOperation({
     summary: 'Get content by ID',
-    description: 'Retrieves a single content item by its ID. The ID must be a valid MongoDB ObjectId.',
+    description:
+      'Retrieves a single content item by its ID. The ID must be a valid MongoDB ObjectId.',
   })
   @ApiParam({
     name: 'id',
@@ -580,7 +607,8 @@ export class ContentController {
   @Patch(':id')
   @ApiOperation({
     summary: 'Update content by ID',
-    description: 'Updates an existing content item by its ID. The ID must be a valid MongoDB ObjectId.',
+    description:
+      'Updates an existing content item by its ID. The ID must be a valid MongoDB ObjectId.',
   })
   @ApiParam({
     name: 'id',
@@ -608,7 +636,8 @@ export class ContentController {
   @Delete(':id')
   @ApiOperation({
     summary: 'Delete content by ID',
-    description: 'Permanently deletes a content item by its ID. The ID must be a valid MongoDB ObjectId.',
+    description:
+      'Permanently deletes a content item by its ID. The ID must be a valid MongoDB ObjectId.',
   })
   @ApiParam({
     name: 'id',
@@ -637,7 +666,8 @@ export class ContentController {
   @ApiBearerAuth('access-token')
   @ApiOperation({
     summary: 'Request public access for a deck',
-    description: 'User can request to make their deck public. Status will be set to pending and isPublic will be set to true.',
+    description:
+      'User can request to make their deck public. Status will be set to pending and isPublic will be set to true.',
   })
   @ApiBody({
     schema: {
@@ -674,7 +704,8 @@ export class ContentController {
   @ApiBearerAuth('access-token')
   @ApiOperation({
     summary: 'Get library decks with pagination',
-    description: 'Get decks based on filter. Private: shows user\'s decks with isPublic=false and status=pending. Public: shows all decks with isPublic=true and status=approve.',
+    description:
+      "Get decks based on filter. Private: shows user's decks with isPublic=false and status=pending. Public: shows all decks with isPublic=true and status=approve.",
   })
   @ApiQuery({
     name: 'filter',
@@ -748,7 +779,13 @@ export class ContentController {
       throw new BadRequestException('Limit must be greater than 0');
     }
 
-    return this.contentService.getLibrary(userId, filter, page, limit, category);
+    return this.contentService.getLibrary(
+      userId,
+      filter,
+      page,
+      limit,
+      category,
+    );
   }
 
   @Get('deck/:deckId')
@@ -843,7 +880,8 @@ export class ContentController {
   @UseGuards(FlexibleAuthGuard)
   @ApiOperation({
     summary: 'Ask a question about a subtopic',
-    description: 'User can ask a question about a subtopic and get an AI-generated answer. The question and answer will be stored in the subtopic.',
+    description:
+      'User can ask a question about a subtopic and get an AI-generated answer. The question and answer will be stored in the subtopic.',
   })
   @ApiParam({
     name: 'subTopicId',
@@ -891,18 +929,15 @@ export class ContentController {
       throw new BadRequestException('question is required');
     }
 
-    return this.contentService.askQuestion(
-      subTopicId,
-      question.trim(),
-      userId,
-    );
+    return this.contentService.askQuestion(subTopicId, question.trim(), userId);
   }
 
   @Post('subtopic/:subTopicId/more-details')
   @UseGuards(FlexibleAuthGuard)
   @ApiOperation({
     summary: 'Get more details about a subtopic',
-    description: 'User can request more detailed information about a subtopic. An AI-generated detailed explanation will be provided and stored in the subtopic.',
+    description:
+      'User can request more detailed information about a subtopic. An AI-generated detailed explanation will be provided and stored in the subtopic.',
   })
   @ApiParam({
     name: 'subTopicId',
@@ -992,20 +1027,23 @@ export class ContentController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Deck deleted successfully along with all topics and subtopics',
+    description:
+      'Deck deleted successfully along with all topics and subtopics',
     schema: {
       example: {
         success: true,
         deletedDeck: '67501b23842d45d1c3d9f91a',
         deletedTopics: 5,
         deletedSubTopics: 12,
-        message: 'Deck deleted successfully along with all topics and subtopics',
+        message:
+          'Deck deleted successfully along with all topics and subtopics',
       },
     },
   })
   @ApiResponse({
     status: 400,
-    description: 'Bad request - Invalid deck ID, user authentication required, or user is not the deck owner',
+    description:
+      'Bad request - Invalid deck ID, user authentication required, or user is not the deck owner',
   })
   @ApiResponse({
     status: 404,
@@ -1028,7 +1066,7 @@ export class ContentController {
   @ApiOperation({
     summary: 'Toggle user online status',
     description:
-      'Toggles the authenticated user\'s online status (true -> false, false -> true). Returns the user object with the new status after toggling.',
+      "Toggles the authenticated user's online status (true -> false, false -> true). Returns the user object with the new status after toggling.",
   })
   @ApiResponse({
     status: 200,
@@ -1052,9 +1090,7 @@ export class ContentController {
     status: 404,
     description: 'User not found',
   })
-  async toggleUserOnlineStatus(
-    @Req() req: Request & { user?: AuthUser },
-  ) {
+  async toggleUserOnlineStatus(@Req() req: Request & { user?: AuthUser }) {
     const userId = req.user?.id || req.user?._id || req.user?.userId;
     if (!userId) {
       throw new BadRequestException('User authentication required');

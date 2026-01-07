@@ -15,7 +15,8 @@ export class CreateSubscriptionPlanDto {
     enum: SubscriptionType,
   })
   @IsEnum(SubscriptionType, {
-    message: 'subscriptionType must be one of: month, year, 14day, lives, coins',
+    message:
+      'subscriptionType must be one of: month, year, 14day, lives, coins',
   })
   @IsNotEmpty({ message: 'subscriptionType is required' })
   subscriptionType: SubscriptionType;
@@ -45,4 +46,3 @@ export class CreateSubscriptionPlanDto {
   @IsNotEmpty({ message: 'name is required' })
   name: string;
 }
-

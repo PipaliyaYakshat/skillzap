@@ -33,7 +33,8 @@ export class SubscriptionController {
   @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Create a new subscription plan',
-    description: 'Admin only. Creates a new subscription plan with the provided details.',
+    description:
+      'Admin only. Creates a new subscription plan with the provided details.',
   })
   @ApiBody({ type: CreateSubscriptionPlanDto })
   @ApiResponse({
@@ -51,7 +52,8 @@ export class SubscriptionController {
   @Get()
   @ApiOperation({
     summary: 'Get all subscription plans',
-    description: 'Retrieves all active (non-deleted) subscription plans available in the system.',
+    description:
+      'Retrieves all active (non-deleted) subscription plans available in the system.',
   })
   @ApiResponse({
     status: 200,
@@ -64,7 +66,8 @@ export class SubscriptionController {
   @Get(':id')
   @ApiOperation({
     summary: 'Get subscription plan by ID',
-    description: 'Retrieves a single subscription plan by its ID. The ID must be a valid MongoDB ObjectId.',
+    description:
+      'Retrieves a single subscription plan by its ID. The ID must be a valid MongoDB ObjectId.',
   })
   @ApiParam({
     name: 'id',
@@ -92,7 +95,8 @@ export class SubscriptionController {
   @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Delete subscription plan by ID',
-    description: 'Admin only. Soft deletes a subscription plan by setting isDeleted flag to true. The ID must be a valid MongoDB ObjectId.',
+    description:
+      'Admin only. Soft deletes a subscription plan by setting isDeleted flag to true. The ID must be a valid MongoDB ObjectId.',
   })
   @ApiParam({
     name: 'id',
@@ -116,4 +120,3 @@ export class SubscriptionController {
     return this.subscriptionService.remove(id);
   }
 }
-

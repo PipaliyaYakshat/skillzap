@@ -21,27 +21,51 @@ import { AdminCreation } from '../organization/entities/admin-creation.entity';
 import { TeamMember } from '../organization/entities/team-member.entity';
 import { ContentFileData } from '../organization/entities/content-file-data.entity';
 import type { CreateEnterpriseUserDto } from './dto/create-enterprise-user.dto';
-import { GameProgress, GameProgressDocument } from '../content/schemas/game-progress.schema';
-import { TempRegistration, TempRegistrationDocument } from './schemas/temp-registration.schema';
+import {
+  GameProgress,
+  GameProgressDocument,
+} from '../content/schemas/game-progress.schema';
+import {
+  TempRegistration,
+  TempRegistrationDocument,
+} from './schemas/temp-registration.schema';
 import { generateJwtToken, OTP_FUNCTION, OTPGNARETE } from '../common/utils';
 import { USER_ROLE, USER_TYPE } from 'src/common/enum';
 
 @Injectable()
 export class AuthService {
   private readonly freeEmailDomains = [
-    'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'live.com',
-    'rediffmail.com', 'icloud.com', 'zoho.com', 'mail.com', 'aol.com',
-    'gmx.com', 'protonmail.com', 'proton.me', 'yandex.com', 'tutanota.com',
-    'fastmail.com','example.com',
+    'gmail.com',
+    'yahoo.com',
+    'hotmail.com',
+    'outlook.com',
+    'live.com',
+    'rediffmail.com',
+    'icloud.com',
+    'zoho.com',
+    'mail.com',
+    'aol.com',
+    'gmx.com',
+    'protonmail.com',
+    'proton.me',
+    'yandex.com',
+    'tutanota.com',
+    'fastmail.com',
+    'example.com',
   ];
 
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
-    @InjectModel(AdminCreation.name) private readonly adminCreationModel: Model<AdminCreation>,
-    @InjectModel(TeamMember.name) private readonly teamMemberModel: Model<TeamMember>,
-    @InjectModel(ContentFileData.name) private readonly contentFileDataModel: Model<ContentFileData>,
-    @InjectModel(GameProgress.name) private readonly gameProgressModel: Model<GameProgressDocument>,
-    @InjectModel(TempRegistration.name) private readonly tempRegistrationModel: Model<TempRegistrationDocument>,
+    @InjectModel(AdminCreation.name)
+    private readonly adminCreationModel: Model<AdminCreation>,
+    @InjectModel(TeamMember.name)
+    private readonly teamMemberModel: Model<TeamMember>,
+    @InjectModel(ContentFileData.name)
+    private readonly contentFileDataModel: Model<ContentFileData>,
+    @InjectModel(GameProgress.name)
+    private readonly gameProgressModel: Model<GameProgressDocument>,
+    @InjectModel(TempRegistration.name)
+    private readonly tempRegistrationModel: Model<TempRegistrationDocument>,
     private readonly mailService: MailService,
   ) {}
 
@@ -84,7 +108,8 @@ export class AuthService {
         const inviter = await this.userModel.findById(inviterId);
         if (
           inviter &&
-          (inviter.userType === USER_TYPE[1] || inviter.userType === USER_TYPE[2]) &&
+          (inviter.userType === USER_TYPE[1] ||
+            inviter.userType === USER_TYPE[2]) &&
           inviter.teamPlan
         ) {
           const normalized = String(inviter.teamPlan).toLowerCase();
@@ -96,30 +121,40 @@ export class AuthService {
 
       // Determine userType based on pending invitations or superAdmin status
       // Priority: pendingAdmin > pendingTeamMember > superAdmin (if no birth fields) > individual
-      const isMissingBirthFields = !createUserDto.monthOfBirth && !createUserDto.yearOfBirth;
+      const isMissingBirthFields =
+        !createUserDto.monthOfBirth && !createUserDto.yearOfBirth;
       const userType = pendingAdmin
         ? USER_TYPE[2]
         : pendingTeamMember
-        ? USER_TYPE[3]
-        : isMissingBirthFields
-        ? USER_TYPE[1]
-        : USER_TYPE[0];
+          ? USER_TYPE[3]
+          : isMissingBirthFields
+            ? USER_TYPE[1]
+            : USER_TYPE[0];
 
       // Generate and send OTP if userType is individual OR monthOfBirth or yearOfBirth is not provided
       let registrationOtp: number | null = null;
       let otpExpires: Date | null = null;
-      const requiresOtp = userType === USER_TYPE[0] || !createUserDto.monthOfBirth || !createUserDto.yearOfBirth;
-      
+      const requiresOtp =
+        userType === USER_TYPE[0] ||
+        !createUserDto.monthOfBirth ||
+        !createUserDto.yearOfBirth;
+
       // Check if email domain is in free email domains list (only when birth fields are missing)
       // This check should NOT apply when user provides both monthOfBirth and yearOfBirth
-      const isAnyBirthFieldMissing = !createUserDto.monthOfBirth || !createUserDto.yearOfBirth;
-      if (isAnyBirthFieldMissing && (userType === USER_TYPE[0] || userType === USER_TYPE[1])) {
+      const isAnyBirthFieldMissing =
+        !createUserDto.monthOfBirth || !createUserDto.yearOfBirth;
+      if (
+        isAnyBirthFieldMissing &&
+        (userType === USER_TYPE[0] || userType === USER_TYPE[1])
+      ) {
         const emailDomain = createUserDto.email.split('@')[1]?.toLowerCase();
         if (emailDomain && this.freeEmailDomains.includes(emailDomain)) {
-          throw new BadRequestException('Only business emails are allowed. Please use a business email address.');
+          throw new BadRequestException(
+            'Only business emails are allowed. Please use a business email address.',
+          );
         }
       }
-      
+
       if (requiresOtp) {
         registrationOtp = OTPGNARETE();
         otpExpires = OTP_FUNCTION.getOtpExpiryDate();
@@ -128,22 +163,30 @@ export class AuthService {
       const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
 
       // Check for existing temp registration
-      const existingTempRegistration = await this.tempRegistrationModel.findOne({
-        email: createUserDto.email,
-      });
+      const existingTempRegistration = await this.tempRegistrationModel.findOne(
+        {
+          email: createUserDto.email,
+        },
+      );
 
       // If temp registration exists and OTP is required, resend OTP
-      if (existingTempRegistration && requiresOtp && registrationOtp && otpExpires) {
+      if (
+        existingTempRegistration &&
+        requiresOtp &&
+        registrationOtp &&
+        otpExpires
+      ) {
         // Prepare updated temp registration data
         const tempRegistrationData: Record<string, unknown> = {
           ...createUserDto,
           password: hashedPassword,
           name: createUserDto.name ?? null,
-          userType: userType === USER_TYPE[1] 
-            ? USER_TYPE[1] 
-            : userType === USER_TYPE[0]
-            ? USER_TYPE[0] 
-            : 'organization',
+          userType:
+            userType === USER_TYPE[1]
+              ? USER_TYPE[1]
+              : userType === USER_TYPE[0]
+                ? USER_TYPE[0]
+                : 'organization',
           teamPlan: inviterTeamPlan,
           monthOfBirth: createUserDto.monthOfBirth ?? null,
           yearOfBirth: createUserDto.yearOfBirth ?? null,
@@ -179,32 +222,43 @@ export class AuthService {
             registrationOtp,
           );
         } catch (mailError) {
-          throw new BadRequestException('Failed to send OTP email. Please try again.');
+          throw new BadRequestException(
+            'Failed to send OTP email. Please try again.',
+          );
         }
 
         return {
           statusCode: HttpStatus.OK,
-          message: 'OTP has been resent to your email. Please verify to complete registration.',
+          message:
+            'OTP has been resent to your email. Please verify to complete registration.',
         };
       }
 
       // If temp registration exists but OTP is not required, delete it and continue
       if (existingTempRegistration && !requiresOtp) {
-        await this.tempRegistrationModel.deleteOne({ email: createUserDto.email });
+        await this.tempRegistrationModel.deleteOne({
+          email: createUserDto.email,
+        });
       }
 
       // If OTP is required and no temp registration exists, store in temp registration instead of creating user
-      if (requiresOtp && registrationOtp && otpExpires && !existingTempRegistration) {
+      if (
+        requiresOtp &&
+        registrationOtp &&
+        otpExpires &&
+        !existingTempRegistration
+      ) {
         // Prepare temp registration data
         const tempRegistrationData: Record<string, unknown> = {
           ...createUserDto,
           password: hashedPassword,
           name: createUserDto.name ?? null,
-          userType: userType === USER_TYPE[1] 
-            ? USER_TYPE[1] 
-            : userType === USER_TYPE[0] 
-            ? USER_TYPE[0] 
-            : 'organization',
+          userType:
+            userType === USER_TYPE[1]
+              ? USER_TYPE[1]
+              : userType === USER_TYPE[0]
+                ? USER_TYPE[0]
+                : 'organization',
           teamPlan: inviterTeamPlan,
           monthOfBirth: createUserDto.monthOfBirth ?? null,
           yearOfBirth: createUserDto.yearOfBirth ?? null,
@@ -240,13 +294,18 @@ export class AuthService {
           );
         } catch (mailError) {
           // If email fails, delete temp registration
-          await this.tempRegistrationModel.deleteOne({ email: createUserDto.email });
-          throw new BadRequestException('Failed to send OTP email. Please try again.');
+          await this.tempRegistrationModel.deleteOne({
+            email: createUserDto.email,
+          });
+          throw new BadRequestException(
+            'Failed to send OTP email. Please try again.',
+          );
         }
 
         return {
           statusCode: HttpStatus.OK,
-          message: 'OTP has been sent to your email. Please verify to complete registration.',
+          message:
+            'OTP has been sent to your email. Please verify to complete registration.',
         };
       }
 
@@ -255,11 +314,12 @@ export class AuthService {
         ...createUserDto,
         password: hashedPassword,
         name: createUserDto.name ?? null,
-        userType: userType === USER_TYPE[1] 
-          ? USER_TYPE[1] 
-          : userType === USER_TYPE[0] 
-          ? USER_TYPE[0] 
-          : 'organization',
+        userType:
+          userType === USER_TYPE[1]
+            ? USER_TYPE[1]
+            : userType === USER_TYPE[0]
+              ? USER_TYPE[0]
+              : 'organization',
         teamPlan: inviterTeamPlan,
         monthOfBirth: createUserDto.monthOfBirth ?? null,
         yearOfBirth: createUserDto.yearOfBirth ?? null,
@@ -301,7 +361,7 @@ export class AuthService {
         const startDate = new Date();
         const expireDate = new Date(startDate);
         expireDate.setDate(expireDate.getDate() + 14);
-        
+
         userData.purchasePlanId = subscriptionId;
         userData.purchasePlanType = '14day';
         userData.startPlanDate = startDate;
@@ -321,13 +381,15 @@ export class AuthService {
       // Update pending invitation status if exists
       if (pendingAdmin) {
         pendingAdmin.status = 'approved';
-        pendingAdmin.createdAdmin = newUser._id as unknown as MongooseSchema.Types.ObjectId;
+        pendingAdmin.createdAdmin =
+          newUser._id as unknown as MongooseSchema.Types.ObjectId;
         await pendingAdmin.save();
       }
 
       if (pendingTeamMember) {
         pendingTeamMember.status = 'approved';
-        pendingTeamMember.user = newUser._id as unknown as MongooseSchema.Types.ObjectId;
+        pendingTeamMember.user =
+          newUser._id as unknown as MongooseSchema.Types.ObjectId;
         await pendingTeamMember.save();
       }
 
@@ -346,7 +408,6 @@ export class AuthService {
     }
   }
 
-
   async login(loginDto: LoginDto) {
     try {
       const { email, password } = loginDto;
@@ -364,8 +425,8 @@ export class AuthService {
       if (!isMatch) throw new BadRequestException('Password does not match.');
 
       const token = generateJwtToken(user);
-      
-      user.isOnline=true
+
+      user.isOnline = true;
       user.isActive = true;
       await user.save();
       return {
@@ -398,7 +459,11 @@ export class AuthService {
       user.verifyOtp = false;
       await user.save();
 
-      this.mailService.sendOtpEmail(user.email, user.name || user.email || 'User', otp);
+      this.mailService.sendOtpEmail(
+        user.email,
+        user.name || user.email || 'User',
+        otp,
+      );
 
       return {
         statusCode: HttpStatus.OK,
@@ -423,7 +488,8 @@ export class AuthService {
         // Check if OTP is still valid
         if (tempRegistration.otpSendDate > new Date()) {
           const minutesLeft = Math.ceil(
-            (tempRegistration.otpSendDate.getTime() - new Date().getTime()) / 60000,
+            (tempRegistration.otpSendDate.getTime() - new Date().getTime()) /
+              60000,
           );
           throw new BadRequestException(
             `OTP is still valid. Try again in ${minutesLeft} minute(s).`,
@@ -478,7 +544,11 @@ export class AuthService {
       user.verifyOtp = false;
       await user.save();
 
-      this.mailService.sendOtpEmail(user.email, user.name || user.email || 'User', otp);
+      this.mailService.sendOtpEmail(
+        user.email,
+        user.name || user.email || 'User',
+        otp,
+      );
 
       return {
         statusCode: HttpStatus.OK,
@@ -501,8 +571,13 @@ export class AuthService {
 
       if (tempRegistration) {
         // Verify OTP for registration
-        if (!tempRegistration.otpSendDate || tempRegistration.otpSendDate <= new Date()) {
-          throw new BadRequestException('OTP expired. Please request a new one.');
+        if (
+          !tempRegistration.otpSendDate ||
+          tempRegistration.otpSendDate <= new Date()
+        ) {
+          throw new BadRequestException(
+            'OTP expired. Please request a new one.',
+          );
         }
 
         if (tempRegistration.otp !== Number(verifyOtpDto.otp)) {
@@ -512,13 +587,17 @@ export class AuthService {
         // Check for pending admin invitation
         let pendingAdmin: AdminCreation | null = null;
         if (tempRegistration.pendingAdminId) {
-          pendingAdmin = await this.adminCreationModel.findById(tempRegistration.pendingAdminId);
+          pendingAdmin = await this.adminCreationModel.findById(
+            tempRegistration.pendingAdminId,
+          );
         }
 
         // Check for pending team member invitation
         let pendingTeamMember: TeamMember | null = null;
         if (tempRegistration.pendingTeamMemberId) {
-          pendingTeamMember = await this.teamMemberModel.findById(tempRegistration.pendingTeamMemberId);
+          pendingTeamMember = await this.teamMemberModel.findById(
+            tempRegistration.pendingTeamMemberId,
+          );
         }
 
         // Check admin limit if pending admin
@@ -529,7 +608,9 @@ export class AuthService {
           });
 
           if (actualAdminCount >= 3) {
-            await this.tempRegistrationModel.deleteOne({ email: verifyOtpDto.email });
+            await this.tempRegistrationModel.deleteOne({
+              email: verifyOtpDto.email,
+            });
             if (pendingAdmin) {
               pendingAdmin.status = 'rejected';
               await pendingAdmin.save();
@@ -545,7 +626,9 @@ export class AuthService {
           email: tempRegistration.email,
         });
         if (existingUserByEmail) {
-          await this.tempRegistrationModel.deleteOne({ email: verifyOtpDto.email });
+          await this.tempRegistrationModel.deleteOne({
+            email: verifyOtpDto.email,
+          });
           throw new BadRequestException('This email is already registered.');
         }
 
@@ -553,8 +636,12 @@ export class AuthService {
           contactNumber: tempRegistration.contactNumber,
         });
         if (existingUserByPhone) {
-          await this.tempRegistrationModel.deleteOne({ email: verifyOtpDto.email });
-          throw new BadRequestException('This phone number is already registered.');
+          await this.tempRegistrationModel.deleteOne({
+            email: verifyOtpDto.email,
+          });
+          throw new BadRequestException(
+            'This phone number is already registered.',
+          );
         }
 
         // Create user from temp registration data
@@ -577,7 +664,7 @@ export class AuthService {
           const startDate = new Date();
           const expireDate = new Date(startDate);
           expireDate.setDate(expireDate.getDate() + 14);
-          
+
           userData.purchasePlanId = subscriptionId;
           userData.purchasePlanType = '14day';
           userData.startPlanDate = startDate;
@@ -597,18 +684,22 @@ export class AuthService {
         // Update pending invitation status if exists
         if (pendingAdmin) {
           pendingAdmin.status = 'approved';
-          pendingAdmin.createdAdmin = newUser._id as unknown as MongooseSchema.Types.ObjectId;
+          pendingAdmin.createdAdmin =
+            newUser._id as unknown as MongooseSchema.Types.ObjectId;
           await pendingAdmin.save();
         }
 
         if (pendingTeamMember) {
           pendingTeamMember.status = 'approved';
-          pendingTeamMember.user = newUser._id as unknown as MongooseSchema.Types.ObjectId;
+          pendingTeamMember.user =
+            newUser._id as unknown as MongooseSchema.Types.ObjectId;
           await pendingTeamMember.save();
         }
 
         // Delete temp registration
-        await this.tempRegistrationModel.deleteOne({ email: verifyOtpDto.email });
+        await this.tempRegistrationModel.deleteOne({
+          email: verifyOtpDto.email,
+        });
 
         const token = generateJwtToken(newUser);
 
@@ -710,18 +801,25 @@ export class AuthService {
         throw new BadRequestException('This email is already registered.');
       }
 
-      const existingRegistrationByPhone = await this.contentFileDataModel.findOne({
-        contactNumber: createEnterpriseUserDto.contactNumber,
-      });
+      const existingRegistrationByPhone =
+        await this.contentFileDataModel.findOne({
+          contactNumber: createEnterpriseUserDto.contactNumber,
+        });
 
       if (existingRegistrationByPhone) {
-        throw new BadRequestException('This phone number is already registered.');
+        throw new BadRequestException(
+          'This phone number is already registered.',
+        );
       }
 
       // Check if email domain is in free email domains list
-      const emailDomain = createEnterpriseUserDto.email.split('@')[1]?.toLowerCase();
+      const emailDomain = createEnterpriseUserDto.email
+        .split('@')[1]
+        ?.toLowerCase();
       if (emailDomain && this.freeEmailDomains.includes(emailDomain)) {
-        throw new BadRequestException('Only business emails are allowed. Please use a business email address.');
+        throw new BadRequestException(
+          'Only business emails are allowed. Please use a business email address.',
+        );
       }
 
       // Save registration data to ContentFileData only

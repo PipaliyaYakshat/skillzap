@@ -1,4 +1,10 @@
-import { Injectable, CanActivate, ExecutionContext, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User } from '../../users/entities/user.entity';
@@ -9,7 +15,8 @@ import { USER_TYPE } from 'src/common/enum';
 export class TeamRoleGuard implements CanActivate {
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
-    @InjectModel(AdminCreation.name) private adminCreationModel: Model<AdminCreation>,
+    @InjectModel(AdminCreation.name)
+    private adminCreationModel: Model<AdminCreation>,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -44,6 +51,8 @@ export class TeamRoleGuard implements CanActivate {
       return true;
     }
 
-    throw new ForbiddenException('You do not have permission to access this resource');
+    throw new ForbiddenException(
+      'You do not have permission to access this resource',
+    );
   }
-} 
+}

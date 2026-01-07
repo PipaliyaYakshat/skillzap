@@ -18,4 +18,3 @@ export class GetTeamMembersDto {
   @IsNotEmpty()
   organizationId: string;
 }
-

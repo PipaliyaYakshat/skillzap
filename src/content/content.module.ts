@@ -64,11 +64,6 @@ import { FileTextExtractionService } from './file-text-extraction.service';
     DeviceAccessService,
     FileTextExtractionService,
   ],
-  exports: [
-    ContentService,
-    DeckAIService,
-    DeviceAccessService,
-    MongooseModule,
-  ],
+  exports: [ContentService, DeckAIService, DeviceAccessService, MongooseModule],
 })
 export class ContentModule {}

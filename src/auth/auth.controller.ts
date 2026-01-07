@@ -1,11 +1,6 @@
 import { Controller, Post, Body } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBody,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -22,7 +17,8 @@ export class AuthController {
   @Post('register')
   @ApiOperation({
     summary: 'Register a new user',
-    description: 'Creates a new user account with email and password. An OTP will be sent to the email for verification. User starts with 50 lives and 100 points.',
+    description:
+      'Creates a new user account with email and password. An OTP will be sent to the email for verification. User starts with 50 lives and 100 points.',
   })
   @ApiBody({ type: CreateUserDto })
   @ApiResponse({
@@ -40,18 +36,22 @@ export class AuthController {
   @Post('enterprise-register')
   @ApiOperation({
     summary: 'Register an enterprise user',
-    description: 'Registers a new enterprise user. The registration will be pending until approved by an admin. Enterprise users need admin approval before they can access the system.',
+    description:
+      'Registers a new enterprise user. The registration will be pending until approved by an admin. Enterprise users need admin approval before they can access the system.',
   })
   @ApiBody({ type: CreateEnterpriseUserDto })
   @ApiResponse({
     status: 201,
-    description: 'Enterprise user registration submitted successfully. Pending admin approval.',
+    description:
+      'Enterprise user registration submitted successfully. Pending admin approval.',
   })
   @ApiResponse({
     status: 400,
     description: 'Bad request - email already registered or invalid input',
   })
-  async createEnterpriseUser(@Body() createEnterpriseUserDto: CreateEnterpriseUserDto) {
+  async createEnterpriseUser(
+    @Body() createEnterpriseUserDto: CreateEnterpriseUserDto,
+  ) {
     return this.authService.createEnterpriseUser(createEnterpriseUserDto);
   }
 
@@ -68,7 +68,8 @@ export class AuthController {
   @Post('login')
   @ApiOperation({
     summary: 'User login',
-    description: 'Authenticates a user with email and password. Returns JWT access token and user information. Optionally accepts FCM token for push notifications.',
+    description:
+      'Authenticates a user with email and password. Returns JWT access token and user information. Optionally accepts FCM token for push notifications.',
   })
   @ApiBody({ type: LoginDto })
   @ApiResponse({
@@ -90,7 +91,8 @@ export class AuthController {
   @Post('forgot-password')
   @ApiOperation({
     summary: 'Request password reset',
-    description: 'Initiates the password reset process by sending an OTP to the user\'s email address. User must verify the OTP before resetting the password.',
+    description:
+      "Initiates the password reset process by sending an OTP to the user's email address. User must verify the OTP before resetting the password.",
   })
   @ApiBody({ type: ForgotPasswordDto })
   @ApiResponse({
@@ -108,7 +110,8 @@ export class AuthController {
   @Post('resend-otp')
   @ApiOperation({
     summary: 'Resend OTP',
-    description: 'Resends the OTP (One-Time Password) to the user\'s email address. Useful when the original OTP expires or was not received.',
+    description:
+      "Resends the OTP (One-Time Password) to the user's email address. Useful when the original OTP expires or was not received.",
   })
   @ApiBody({ type: ResendOtpDto })
   @ApiResponse({
@@ -130,7 +133,8 @@ export class AuthController {
   @Post('verify-otp')
   @ApiOperation({
     summary: 'Verify OTP',
-    description: 'Verifies the OTP sent to the user\'s email. Used for email verification during registration or password reset process.',
+    description:
+      "Verifies the OTP sent to the user's email. Used for email verification during registration or password reset process.",
   })
   @ApiBody({ type: VerifyOtpDto })
   @ApiResponse({
@@ -152,7 +156,8 @@ export class AuthController {
   @Post('reset-password')
   @ApiOperation({
     summary: 'Reset password',
-    description: 'Resets the user\'s password after OTP verification. Requires the user to have verified the OTP sent to their email. Password and confirmPassword must match.',
+    description:
+      "Resets the user's password after OTP verification. Requires the user to have verified the OTP sent to their email. Password and confirmPassword must match.",
   })
   @ApiBody({ type: ResetPasswordDto })
   @ApiResponse({
@@ -161,7 +166,8 @@ export class AuthController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Bad request - passwords do not match, OTP not verified, or invalid input',
+    description:
+      'Bad request - passwords do not match, OTP not verified, or invalid input',
   })
   @ApiResponse({
     status: 404,

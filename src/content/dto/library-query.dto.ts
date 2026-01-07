@@ -22,4 +22,3 @@ export class LibraryQueryDto {
   @IsString()
   category?: string;
 }
-

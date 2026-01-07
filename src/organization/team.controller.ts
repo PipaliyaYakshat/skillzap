@@ -65,11 +65,14 @@ export class TeamController {
 
   @Post('create')
   @UseGuards(TeamOnlyGuard)
-  @UseInterceptors(FileInterceptor('organizationLogo', multerOrganizationLogoOptions))
+  @UseInterceptors(
+    FileInterceptor('organizationLogo', multerOrganizationLogoOptions),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Create organization (superAdmin only)',
-    description: 'Creates a new organization with a name and logo. Only users with superAdmin role can create organizations.',
+    description:
+      'Creates a new organization with a name and logo. Only users with superAdmin role can create organizations.',
   })
   @ApiBody({
     description: 'Create organization with logo file upload',
@@ -113,7 +116,8 @@ export class TeamController {
   @UseGuards(TeamOnlyGuard)
   @ApiOperation({
     summary: 'Get organizations created by superAdmin',
-    description: 'Retrieves all organizations created by the authenticated superAdmin user.',
+    description:
+      'Retrieves all organizations created by the authenticated superAdmin user.',
   })
   @ApiResponse({
     status: 200,
@@ -142,7 +146,8 @@ export class TeamController {
   @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Get all organizations (admin role only)',
-    description: 'Retrieves all organizations in the system. Only accessible to users with admin role.',
+    description:
+      'Retrieves all organizations in the system. Only accessible to users with admin role.',
   })
   @ApiResponse({
     status: 200,
@@ -157,11 +162,14 @@ export class TeamController {
   }
 
   @Put(':id')
-  @UseInterceptors(FileInterceptor('organizationLogo', multerOrganizationLogoOptions))
+  @UseInterceptors(
+    FileInterceptor('organizationLogo', multerOrganizationLogoOptions),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Update organization (creator only)',
-    description: 'Updates an existing organization. Only the creator of the organization can update it. Logo upload is optional.',
+    description:
+      'Updates an existing organization. Only the creator of the organization can update it. Logo upload is optional.',
   })
   @ApiParam({ name: 'id', description: 'Organization ID' })
   @ApiBody({
@@ -203,7 +211,8 @@ export class TeamController {
   @Get('teams')
   @ApiOperation({
     summary: 'Get all teams for user organizations with members',
-    description: 'Retrieves all teams from organizations where the authenticated user is a member (superAdmin, admin, or team member). Returns teams with their member data including points and rankings. Optionally filter members by status (approved/pending) using the status query parameter. Optionally filter teams by name using the name query parameter.',
+    description:
+      'Retrieves all teams from organizations where the authenticated user is a member (superAdmin, admin, or team member). Returns teams with their member data including points and rankings. Optionally filter members by status (approved/pending) using the status query parameter. Optionally filter teams by name using the name query parameter.',
   })
   @ApiResponse({
     status: 200,
@@ -225,12 +234,12 @@ export class TeamController {
                   creator: {
                     id: '507f1f77bcf86cd799439013',
                     email: 'creator@example.com',
-                    name: 'John Doe'
+                    name: 'John Doe',
                   },
                   organization: {
                     id: '507f1f77bcf86cd799439011',
                     name: 'My Organization',
-                    logo: '/uploads/organization-logos/logo.png'
+                    logo: '/uploads/organization-logos/logo.png',
                   },
                   memberCount: 5,
                   isActive: true,
@@ -246,22 +255,33 @@ export class TeamController {
                       status: 'approved',
                       joinedAt: '2024-01-01T00:00:00.000Z',
                       points: 100,
-                      rank: 1
-                    }
+                      rank: 1,
+                    },
                   ],
-                  totalMembers: 5
-                }
-              ]
-            }
+                  totalMembers: 5,
+                },
+              ],
+            },
           ],
           totalOrganizations: 1,
-          totalTeams: 1
-        }
-      }
-    }
+          totalTeams: 1,
+        },
+      },
+    },
   })
-  @ApiQuery({ name: 'status', required: false, description: 'Filter team members by status. Valid values: "approved" or "pending". If not provided, returns both approved and pending members.', example: 'approved' })
-  @ApiQuery({ name: 'name', required: false, description: 'Filter teams by team name (case-insensitive partial match).', example: 'Alpha' })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    description:
+      'Filter team members by status. Valid values: "approved" or "pending". If not provided, returns both approved and pending members.',
+    example: 'approved',
+  })
+  @ApiQuery({
+    name: 'name',
+    required: false,
+    description: 'Filter teams by team name (case-insensitive partial match).',
+    example: 'Alpha',
+  })
   @ApiResponse({ status: 400, description: 'Invalid user ID' })
   @ApiResponse({ status: 404, description: 'User not found' })
   async getAllTeamsForUser(
@@ -278,11 +298,20 @@ export class TeamController {
 
   @Get('team/:teamId/details')
   @ApiOperation({
-    summary: 'Get team details with members sorted by points (highest first, lowest last)',
-    description: 'Retrieves detailed information about a team including all members sorted by their points in descending order.',
+    summary:
+      'Get team details with members sorted by points (highest first, lowest last)',
+    description:
+      'Retrieves detailed information about a team including all members sorted by their points in descending order.',
   })
-  @ApiParam({ name: 'teamId', description: 'Team ID', example: '507f1f77bcf86cd799439011' })
-  @ApiResponse({ status: 200, description: 'Team details with sorted members retrieved successfully' })
+  @ApiParam({
+    name: 'teamId',
+    description: 'Team ID',
+    example: '507f1f77bcf86cd799439011',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Team details with sorted members retrieved successfully',
+  })
   @ApiResponse({ status: 400, description: 'Invalid team ID' })
   @ApiResponse({ status: 404, description: 'Team not found' })
   async findOneTeam(@Param('teamId') teamId: string) {
@@ -321,12 +350,13 @@ export class TeamController {
     }
 
     return this.teamService.getTeamMembers(teamId);
-  } 
+  }
 
   @Delete(':id')
   @ApiOperation({
     summary: 'Delete organization (creator only)',
-    description: 'Permanently deletes an organization. Only the creator of the organization can delete it.',
+    description:
+      'Permanently deletes an organization. Only the creator of the organization can delete it.',
   })
   @ApiParam({
     name: 'id',
@@ -361,7 +391,8 @@ export class TeamController {
   @Post('make-admin')
   @ApiOperation({
     summary: 'Send admin invitation to a user (superAdmin or admin)',
-    description: 'Sends an admin invitation email to a user. The user will receive an invitation to become an admin of the specified organization. Only superAdmin or existing admin users can send invitations.',
+    description:
+      'Sends an admin invitation email to a user. The user will receive an invitation to become an admin of the specified organization. Only superAdmin or existing admin users can send invitations.',
   })
   @ApiBody({ type: MakeUserAdminDto })
   @ApiResponse({
@@ -374,7 +405,7 @@ export class TeamController {
   })
   async makeUserAdmin(
     @Req() req: Request & { user?: AuthUser },
-    @Body() makeUserAdminDto: MakeUserAdminDto
+    @Body() makeUserAdminDto: MakeUserAdminDto,
   ) {
     const userId = req.user?.id || req.user?._id || req.user?.userId;
     if (!userId) {
@@ -384,19 +415,37 @@ export class TeamController {
       userId,
       makeUserAdminDto.organizationId,
       makeUserAdminDto.email,
-      makeUserAdminDto.name
+      makeUserAdminDto.name,
     );
   }
-
 
   @Get('admins')
   @ApiOperation({
     summary: 'Get all admins of an organization (superAdmin or admin only)',
-    description: 'Retrieves all admin users of a specific organization. Organization ID is optional - will be derived from user token if not provided. Supports optional name filtering (case-insensitive partial match) and status filtering (pending/approved). Only superAdmin or admin users can access this API.',
+    description:
+      'Retrieves all admin users of a specific organization. Organization ID is optional - will be derived from user token if not provided. Supports optional name filtering (case-insensitive partial match) and status filtering (pending/approved). Only superAdmin or admin users can access this API.',
   })
-  @ApiQuery({ name: 'organizationId', required: false, description: 'Organization ID (optional - will be derived from admin user if not provided)', example: '69326ea68a34e1257f2f09da' })
-  @ApiQuery({ name: 'name', required: false, description: 'Filter admins by name (partial match, case-insensitive). Example: searching "ch" will match "chhagan"', example: 'ch' })
-  @ApiQuery({ name: 'status', required: false, description: 'Filter admins by invitation status from AdminCreation table. Valid values: "pending" or "approved"', example: 'pending' })
+  @ApiQuery({
+    name: 'organizationId',
+    required: false,
+    description:
+      'Organization ID (optional - will be derived from admin user if not provided)',
+    example: '69326ea68a34e1257f2f09da',
+  })
+  @ApiQuery({
+    name: 'name',
+    required: false,
+    description:
+      'Filter admins by name (partial match, case-insensitive). Example: searching "ch" will match "chhagan"',
+    example: 'ch',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    description:
+      'Filter admins by invitation status from AdminCreation table. Valid values: "pending" or "approved"',
+    example: 'pending',
+  })
   @ApiResponse({
     status: 200,
     description: 'Admins retrieved successfully',
@@ -407,7 +456,8 @@ export class TeamController {
   })
   @ApiResponse({
     status: 403,
-    description: 'Forbidden - Only superAdmin or admin users can access this API',
+    description:
+      'Forbidden - Only superAdmin or admin users can access this API',
   })
   @ApiResponse({
     status: 404,
@@ -417,7 +467,7 @@ export class TeamController {
     @Query('organizationId') organizationId: string | undefined,
     @Req() req: Request & { user?: AuthUser },
     @Query('name') name?: string,
-    @Query('status') status?: string
+    @Query('status') status?: string,
   ) {
     const userId = req.user?.id || req.user?._id || req.user?.userId;
     if (!userId) {
@@ -429,7 +479,8 @@ export class TeamController {
   @Delete('admin/:adminUserId')
   @ApiOperation({
     summary: 'Remove an admin from organization using DELETE (superAdmin only)',
-    description: 'Removes an admin user from an organization. Organization ID is optional - will be derived from superAdmin token if not provided. Only superAdmin users can access this API.',
+    description:
+      'Removes an admin user from an organization. Organization ID is optional - will be derived from superAdmin token if not provided. Only superAdmin users can access this API.',
   })
   @ApiResponse({
     status: 200,
@@ -447,29 +498,37 @@ export class TeamController {
     status: 404,
     description: 'Organization or admin user not found',
   })
-  @ApiParam({ name: 'adminUserId', description: 'Admin user ID to remove', example: '69326ed68a34e1257f2f09eb' })
-  @ApiQuery({ name: 'organizationId', required: false, description: 'Organization ID (optional - will be derived from superAdmin user if not provided)', example: '69326ea68a34e1257f2f09da' })
+  @ApiParam({
+    name: 'adminUserId',
+    description: 'Admin user ID to remove',
+    example: '69326ed68a34e1257f2f09eb',
+  })
+  @ApiQuery({
+    name: 'organizationId',
+    required: false,
+    description:
+      'Organization ID (optional - will be derived from superAdmin user if not provided)',
+    example: '69326ea68a34e1257f2f09da',
+  })
   async removeAdminDelete(
     @Param('adminUserId') adminUserId: string,
     @Query('organizationId') organizationId: string | undefined,
-    @Req() req: Request & { user?: AuthUser }
+    @Req() req: Request & { user?: AuthUser },
   ) {
     const userId = req.user?.id || req.user?._id || req.user?.userId;
     if (!userId) {
       throw new BadRequestException('User authentication required');
     }
-    return this.teamService.removeAdmin(
-      adminUserId,
-      organizationId,
-      userId
-    );
+    return this.teamService.removeAdmin(adminUserId, organizationId, userId);
   }
 
   @UseGuards(TeamRoleGuard)
   @Post('team/create')
   @ApiOperation({
-    summary: 'Create a team and optionally add multiple members (superAdmin or admin)',
-    description: 'Creates a new team within an organization and optionally adds multiple members by their email addresses. Organization ID is optional - will be derived from admin/superAdmin token if not provided. Only superAdmin or admin users can create teams.',
+    summary:
+      'Create a team and optionally add multiple members (superAdmin or admin)',
+    description:
+      'Creates a new team within an organization and optionally adds multiple members by their email addresses. Organization ID is optional - will be derived from admin/superAdmin token if not provided. Only superAdmin or admin users can create teams.',
   })
   @ApiBody({ type: CreateTeamDto })
   @ApiResponse({
@@ -482,7 +541,7 @@ export class TeamController {
   })
   async createTeamAndAddMember(
     @Req() req: Request & { user?: AuthUser },
-    @Body() createTeamDto: CreateTeamDto
+    @Body() createTeamDto: CreateTeamDto,
   ) {
     const userId = req.user?.id || req.user?._id || req.user?.userId;
     if (!userId) {
@@ -492,7 +551,7 @@ export class TeamController {
       userId,
       createTeamDto.organizationId,
       createTeamDto.teamName,
-      createTeamDto.memberEmails
+      createTeamDto.memberEmails,
     );
   }
 
@@ -500,7 +559,8 @@ export class TeamController {
   @Post('team/add-member')
   @ApiOperation({
     summary: 'Add multiple members to an existing team (superAdmin or admin)',
-    description: 'Adds multiple members to an existing team by their email addresses. Organization ID is optional - will be derived from admin/superAdmin token if not provided. Only superAdmin or admin users can add members to teams.',
+    description:
+      'Adds multiple members to an existing team by their email addresses. Organization ID is optional - will be derived from admin/superAdmin token if not provided. Only superAdmin or admin users can add members to teams.',
   })
   @ApiBody({ type: AddMemberToTeamDto })
   @ApiResponse({
@@ -513,7 +573,7 @@ export class TeamController {
   })
   async addMemberToTeam(
     @Req() req: Request & { user?: AuthUser },
-    @Body() addMemberToTeamDto: AddMemberToTeamDto
+    @Body() addMemberToTeamDto: AddMemberToTeamDto,
   ) {
     const userId = req.user?.id || req.user?._id || req.user?.userId;
     if (!userId) {
@@ -523,7 +583,7 @@ export class TeamController {
       addMemberToTeamDto.teamId,
       userId,
       addMemberToTeamDto.memberEmails,
-      addMemberToTeamDto.organizationId
+      addMemberToTeamDto.organizationId,
     );
   }
 
@@ -551,7 +611,8 @@ export class TeamController {
   @Delete('team/remove-member')
   @ApiOperation({
     summary: 'Remove a member from a team (superAdmin or admin)',
-    description: 'Removes a member from a team. Organization ID is optional - will be derived from admin/superAdmin token if not provided. Only superAdmin or admin users can remove members from teams.',
+    description:
+      'Removes a member from a team. Organization ID is optional - will be derived from admin/superAdmin token if not provided. Only superAdmin or admin users can remove members from teams.',
   })
   @ApiBody({ type: RemoveMemberFromTeamDto })
   @ApiResponse({
@@ -568,7 +629,7 @@ export class TeamController {
   })
   async removeMemberFromTeam(
     @Req() req: Request & { user?: AuthUser },
-    @Body() removeMemberFromTeamDto: RemoveMemberFromTeamDto
+    @Body() removeMemberFromTeamDto: RemoveMemberFromTeamDto,
   ) {
     const userId = req.user?.id || req.user?._id || req.user?.userId;
     if (!userId) {
@@ -578,15 +639,17 @@ export class TeamController {
       removeMemberFromTeamDto.teamId,
       userId,
       removeMemberFromTeamDto.memberId,
-      removeMemberFromTeamDto.organizationId
+      removeMemberFromTeamDto.organizationId,
     );
   }
 
   @UseGuards(TeamRoleGuard)
   @Post('team/move-member')
   @ApiOperation({
-    summary: 'Move a member from one team to another team (superAdmin or admin)',
-    description: 'Moves a member from one team to another team within the same organization. The organization is automatically determined from the authenticated user token. Only superAdmin or admin users can move members.',
+    summary:
+      'Move a member from one team to another team (superAdmin or admin)',
+    description:
+      'Moves a member from one team to another team within the same organization. The organization is automatically determined from the authenticated user token. Only superAdmin or admin users can move members.',
   })
   @ApiBody({ type: MoveMemberToTeamDto })
   @ApiResponse({
@@ -603,7 +666,7 @@ export class TeamController {
   })
   async moveMemberToTeam(
     @Req() req: Request & { user?: AuthUser },
-    @Body() moveMemberToTeamDto: MoveMemberToTeamDto
+    @Body() moveMemberToTeamDto: MoveMemberToTeamDto,
   ) {
     const userId = req.user?.id || req.user?._id || req.user?.userId;
     if (!userId) {
@@ -613,15 +676,16 @@ export class TeamController {
       moveMemberToTeamDto.teamId,
       userId,
       moveMemberToTeamDto.memberId,
-      moveMemberToTeamDto.moveTeamId
+      moveMemberToTeamDto.moveTeamId,
     );
   }
 
-
   @Get('my-decks')
   @ApiOperation({
-    summary: 'Get all decks from organizations where user is a member with pagination, category and name filters',
-    description: 'Retrieves all decks from organizations where the authenticated user is a member (superAdmin, admin, or team member). Supports pagination, category-wise filtering, and deck name search (partial match, case-insensitive).',
+    summary:
+      'Get all decks from organizations where user is a member with pagination, category and name filters',
+    description:
+      'Retrieves all decks from organizations where the authenticated user is a member (superAdmin, admin, or team member). Supports pagination, category-wise filtering, and deck name search (partial match, case-insensitive).',
   })
   @ApiResponse({
     status: 200,
@@ -663,10 +727,31 @@ export class TeamController {
     status: 400,
     description: 'Invalid user ID or query parameters',
   })
-  @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)', example: '1' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Number of items per page (default: 10)', example: '10' })
-  @ApiQuery({ name: 'category', required: false, description: 'Filter decks by category name', example: 'Technology' })
-  @ApiQuery({ name: 'name', required: false, description: 'Filter decks by name (partial match, case-insensitive). Example: searching "H" will match "HTML"', example: 'H' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number (default: 1)',
+    example: '1',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Number of items per page (default: 10)',
+    example: '10',
+  })
+  @ApiQuery({
+    name: 'category',
+    required: false,
+    description: 'Filter decks by category name',
+    example: 'Technology',
+  })
+  @ApiQuery({
+    name: 'name',
+    required: false,
+    description:
+      'Filter decks by name (partial match, case-insensitive). Example: searching "H" will match "HTML"',
+    example: 'H',
+  })
   async getUserOrganizationDecks(
     @Req() req: Request & { user?: AuthUser },
     @Query() query: MyDecksQueryDto,
@@ -697,13 +782,17 @@ export class TeamController {
   }
 
   @Get('dashboard')
-  @ApiOperation({ summary: 'Get dashboard data with teams, members, and statistics for user organization' })
-  @ApiResponse({ status: 200, description: 'Dashboard data retrieved successfully' })
+  @ApiOperation({
+    summary:
+      'Get dashboard data with teams, members, and statistics for user organization',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Dashboard data retrieved successfully',
+  })
   @ApiResponse({ status: 400, description: 'Invalid user ID' })
   @ApiResponse({ status: 404, description: 'User or organization not found' })
-  async getDashboard(
-    @Req() req: Request & { user?: AuthUser }
-  ) {
+  async getDashboard(@Req() req: Request & { user?: AuthUser }) {
     const userId = req.user?.id || req.user?._id || req.user?.userId;
     if (!userId) {
       throw new BadRequestException('User authentication required');
@@ -714,7 +803,8 @@ export class TeamController {
   @Get('users/online')
   @ApiOperation({
     summary: 'Get all online users (superAdmin, admin, or member)',
-    description: 'Retrieves all users with userType superAdmin, admin, or member who are currently online (isOnline=true). For members, includes teamId and teamName. For superAdmin and admin, teamId and teamName are null. Only users with these roles can access this API.',
+    description:
+      'Retrieves all users with userType superAdmin, admin, or member who are currently online (isOnline=true). For members, includes teamId and teamName. For superAdmin and admin, teamId and teamName are null. Only users with these roles can access this API.',
   })
   @ApiResponse({
     status: 200,
@@ -738,8 +828,8 @@ export class TeamController {
               organization: {
                 id: '507f1f77bcf86cd799439012',
                 name: 'My Organization',
-                logo: '/uploads/organization-logos/logo.png'
-              }
+                logo: '/uploads/organization-logos/logo.png',
+              },
             },
             {
               id: '507f1f77bcf86cd799439014',
@@ -754,14 +844,14 @@ export class TeamController {
               organization: {
                 id: '507f1f77bcf86cd799439012',
                 name: 'My Organization',
-                logo: '/uploads/organization-logos/logo.png'
-              }
-            }
+                logo: '/uploads/organization-logos/logo.png',
+              },
+            },
           ],
-          totalOnlineUsers: 2
-        }
-      }
-    }
+          totalOnlineUsers: 2,
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 400,
@@ -769,7 +859,8 @@ export class TeamController {
   })
   @ApiResponse({
     status: 403,
-    description: 'Forbidden - Only superAdmin, admin, or member users can access this API',
+    description:
+      'Forbidden - Only superAdmin, admin, or member users can access this API',
   })
   @ApiResponse({
     status: 404,
@@ -786,7 +877,8 @@ export class TeamController {
   @Get('knowledge-improvement')
   @ApiOperation({
     summary: 'Get knowledge improvement decks with optional deck name search',
-    description: 'Retrieves knowledge improvement decks for a specific user with their accuracy data. Optionally filters decks by name using a search term.',
+    description:
+      'Retrieves knowledge improvement decks for a specific user with their accuracy data. Optionally filters decks by name using a search term.',
   })
   @ApiResponse({
     status: 200,
@@ -796,65 +888,83 @@ export class TeamController {
     status: 400,
     description: 'Invalid user ID',
   })
-  @ApiQuery({ name: 'userId', required: false, description: 'Optional target user ID to fetch accuracy for. If not provided, uses the authenticated user from token.', example: '507f1f77bcf86cd799439011' })
-  @ApiQuery({ name: 'searchTerm', required: false, description: 'Optional deck name search term', example: 'Python' })
+  @ApiQuery({
+    name: 'userId',
+    required: false,
+    description:
+      'Optional target user ID to fetch accuracy for. If not provided, uses the authenticated user from token.',
+    example: '507f1f77bcf86cd799439011',
+  })
+  @ApiQuery({
+    name: 'searchTerm',
+    required: false,
+    description: 'Optional deck name search term',
+    example: 'Python',
+  })
   async getKnowledgeImprovementDecks(
     @Req() req: Request & { user?: AuthUser },
     @Query('userId') userId?: string,
     @Query('searchTerm') searchTerm?: string,
   ) {
-    const authenticatedUserId = req.user?.id || req.user?._id || req.user?.userId;
+    const authenticatedUserId =
+      req.user?.id || req.user?._id || req.user?.userId;
     if (!authenticatedUserId) {
       throw new BadRequestException('User authentication required');
     }
-    return this.teamService.getKnowledgeImprovementDecks(authenticatedUserId, userId, searchTerm);
+    return this.teamService.getKnowledgeImprovementDecks(
+      authenticatedUserId,
+      userId,
+      searchTerm,
+    );
   }
 
-   @Patch('deck/:deckId/name')
-    @UseGuards(JwtAuthGuard)
-    @ApiBearerAuth('access-token')
-    @ApiOperation({
-      summary: 'Update deck name',
-      description: 'Updates only the name of a deck superAdmin & admin by the authenticated user.',
-    })
-    @ApiParam({
-      name: 'deckId',
-      type: String,
-      description: 'Deck ID to update',
-      example: '67501b23842d45d1c3d9f91a',
-    })
-    @ApiBody({ type: UpdateDeckNameDto })
-    @ApiResponse({
-      status: 200,
-      description: 'Deck name updated successfully',
-    })
-    @ApiResponse({
-      status: 400,
-      description: 'Bad request - invalid input or unauthorized',
-    })
-    @ApiResponse({
-      status: 404,
-      description: 'Deck not found',
-    })
-    async updateDeckName(
-      @Req() req: Request & { user?: AuthUser },
-      @Param('deckId') deckId: string,
-      @Body() body: UpdateDeckNameDto,
-    ) {
-      const userId = req.user?.id || req.user?._id || req.user?.userId;
-      if (!userId) {
-        throw new BadRequestException('User authentication required');
-      }
-  
-      return this.teamService.updateDeckName(deckId, userId, body.name);
+  @Patch('deck/:deckId/name')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Update deck name',
+    description:
+      'Updates only the name of a deck superAdmin & admin by the authenticated user.',
+  })
+  @ApiParam({
+    name: 'deckId',
+    type: String,
+    description: 'Deck ID to update',
+    example: '67501b23842d45d1c3d9f91a',
+  })
+  @ApiBody({ type: UpdateDeckNameDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Deck name updated successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - invalid input or unauthorized',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Deck not found',
+  })
+  async updateDeckName(
+    @Req() req: Request & { user?: AuthUser },
+    @Param('deckId') deckId: string,
+    @Body() body: UpdateDeckNameDto,
+  ) {
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('User authentication required');
     }
+
+    return this.teamService.updateDeckName(deckId, userId, body.name);
+  }
 
   @Delete('deck/:deckId')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('access-token')
   @ApiOperation({
     summary: 'Delete deck with topics and subtopics (superAdmin or admin only)',
-    description: 'Permanently deletes a deck along with all its associated topics and subtopics from the database. Only superAdmin or admin users can delete decks.',
+    description:
+      'Permanently deletes a deck along with all its associated topics and subtopics from the database. Only superAdmin or admin users can delete decks.',
   })
   @ApiParam({
     name: 'deckId',
@@ -872,13 +982,13 @@ export class TeamController {
         data: {
           deletedDeck: {
             id: '67501b23842d45d1c3d9f91a',
-            name: 'Sample Deck'
+            name: 'Sample Deck',
           },
           deletedTopicsCount: 5,
-          deletedSubtopicsCount: 15
-        }
-      }
-    }
+          deletedSubtopicsCount: 15,
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 400,
@@ -904,4 +1014,3 @@ export class TeamController {
     return this.teamService.deleteDeck(deckId, userId);
   }
 }
-

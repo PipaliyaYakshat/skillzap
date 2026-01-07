@@ -4,12 +4,21 @@ import { TeamService } from './team.service';
 import { TeamController } from './team.controller';
 import { TeamGameService } from './team-game.service';
 import { TeamGameGateway } from './team-game.gateway';
-import { Organization, OrganizationSchema } from './entities/orgenaztion.entity';
+import {
+  Organization,
+  OrganizationSchema,
+} from './entities/orgenaztion.entity';
 import { User, UserSchema } from '../users/entities/user.entity';
 import { TeamOnlyGuard } from './guards/team-only.guard';
 import { TeamRoleGuard } from './guards/team-role.guard';
-import { AdminCreation, AdminCreationSchema } from './entities/admin-creation.entity';
-import { SubscriptionPlan, SubscriptionPlanSchema } from '../subscription/entities/subscription-plan.entity';
+import {
+  AdminCreation,
+  AdminCreationSchema,
+} from './entities/admin-creation.entity';
+import {
+  SubscriptionPlan,
+  SubscriptionPlanSchema,
+} from '../subscription/entities/subscription-plan.entity';
 import { Team, TeamSchema } from './entities/team.entity';
 import { TeamMember, TeamMemberSchema } from './entities/team-member.entity';
 import { Deck, DeckSchema } from '../content/schemas/deck.schema';
@@ -24,10 +33,22 @@ import {
   MemberProgress,
   MemberProgressSchema,
 } from './entities/member-progress.schema';
-import { TeamGameScore, TeamGameScoreSchema } from './entities/team-game.entity';
-import { TeamGameChat, TeamGameChatSchema } from './entities/teamgame-chat.entity';
-import { GameProgress, GameProgressSchema } from '../content/schemas/game-progress.schema';
-import { TopicProgress, TopicProgressSchema } from '../content/schemas/topic-progress.schema';
+import {
+  TeamGameScore,
+  TeamGameScoreSchema,
+} from './entities/team-game.entity';
+import {
+  TeamGameChat,
+  TeamGameChatSchema,
+} from './entities/teamgame-chat.entity';
+import {
+  GameProgress,
+  GameProgressSchema,
+} from '../content/schemas/game-progress.schema';
+import {
+  TopicProgress,
+  TopicProgressSchema,
+} from '../content/schemas/topic-progress.schema';
 
 @Module({
   imports: [
@@ -60,8 +81,13 @@ import { TopicProgress, TopicProgressSchema } from '../content/schemas/topic-pro
     }),
   ],
   controllers: [TeamController],
-  providers: [TeamService, TeamGameService, TeamGameGateway, TeamOnlyGuard, TeamRoleGuard],
+  providers: [
+    TeamService,
+    TeamGameService,
+    TeamGameGateway,
+    TeamOnlyGuard,
+    TeamRoleGuard,
+  ],
   exports: [TeamService, TeamGameService],
 })
 export class TeamModule {}
-

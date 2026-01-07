@@ -19,4 +19,3 @@ export class UpdateUserSubscriptionExpiryDto {
   @IsDateString({}, { message: 'Expiry date must be a valid date string' })
   expiryDate: string;
 }
-

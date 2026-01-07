@@ -22,4 +22,3 @@ export class AdminResetPasswordDto {
   @IsNotEmpty()
   confirmPassword: string;
 }
-

@@ -20,4 +20,3 @@ export class RemoveAdminDto {
   @IsNotEmpty({ message: 'Organization ID is required' })
   organizationId: string;
 }
-

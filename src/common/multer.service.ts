@@ -80,41 +80,52 @@ export const getPublicUrlPath = (
  * @param filePath - The filesystem path
  * @returns Public URL path or original path if conversion fails
  */
-export const convertToPublicUrl = (filePath: string | null | undefined): string | null => {
+export const convertToPublicUrl = (
+  filePath: string | null | undefined,
+): string | null => {
   if (!filePath) return null;
-  
+
   // If already a public URL (starts with /skillzap/uploads), return as is
   if (filePath.startsWith('/skillzap/uploads/')) {
     return filePath;
   }
-  
+
   // Extract filename from filesystem path
   const filename = filePath.split('/').pop() || '';
-  
+
   // Determine subPath based on filename or path
-  if (filePath.includes('profile-images') || filename.startsWith('profileImage-')) {
+  if (
+    filePath.includes('profile-images') ||
+    filename.startsWith('profileImage-')
+  ) {
     return getPublicUrlPath('profile-images', filename);
-  } else if (filePath.includes('organization-logos') || filename.startsWith('organizationLogo-')) {
+  } else if (
+    filePath.includes('organization-logos') ||
+    filename.startsWith('organizationLogo-')
+  ) {
     return getPublicUrlPath('organization-logos', filename);
   } else if (filePath.includes('files/') || filename.startsWith('file-')) {
     return getPublicUrlPath('files', filename);
   } else if (filePath.includes('avatars') || filename.startsWith('avatar-')) {
     return getPublicUrlPath('avatars', filename);
   }
-  
+
   // Fallback: try to extract from path structure
   const basePath = getUploadBasePath();
   if (filePath.startsWith(basePath)) {
     const relativePath = filePath.replace(basePath, '').replace(/^\//, '');
     const parts = relativePath.split('/');
     if (parts.length >= 2) {
-      const subPath = parts[0] as 'profile-images' | 'files' | 'organization-logos' | 'avatars';
+      const subPath = parts[0] as
+        | 'profile-images'
+        | 'files'
+        | 'organization-logos'
+        | 'avatars';
       const file = parts[parts.length - 1];
       return getPublicUrlPath(subPath, file);
     }
   }
-  
+
   // If we can't determine, return original (might be a URL already)
   return filePath;
 };
-

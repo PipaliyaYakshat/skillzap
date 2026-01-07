@@ -8,23 +8,38 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, isValidObjectId, Types } from 'mongoose';
-import { Organization, OrganizationDocument } from './entities/orgenaztion.entity';
+import {
+  Organization,
+  OrganizationDocument,
+} from './entities/orgenaztion.entity';
 import { User, UserDocument } from '../users/entities/user.entity';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { getUploadBasePath, getPublicUrlPath } from '../common/multer.service';
 import * as nodemailer from 'nodemailer';
 import { AdminCreation } from './entities/admin-creation.entity';
-import { SubscriptionPlan, SubscriptionPlanDocument } from '../subscription/entities/subscription-plan.entity';
+import {
+  SubscriptionPlan,
+  SubscriptionPlanDocument,
+} from '../subscription/entities/subscription-plan.entity';
 import { TeamMember } from './entities/team-member.entity';
 import { Team, TeamDocument } from './entities/team.entity';
 import { InternalServerErrorException } from '@nestjs/common';
 import { Deck, DeckDocument } from '../content/schemas/deck.schema';
-import { TeamGameScore, TeamGameScoreDocument } from './entities/team-game.entity';
-import { GameProgress, GameProgressDocument } from '../content/schemas/game-progress.schema';
+import {
+  TeamGameScore,
+  TeamGameScoreDocument,
+} from './entities/team-game.entity';
+import {
+  GameProgress,
+  GameProgressDocument,
+} from '../content/schemas/game-progress.schema';
 import { Topic, TopicDocument } from '../content/schemas/topic.schema';
 import { SubTopic, SubTopicDocument } from '../content/schemas/subtopic.schema';
-import { TopicProgress, TopicProgressDocument } from '../content/schemas/topic-progress.schema';
+import {
+  TopicProgress,
+  TopicProgressDocument,
+} from '../content/schemas/topic-progress.schema';
 import { Game, GameDocument } from '../content/schemas/game.schema';
 import { TeamMemberDocument } from './entities/team-member.entity';
 import { USER_ROLE, USER_TYPE } from 'src/common/enum';
@@ -33,7 +48,7 @@ import { USER_ROLE, USER_TYPE } from 'src/common/enum';
 type UserWithTeamPlan = UserDocument & {
   teamPlan?: string | null;
   purchasePlanId?: Types.ObjectId | null;
-}
+};
 
 type PopulatedUserInfo = {
   _id: Types.ObjectId;
@@ -41,17 +56,17 @@ type PopulatedUserInfo = {
   email?: string;
   profileImage?: string | null;
   isOnline?: boolean;
-}
+};
 
 type PopulatedTeamInfo = {
   _id: Types.ObjectId;
   teamName?: string;
-}
+};
 
 type PopulatedOrgInfo = {
   _id: Types.ObjectId;
   name?: string;
-}
+};
 
 type PopulatedTeamMemberLean = {
   _id: Types.ObjectId;
@@ -66,14 +81,14 @@ type PopulatedTeamMemberLean = {
   flashcardAccuracy?: number;
   battleAccuracy?: number;
   gameAccuracy?: number;
-}
+};
 
 type PopulatedOrganizationLean = {
   _id: Types.ObjectId;
   name?: string;
   logo?: string;
   creatorId?: Types.ObjectId;
-}
+};
 
 type MemberWithRank = {
   id: string | null;
@@ -87,7 +102,7 @@ type MemberWithRank = {
   points: number;
   isOnline?: boolean;
   rank?: number;
-}
+};
 
 type TopicWithAccuracies = {
   _id: Types.ObjectId;
@@ -95,7 +110,7 @@ type TopicWithAccuracies = {
   subTopics?: Types.ObjectId[];
   flashcardAccuracies?: Array<{ userId: Types.ObjectId; accuracy: number }>;
   battleAccuracies?: Array<{ userId: Types.ObjectId; accuracy: number }>;
-}
+};
 
 type AdminCreationLean = {
   _id: Types.ObjectId;
@@ -106,16 +121,22 @@ type AdminCreationLean = {
   name?: string;
   status: string;
   createdAt: Date;
-}
+};
 
 type TopicLean = {
   _id: Types.ObjectId;
   title?: string;
   subTopics?: (string | Types.ObjectId)[];
-  flashcardAccuracies?: Array<{ userId: string | Types.ObjectId; accuracy: number }>;
-  battleAccuracies?: Array<{ userId: string | Types.ObjectId; accuracy: number }>;
+  flashcardAccuracies?: Array<{
+    userId: string | Types.ObjectId;
+    accuracy: number;
+  }>;
+  battleAccuracies?: Array<{
+    userId: string | Types.ObjectId;
+    accuracy: number;
+  }>;
   [key: string]: unknown;
-}
+};
 
 type DeckLean = {
   _id: Types.ObjectId;
@@ -130,7 +151,7 @@ type DeckLean = {
   createdAt?: Date;
   updatedAt?: Date;
   [key: string]: unknown;
-}
+};
 
 type GameLean = {
   _id: Types.ObjectId;
@@ -149,7 +170,7 @@ type GameLean = {
   accuracy?: Record<string, number>;
   isCompleted?: boolean;
   [key: string]: unknown;
-}
+};
 
 type TeamGameScoreLean = {
   _id: Types.ObjectId;
@@ -161,7 +182,7 @@ type TeamGameScoreLean = {
   updatedAt?: Date;
   __v?: number;
   [key: string]: unknown;
-}
+};
 
 type GameProgressLean = {
   _id: Types.ObjectId;
@@ -170,7 +191,7 @@ type GameProgressLean = {
   totalQuestions?: number;
   totalCorrectAnswers?: number;
   [key: string]: unknown;
-}
+};
 
 type MemberResult = {
   email: string;
@@ -181,13 +202,16 @@ type MemberResult = {
     email?: string;
     name?: string;
   };
-}
+};
 
 type AggregationResult = {
-  _id: string | Types.ObjectId | { userId: string | Types.ObjectId; teamId: string | Types.ObjectId };
+  _id:
+    | string
+    | Types.ObjectId
+    | { userId: string | Types.ObjectId; teamId: string | Types.ObjectId };
   totalPoints?: number;
   totalCount?: number;
-}
+};
 
 type TeamMemberPopulated = {
   _id: Types.ObjectId;
@@ -201,46 +225,63 @@ type TeamMemberPopulated = {
   creator?: Types.ObjectId;
   gameAccuracy?: number;
   [key: string]: unknown;
-}
+};
 
 type QueryFilter = {
   [key: string]: unknown;
-}
+};
 
 @Injectable()
 export class TeamService {
   private transporter;
   private readonly freeEmailDomains = [
-    'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'live.com',
-    'rediffmail.com', 'icloud.com', 'zoho.com', 'mail.com', 'aol.com',
-    'gmx.com', 'protonmail.com', 'proton.me', 'yandex.com', 'tutanota.com',
-    'fastmail.com', 'example.com',
+    'gmail.com',
+    'yahoo.com',
+    'hotmail.com',
+    'outlook.com',
+    'live.com',
+    'rediffmail.com',
+    'icloud.com',
+    'zoho.com',
+    'mail.com',
+    'aol.com',
+    'gmx.com',
+    'protonmail.com',
+    'proton.me',
+    'yandex.com',
+    'tutanota.com',
+    'fastmail.com',
+    'example.com',
   ];
   constructor(
     @InjectModel(Organization.name)
     private readonly organizationModel: Model<OrganizationDocument>,
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
-    @InjectModel(AdminCreation.name) private adminCreationModel: Model<AdminCreation>,
+    @InjectModel(AdminCreation.name)
+    private adminCreationModel: Model<AdminCreation>,
     @InjectModel(SubscriptionPlan.name)
     private readonly subscriptionPlanModel: Model<SubscriptionPlanDocument>,
     @InjectModel(TeamMember.name) private teamMemberModel: Model<TeamMember>,
     @InjectModel(Team.name) private teamModel: Model<TeamDocument>,
     @InjectModel(Deck.name) private deckModel: Model<DeckDocument>,
-    @InjectModel(TeamGameScore.name) private teamGameScoreModel: Model<TeamGameScoreDocument>,
-    @InjectModel(GameProgress.name) private gameProgressModel: Model<GameProgressDocument>,
+    @InjectModel(TeamGameScore.name)
+    private teamGameScoreModel: Model<TeamGameScoreDocument>,
+    @InjectModel(GameProgress.name)
+    private gameProgressModel: Model<GameProgressDocument>,
     @InjectModel(Topic.name) private topicModel: Model<TopicDocument>,
     @InjectModel(SubTopic.name) private subTopicModel: Model<SubTopicDocument>,
-    @InjectModel(TopicProgress.name) private topicProgressModel: Model<TopicProgressDocument>,
+    @InjectModel(TopicProgress.name)
+    private topicProgressModel: Model<TopicProgressDocument>,
     @InjectModel(Game.name) private gameModel: Model<GameDocument>,
   ) {
     {
       this.transporter = nodemailer.createTransport({
-        host: "smtp.gmail.com",
+        host: 'smtp.gmail.com',
         port: 587,
         secure: false,
         auth: {
-          user: "pipaliyayakshat@gmail.com",
+          user: 'pipaliyayakshat@gmail.com',
           pass: 'ytjx exfu jnny ouyp',
         },
       });
@@ -273,7 +314,9 @@ export class TeamService {
 
     const domain = emailParts[1];
     if (this.freeEmailDomains.includes(domain)) {
-      throw new BadRequestException('Only business emails are valid. Free email domains are not allowed.');
+      throw new BadRequestException(
+        'Only business emails are valid. Free email domains are not allowed.',
+      );
     }
   }
 
@@ -292,20 +335,22 @@ export class TeamService {
     }
 
     if (user.userType === 'Individual') {
-      throw new ForbiddenException('Individual users cannot access team service. Use content service instead.');
+      throw new ForbiddenException(
+        'Individual users cannot access team service. Use content service instead.',
+      );
     }
   }
 
   async getAllowedTeamPlans(): Promise<string[]> {
     const allowedPlans = await this.subscriptionPlanModel
-      .find({ 
+      .find({
         name: { $in: ['Team', 'Enterprise'] },
-        isDeleted: false 
+        isDeleted: false,
       })
       .select('name')
       .exec();
-    
-    return allowedPlans.map(plan => plan.name);
+
+    return allowedPlans.map((plan) => plan.name);
   }
 
   async createOrganization(
@@ -315,14 +360,14 @@ export class TeamService {
   ) {
     try {
       // await this.assertNonIndividualUser(userId);
-      
+
       if (!organizationLogo) {
         throw new BadRequestException('Organization logo file is required');
       }
 
       // Check if user exists and has superAdmin role
       const user = await this.userModel.findById(userId);
-      
+
       if (!user) {
         throw new BadRequestException('User not found');
       }
@@ -333,25 +378,32 @@ export class TeamService {
         );
       }
 
-
       // Check if subscription is active
       const hasActivePlan =
-        !!user.expirePlanDate &&
-        user.expirePlanDate.getTime() > Date.now();
+        !!user.expirePlanDate && user.expirePlanDate.getTime() > Date.now();
 
       if (!hasActivePlan) {
-        throw new ForbiddenException('Your subscription plan has expired. Please renew your Team subscription plan first.');
+        throw new ForbiddenException(
+          'Your subscription plan has expired. Please renew your Team subscription plan first.',
+        );
       }
 
-
       // Prevent a single superAdmin from creating multiple organizations
-      const existingOrganizationForUser = await this.organizationModel.findOne({ creatorId: userId }).lean().exec();
+      const existingOrganizationForUser = await this.organizationModel
+        .findOne({ creatorId: userId })
+        .lean()
+        .exec();
       if (existingOrganizationForUser) {
-        throw new BadRequestException('A superAdmin can create only one organization');
+        throw new BadRequestException(
+          'A superAdmin can create only one organization',
+        );
       }
 
       // Generate public URL path for nginx
-      const logoUrl = getPublicUrlPath('organization-logos', organizationLogo.filename);
+      const logoUrl = getPublicUrlPath(
+        'organization-logos',
+        organizationLogo.filename,
+      );
 
       // Create the organization
       const newOrganization = new this.organizationModel({
@@ -368,7 +420,10 @@ export class TeamService {
         data: savedOrganization,
       };
     } catch (error) {
-      if (error instanceof ForbiddenException || error instanceof BadRequestException) {
+      if (
+        error instanceof ForbiddenException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       throw new HttpException(
@@ -381,10 +436,10 @@ export class TeamService {
   async getOrganization(userId: string) {
     try {
       // await this.assertNonIndividualUser(userId);
-      
+
       // Check if user exists and has superAdmin role
       const user = await this.userModel.findById(userId);
-      
+
       if (!user) {
         throw new BadRequestException('User not found');
       }
@@ -406,7 +461,10 @@ export class TeamService {
         data: organizations,
       };
     } catch (error) {
-      if (error instanceof ForbiddenException || error instanceof BadRequestException) {
+      if (
+        error instanceof ForbiddenException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       throw new HttpException(
@@ -419,10 +477,10 @@ export class TeamService {
   async getAllOrganization(userId: string) {
     try {
       // await this.assertNonIndividualUser(userId);
-      
+
       // Check if user exists and has owner role
       const user = await this.userModel.findById(userId);
-      
+
       if (!user) {
         throw new BadRequestException('User not found');
       }
@@ -442,7 +500,10 @@ export class TeamService {
         data: organizations,
       };
     } catch (error) {
-      if (error instanceof ForbiddenException || error instanceof BadRequestException) {
+      if (
+        error instanceof ForbiddenException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       throw new HttpException(
@@ -460,14 +521,15 @@ export class TeamService {
   ) {
     try {
       // await this.assertNonIndividualUser(userId);
-      
+
       if (!isValidObjectId(organizationId)) {
         throw new BadRequestException('Invalid organization ID');
       }
 
       // Check if organization exists
-      const organization = await this.organizationModel.findById(organizationId);
-      
+      const organization =
+        await this.organizationModel.findById(organizationId);
+
       if (!organization) {
         throw new NotFoundException('Organization not found');
       }
@@ -486,7 +548,10 @@ export class TeamService {
 
       // Update logo if file is provided
       if (organizationLogo) {
-        organization.logo = getPublicUrlPath('organization-logos', organizationLogo.filename);
+        organization.logo = getPublicUrlPath(
+          'organization-logos',
+          organizationLogo.filename,
+        );
       }
 
       const updatedOrganization = await organization.save();
@@ -514,14 +579,15 @@ export class TeamService {
   async deleteOrganization(organizationId: string, userId: string) {
     try {
       // await this.assertNonIndividualUser(userId);
-      
+
       if (!isValidObjectId(organizationId)) {
         throw new BadRequestException('Invalid organization ID');
       }
 
       // Check if organization exists
-      const organization = await this.organizationModel.findById(organizationId);
-      
+      const organization =
+        await this.organizationModel.findById(organizationId);
+
       if (!organization) {
         throw new NotFoundException('Organization not found');
       }
@@ -555,13 +621,18 @@ export class TeamService {
     }
   }
 
-  async makeUserAdmin(adminCreatorId: string, organizationId: string | undefined, email: string, name?: string) {
+  async makeUserAdmin(
+    adminCreatorId: string,
+    organizationId: string | undefined,
+    email: string,
+    name?: string,
+  ) {
     try {
       // await this.assertNonIndividualUser(adminCreatorId);
-      
+
       // Validate business email (only business emails are allowed, not free email domains)
       this.validateBusinessEmail(email);
-      
+
       // Validate creator first
       if (!isValidObjectId(adminCreatorId)) {
         throw new BadRequestException('Invalid admin creator ID');
@@ -574,23 +645,31 @@ export class TeamService {
 
       // If organizationId is not provided, derive it from adminCreator
       let effectiveOrganizationId = organizationId;
-      
+
       if (!effectiveOrganizationId) {
         if (adminCreator.userType === USER_TYPE[2]) {
           // If adminCreator is an admin, get organization from their organization field
           if (!adminCreator.organization) {
-            throw new BadRequestException('Admin user does not have an organization. Organization ID is required.');
+            throw new BadRequestException(
+              'Admin user does not have an organization. Organization ID is required.',
+            );
           }
           effectiveOrganizationId = adminCreator.organization.toString();
         } else if (adminCreator.userType === USER_TYPE[1]) {
           // If adminCreator is superAdmin, get their first created organization
-          const createdOrganization = await this.organizationModel.findOne({ creatorId: adminCreatorId });
+          const createdOrganization = await this.organizationModel.findOne({
+            creatorId: adminCreatorId,
+          });
           if (!createdOrganization) {
-            throw new BadRequestException('SuperAdmin has not created any organization. Organization ID is required.');
+            throw new BadRequestException(
+              'SuperAdmin has not created any organization. Organization ID is required.',
+            );
           }
           effectiveOrganizationId = createdOrganization._id.toString();
         } else {
-          throw new BadRequestException('Organization ID is required for this user type.');
+          throw new BadRequestException(
+            'Organization ID is required for this user type.',
+          );
         }
       }
 
@@ -600,7 +679,9 @@ export class TeamService {
       }
 
       // Validate organization
-      const organization = await this.organizationModel.findById(effectiveOrganizationId);
+      const organization = await this.organizationModel.findById(
+        effectiveOrganizationId,
+      );
       if (!organization) {
         throw new NotFoundException('Organization not found');
       }
@@ -611,13 +692,15 @@ export class TeamService {
       let subscriptionOwner = adminCreator;
       if (adminCreator.userType === USER_TYPE[2]) {
         // For admins, check the organization creator's (superAdmin) subscription
-        const organizationCreator = await this.userModel.findById(organization.creatorId);
+        const organizationCreator = await this.userModel.findById(
+          organization.creatorId,
+        );
         if (!organizationCreator) {
           throw new NotFoundException('Organization creator not found');
         }
         subscriptionOwner = organizationCreator;
       }
-      
+
       // Determine subscription status
       const hasActivePlan =
         !!subscriptionOwner.expirePlanDate &&
@@ -626,7 +709,9 @@ export class TeamService {
       // Fetch plan details only when a plan is present
       let subscriptionPlan: SubscriptionPlanDocument | null = null;
       if (subscriptionOwner.purchasePlanId) {
-        subscriptionPlan = await this.subscriptionPlanModel.findById(subscriptionOwner.purchasePlanId);
+        subscriptionPlan = await this.subscriptionPlanModel.findById(
+          subscriptionOwner.purchasePlanId,
+        );
         if (subscriptionPlan?.isDeleted) {
           subscriptionPlan = null;
         }
@@ -655,23 +740,35 @@ export class TeamService {
         !allowedPlanNames.includes(planName || '') &&
         userTeamPlan !== 'enterprise'
       ) {
-        throw new ForbiddenException('Only Team or Enterprise plans can invite admins.');
+        throw new ForbiddenException(
+          'Only Team or Enterprise plans can invite admins.',
+        );
       }
 
       // Check authorization: must be superAdmin or admin of the same organization
       if (
         adminCreator.userType !== USER_TYPE[1] &&
-        !(adminCreator.userType === USER_TYPE[2] && adminCreator.organization?.toString() === effectiveOrganizationId)
+        !(
+          adminCreator.userType === USER_TYPE[2] &&
+          adminCreator.organization?.toString() === effectiveOrganizationId
+        )
       ) {
-        throw new ForbiddenException('Not authorized to add admin to this organization');
+        throw new ForbiddenException(
+          'Not authorized to add admin to this organization',
+        );
       }
 
       // Check if user already exists
       const existingUser = await this.userModel.findOne({ email });
       if (existingUser) {
         // If user exists, check if they're already an admin for this organization
-        if (existingUser.userType === USER_TYPE[2] && existingUser.organization?.toString() === effectiveOrganizationId) {
-          throw new BadRequestException('User is already an admin for this organization');
+        if (
+          existingUser.userType === USER_TYPE[2] &&
+          existingUser.organization?.toString() === effectiveOrganizationId
+        ) {
+          throw new BadRequestException(
+            'User is already an admin for this organization',
+          );
         }
         // If user exists but is not an admin for this org, we can still invite them
         // (they might be a regular user or admin of another org)
@@ -681,35 +778,42 @@ export class TeamService {
       const existingInvitation = await this.adminCreationModel.findOne({
         email: email,
         organization: effectiveOrganizationId,
-        status: 'pending'
+        status: 'pending',
       });
 
       if (existingInvitation) {
-        throw new BadRequestException('A pending invitation already exists for this email and organization');
+        throw new BadRequestException(
+          'A pending invitation already exists for this email and organization',
+        );
       }
 
       // If adminCreator is superAdmin, check pending invitation limit (max 3)
       if (enforceAdminLimit && adminCreator.userType === USER_TYPE[1]) {
-        const pendingInvitationCount = await this.adminCreationModel.countDocuments({
-          creator: adminCreatorId,
-          organization: effectiveOrganizationId,
-          status: 'pending'
-        });
+        const pendingInvitationCount =
+          await this.adminCreationModel.countDocuments({
+            creator: adminCreatorId,
+            organization: effectiveOrganizationId,
+            status: 'pending',
+          });
 
         if (pendingInvitationCount >= 3) {
-          throw new BadRequestException('Maximum of 3 pending admin invitations reached. You cannot send more invitations until some are accepted or cancelled.');
+          throw new BadRequestException(
+            'Maximum of 3 pending admin invitations reached. You cannot send more invitations until some are accepted or cancelled.',
+          );
         }
       }
 
       // Count actual admin users for this organization (users with role='admin' and matching organization)
       if (enforceAdminLimit) {
-        const actualAdminCount = await this.userModel.countDocuments({ 
+        const actualAdminCount = await this.userModel.countDocuments({
           userType: USER_TYPE[2],
-          organization: effectiveOrganizationId
+          organization: effectiveOrganizationId,
         });
 
         if (actualAdminCount >= 3) {
-          throw new BadRequestException('Maximum of 3 admin users reached for this organization');
+          throw new BadRequestException(
+            'Maximum of 3 admin users reached for this organization',
+          );
         }
       }
 
@@ -719,14 +823,14 @@ export class TeamService {
         email: email,
         name: name || undefined,
         organization: effectiveOrganizationId,
-        status: 'pending'
+        status: 'pending',
       });
 
       // Send email with verification link
-      const invitationMessage = name 
+      const invitationMessage = name
         ? `Hello ${name}, you've been invited to register as admin by ${adminCreator.email} for organization ${organization.name}`
         : `You've been invited to register as admin by ${adminCreator.email} for organization ${organization.name}`;
-      
+
       const verificationUrl = `http://localhost:3000/teams/signup?email=${encodeURIComponent(email)}`;
 
       this.sendAdminInvite(email, {
@@ -742,13 +846,13 @@ export class TeamService {
           invitation: adminInvitation,
           invitedUser: {
             email: email,
-            name: name || null
+            name: name || null,
           },
           adminCreator: {
             id: adminCreator._id.toString(),
             email: adminCreator.email,
-            name: adminCreator.name
-          }
+            name: adminCreator.name,
+          },
         },
       };
     } catch (error) {
@@ -779,7 +883,10 @@ export class TeamService {
     }
   }
 
-  async sendAdminInvite(email: string, data: { verificationUrl: string; message?: string }) {
+  async sendAdminInvite(
+    email: string,
+    data: { verificationUrl: string; message?: string },
+  ) {
     const subject = 'You have been invited to join as an Admin';
     const html = `
       <!DOCTYPE html>
@@ -882,7 +989,7 @@ export class TeamService {
                             <!-- Main Message -->
                             <p
                                 style="margin: 0 0 30px 0; font-size: 16px; color: #333333 !important; line-height: 1.6;">
-                                ${data.message || 'You\'ve been invited to register as an admin.'}
+                                ${data.message || "You've been invited to register as an admin."}
                             </p>
 
                             <!-- Call to Action Button -->
@@ -944,8 +1051,12 @@ export class TeamService {
   private async syncTeamMemberCount(teamId: string): Promise<number> {
     try {
       // Count all TeamMember records (creator is not in TeamMember collection)
-      const actualCount = await this.teamMemberModel.countDocuments({ team: teamId });
-      await this.teamModel.findByIdAndUpdate(teamId, { memberCount: actualCount });
+      const actualCount = await this.teamMemberModel.countDocuments({
+        team: teamId,
+      });
+      await this.teamModel.findByIdAndUpdate(teamId, {
+        memberCount: actualCount,
+      });
       return actualCount;
     } catch (error) {
       return 0;
@@ -965,7 +1076,11 @@ export class TeamService {
 
       return members.map((member) => {
         const memberTyped = member as unknown as TeamMemberPopulated;
-        if (memberTyped.user && typeof memberTyped.user === 'object' && '_id' in memberTyped.user) {
+        if (
+          memberTyped.user &&
+          typeof memberTyped.user === 'object' &&
+          '_id' in memberTyped.user
+        ) {
           const userTyped = memberTyped.user as PopulatedUserInfo;
           return {
             id: memberTyped._id,
@@ -991,16 +1106,15 @@ export class TeamService {
     }
   }
 
-
   async createTeamAndAddMember(
     creatorId: string,
     organizationId: string | undefined,
     teamName: string,
-    memberEmails?: string[]
+    memberEmails?: string[],
   ) {
     try {
       // await this.assertNonIndividualUser(creatorId);
-      
+
       // Step 1: Validate Creator first
       if (!isValidObjectId(creatorId)) {
         throw new BadRequestException('Invalid creator ID');
@@ -1013,23 +1127,31 @@ export class TeamService {
 
       // Step 2: If organizationId is not provided, derive it from creator
       let effectiveOrganizationId = organizationId;
-      
+
       if (!effectiveOrganizationId) {
         if (creator.userType === USER_TYPE[2]) {
           // If creator is an admin, get organization from their organization field
           if (!creator.organization) {
-            throw new BadRequestException('Admin user does not have an organization. Organization ID is required.');
+            throw new BadRequestException(
+              'Admin user does not have an organization. Organization ID is required.',
+            );
           }
           effectiveOrganizationId = creator.organization.toString();
         } else if (creator.userType === USER_TYPE[1]) {
           // If creator is superAdmin, get their first created organization
-          const createdOrganization = await this.organizationModel.findOne({ creatorId: creatorId });
+          const createdOrganization = await this.organizationModel.findOne({
+            creatorId: creatorId,
+          });
           if (!createdOrganization) {
-            throw new BadRequestException('SuperAdmin has not created any organization. Organization ID is required.');
+            throw new BadRequestException(
+              'SuperAdmin has not created any organization. Organization ID is required.',
+            );
           }
           effectiveOrganizationId = createdOrganization._id.toString();
         } else {
-          throw new ForbiddenException('Only superAdmin or admin users can create teams.');
+          throw new ForbiddenException(
+            'Only superAdmin or admin users can create teams.',
+          );
         }
       }
 
@@ -1039,19 +1161,24 @@ export class TeamService {
       }
 
       // Step 3: Validate Organization
-      const organization = await this.organizationModel.findById(effectiveOrganizationId);
+      const organization = await this.organizationModel.findById(
+        effectiveOrganizationId,
+      );
       if (!organization) {
         throw new NotFoundException('Organization not found');
       }
 
       // Step 4: Validate Creator is superAdmin or admin of this org
       const isSuperAdmin = creator.userType === USER_TYPE[1];
-      const isAdminOfOrg = creator.userType === USER_TYPE[2] && 
-        creator.organization && 
+      const isAdminOfOrg =
+        creator.userType === USER_TYPE[2] &&
+        creator.organization &&
         creator.organization.toString() === effectiveOrganizationId;
 
       if (!isSuperAdmin && !isAdminOfOrg) {
-        throw new ForbiddenException('Not authorized to create team in this organization. Only superAdmin or admin of this organization can create teams.');
+        throw new ForbiddenException(
+          'Not authorized to create team in this organization. Only superAdmin or admin of this organization can create teams.',
+        );
       }
 
       // Step 5: Check subscription plan
@@ -1060,7 +1187,9 @@ export class TeamService {
       let subscriptionOwner = creator;
       if (creator.userType === USER_TYPE[2]) {
         // For admins, check the organization creator's (superAdmin) subscription
-        const organizationCreator = await this.userModel.findById(organization.creatorId);
+        const organizationCreator = await this.userModel.findById(
+          organization.creatorId,
+        );
         if (!organizationCreator) {
           throw new NotFoundException('Organization creator not found');
         }
@@ -1069,7 +1198,9 @@ export class TeamService {
 
       const allowedPlans = await this.getAllowedTeamPlans();
       if (!subscriptionOwner.purchasePlanId) {
-        throw new ForbiddenException('You need an active Team or Enterprise subscription to create teams.');
+        throw new ForbiddenException(
+          'You need an active Team or Enterprise subscription to create teams.',
+        );
       }
 
       const hasActivePlan =
@@ -1077,12 +1208,18 @@ export class TeamService {
         subscriptionOwner.expirePlanDate.getTime() > Date.now();
 
       if (!hasActivePlan) {
-        throw new ForbiddenException('Your subscription plan has expired. Please renew your Team or Enterprise subscription.');
+        throw new ForbiddenException(
+          'Your subscription plan has expired. Please renew your Team or Enterprise subscription.',
+        );
       }
 
-      const subscriptionPlan = await this.subscriptionPlanModel.findById(subscriptionOwner.purchasePlanId);
+      const subscriptionPlan = await this.subscriptionPlanModel.findById(
+        subscriptionOwner.purchasePlanId,
+      );
       if (!subscriptionPlan || subscriptionPlan.isDeleted) {
-        throw new NotFoundException('Subscription plan not found or has been deleted.');
+        throw new NotFoundException(
+          'Subscription plan not found or has been deleted.',
+        );
       }
 
       const planName = subscriptionPlan.name?.toLowerCase?.() || '';
@@ -1090,19 +1227,24 @@ export class TeamService {
       const userTeamPlan = ownerWithTeamPlan.teamPlan
         ? String(ownerWithTeamPlan.teamPlan).toLowerCase()
         : null;
-      const isEnterprisePlan = planName === 'enterprise' || userTeamPlan === 'enterprise';
+      const isEnterprisePlan =
+        planName === 'enterprise' || userTeamPlan === 'enterprise';
 
       if (!allowedPlans.includes(subscriptionPlan.name)) {
-        throw new ForbiddenException('Only users with Team or Enterprise subscription plans can create teams.');
+        throw new ForbiddenException(
+          'Only users with Team or Enterprise subscription plans can create teams.',
+        );
       }
 
       // Step 6: Team limit per organization (3 teams max per organization)
       if (!isEnterprisePlan) {
-        const teamCount = await this.teamModel.countDocuments({ 
-          organization: effectiveOrganizationId 
+        const teamCount = await this.teamModel.countDocuments({
+          organization: effectiveOrganizationId,
         });
         if (teamCount >= 3) {
-          throw new BadRequestException('Maximum team creation limit (3) for this organization reached');
+          throw new BadRequestException(
+            'Maximum team creation limit (3) for this organization reached',
+          );
         }
       }
 
@@ -1112,17 +1254,21 @@ export class TeamService {
         creator: creatorId,
         organization: effectiveOrganizationId,
         isActive: true,
-        memberCount: 0  // Start at 0, only added members count (creator is NOT a team member)
+        memberCount: 0, // Start at 0, only added members count (creator is NOT a team member)
       });
 
       // Step 5: Creator is NOT added as TeamMember - only stored in Team.creator field
       // Step 6: Optionally add multiple members by email
       const memberResults: MemberResult[] = [];
-      if (memberEmails && Array.isArray(memberEmails) && memberEmails.length > 0) {
+      if (
+        memberEmails &&
+        Array.isArray(memberEmails) &&
+        memberEmails.length > 0
+      ) {
         // Clean and validate all emails are business emails (not free email domains)
         const cleanedEmails = memberEmails
           .filter(Boolean)
-          .map(email => email.trim().toLowerCase());
+          .map((email) => email.trim().toLowerCase());
 
         if (cleanedEmails.length === 0) {
           throw new BadRequestException('No valid email addresses provided');
@@ -1130,7 +1276,7 @@ export class TeamService {
 
         // Normalize creator email for comparison
         const creatorEmailNormalized = creator.email?.trim().toLowerCase();
-        cleanedEmails.forEach(email => {
+        cleanedEmails.forEach((email) => {
           if (email !== creatorEmailNormalized) {
             this.validateBusinessEmail(email);
           }
@@ -1138,22 +1284,28 @@ export class TeamService {
 
         // Validate: Maximum 10 members per request unless enterprise
         if (!isEnterprisePlan && cleanedEmails.length > 10) {
-          throw new BadRequestException('Maximum of 10 members can be invited in a single request. Please split the invitations into multiple requests.');
+          throw new BadRequestException(
+            'Maximum of 10 members can be invited in a single request. Please split the invitations into multiple requests.',
+          );
         }
 
         // Filter out creator's email and duplicates
         const uniqueEmails = [...new Set(cleanedEmails)].filter(
-          email => email && email !== creatorEmailNormalized
+          (email) => email && email !== creatorEmailNormalized,
         );
 
         const maxMembers = isEnterprisePlan ? Number.POSITIVE_INFINITY : 10;
 
         // Check current member count before adding (creator is not in TeamMember)
-        const currentMemberCount = await this.teamMemberModel.countDocuments({ team: team._id });
+        const currentMemberCount = await this.teamMemberModel.countDocuments({
+          team: team._id,
+        });
         if (currentMemberCount >= maxMembers) {
-          throw new BadRequestException(isEnterprisePlan
-            ? 'Unable to add members at this time.'
-            : 'Maximum team member limit (10) reached. Cannot add more members.');
+          throw new BadRequestException(
+            isEnterprisePlan
+              ? 'Unable to add members at this time.'
+              : 'Maximum team member limit (10) reached. Cannot add more members.',
+          );
         }
 
         // Calculate how many members can still be added
@@ -1161,15 +1313,16 @@ export class TeamService {
         const emailsToProcess = isEnterprisePlan
           ? uniqueEmails
           : uniqueEmails.slice(0, remainingSlots);
-        
+
         if (!isEnterprisePlan && uniqueEmails.length > remainingSlots) {
           // Add warning for emails that won't be processed
           const skippedEmails = uniqueEmails.slice(remainingSlots);
-            skippedEmails.forEach(email => {
+          skippedEmails.forEach((email) => {
             memberResults.push({
               email: email,
-              message: 'Maximum team member limit (10) reached. This member was not added.',
-              status: 'failed'
+              message:
+                'Maximum team member limit (10) reached. This member was not added.',
+              status: 'failed',
             });
           });
         }
@@ -1184,21 +1337,23 @@ export class TeamService {
               effectiveOrganizationId,
               team,
               organization,
-              isEnterprisePlan
+              isEnterprisePlan,
             );
             memberResults.push(singleResult);
           } catch (err) {
             memberResults.push({
               email: memberEmail,
               message: err.message || 'Failed to add member',
-              status: 'failed'
+              status: 'failed',
             });
           }
         }
       }
 
       // Step 8: Sync memberCount (count only non-creator members) and fetch updated team with members
-      const actualMemberCount = await this.syncTeamMemberCount(team._id.toString());
+      const actualMemberCount = await this.syncTeamMemberCount(
+        team._id.toString(),
+      );
       const updatedTeam = await this.teamModel.findById(team._id);
       const members = await this.getTeamMembers(team._id.toString());
 
@@ -1212,14 +1367,14 @@ export class TeamService {
             creator: {
               id: creator._id,
               email: creator.email,
-              name: creator.name
+              name: creator.name,
             },
             organization: effectiveOrganizationId,
             memberCount: updatedTeam?.memberCount || actualMemberCount,
-            members: members
+            members: members,
           },
-          memberResults: memberResults.length > 0 ? memberResults : undefined
-        }
+          memberResults: memberResults.length > 0 ? memberResults : undefined,
+        },
       };
     } catch (error) {
       if (
@@ -1243,7 +1398,7 @@ export class TeamService {
     organizationId: string,
     team: TeamDocument,
     organization: OrganizationDocument,
-    allowUnlimitedMembers = false
+    allowUnlimitedMembers = false,
   ): Promise<MemberResult> {
     // Prevent re-adding the admin/creator
     if (memberEmail === adminUser.email) {
@@ -1259,11 +1414,15 @@ export class TeamService {
 
     // Check member count limit (max 10 members, creator is not in TeamMember) unless enterprise
     const maxMembers = allowUnlimitedMembers ? Number.POSITIVE_INFINITY : 10;
-    const actualMemberCount = await this.teamMemberModel.countDocuments({ team: teamId });
+    const actualMemberCount = await this.teamMemberModel.countDocuments({
+      team: teamId,
+    });
     if (actualMemberCount >= maxMembers) {
       return {
         email: memberEmail,
-        message: allowUnlimitedMembers ? 'Unable to add member at this time.' : 'Maximum team member limit (10) reached',
+        message: allowUnlimitedMembers
+          ? 'Unable to add member at this time.'
+          : 'Maximum team member limit (10) reached',
         status: 'failed',
       };
     }
@@ -1276,44 +1435,54 @@ export class TeamService {
       const isAdminInOrg = await this.adminCreationModel.findOne({
         createdAdmin: existingUser._id,
         organization: organizationId,
-        status: 'approved'
+        status: 'approved',
       });
 
       if (isAdminInOrg) {
         return {
           email: memberEmail,
-          message: 'User is already an admin in this organization and cannot be added as a team member',
+          message:
+            'User is already an admin in this organization and cannot be added as a team member',
           status: 'skipped',
         };
       }
 
       // Check if already in ANY team (across all organizations) - one member can only be in one team
-      const isAlreadyMember = await this.teamMemberModel.findOne({ 
-        user: existingUser._id
+      const isAlreadyMember = await this.teamMemberModel.findOne({
+        user: existingUser._id,
       });
       if (isAlreadyMember) {
         // Get the team name and organization for better error message
-        const existingTeamMember = await this.teamMemberModel.findOne({ 
-          user: existingUser._id
-        }).populate('team', 'teamName').populate('organization', 'name');
-        
-        const existingTeamName = existingTeamMember?.team && typeof existingTeamMember.team === 'object' && 'teamName' in existingTeamMember.team
-          ? existingTeamMember.team.teamName
-          : 'another team';
-        
-        const existingOrgName = existingTeamMember?.organization && typeof existingTeamMember.organization === 'object' && 'name' in existingTeamMember.organization
-          ? existingTeamMember.organization.name
-          : 'another organization';
-        
+        const existingTeamMember = await this.teamMemberModel
+          .findOne({
+            user: existingUser._id,
+          })
+          .populate('team', 'teamName')
+          .populate('organization', 'name');
+
+        const existingTeamName =
+          existingTeamMember?.team &&
+          typeof existingTeamMember.team === 'object' &&
+          'teamName' in existingTeamMember.team
+            ? existingTeamMember.team.teamName
+            : 'another team';
+
+        const existingOrgName =
+          existingTeamMember?.organization &&
+          typeof existingTeamMember.organization === 'object' &&
+          'name' in existingTeamMember.organization
+            ? existingTeamMember.organization.name
+            : 'another organization';
+
         throw new BadRequestException(
-          `User ${memberEmail} is already a member of team "${existingTeamName}" in organization "${existingOrgName}". A member can only be in one team across all organizations.`
+          `User ${memberEmail} is already a member of team "${existingTeamName}" in organization "${existingOrgName}". A member can only be in one team across all organizations.`,
         );
       }
 
       // Check if already a member of this specific team
       const isMemberOfThisTeam = await this.teamMemberModel.findOne({
         team: teamId,
-        user: existingUser._id
+        user: existingUser._id,
       });
       if (isMemberOfThisTeam) {
         throw new BadRequestException('User is already a member of this team');
@@ -1326,11 +1495,13 @@ export class TeamService {
         user: existingUser._id,
         isAdmin: false,
         status: 'approved',
-        creator: adminUser._id
+        creator: adminUser._id,
       });
 
       // Increment memberCount (only non-creator members are counted)
-      await this.teamModel.findByIdAndUpdate(teamId, { $inc: { memberCount: 1 } });
+      await this.teamModel.findByIdAndUpdate(teamId, {
+        $inc: { memberCount: 1 },
+      });
 
       return {
         email: memberEmail,
@@ -1339,46 +1510,58 @@ export class TeamService {
         user: {
           id: existingUser._id,
           email: existingUser.email,
-          name: existingUser.name || undefined
-        }
+          name: existingUser.name || undefined,
+        },
       };
     } else {
       // Check if invitation already exists for this team
       const existingInvitation = await this.teamMemberModel.findOne({
         team: teamId,
         email: memberEmail,
-        status: 'pending'
+        status: 'pending',
       });
 
       if (existingInvitation) {
-        throw new BadRequestException('An invitation has already been sent to this email for this team');
+        throw new BadRequestException(
+          'An invitation has already been sent to this email for this team',
+        );
       }
 
       // Check if this email has a pending or approved invitation in ANY team (across all organizations) - one member can only be in one team
       const existingMemberInAnyTeam = await this.teamMemberModel.findOne({
-        email: memberEmail
+        email: memberEmail,
       });
 
       if (existingMemberInAnyTeam) {
         // Get the team name and organization for better error message
-        const existingTeamMember = await this.teamMemberModel.findOne({
-          email: memberEmail
-        }).populate('team', 'teamName').populate('organization', 'name');
-        
-        const existingTeamName = existingTeamMember?.team && typeof existingTeamMember.team === 'object' && 'teamName' in existingTeamMember.team
-          ? existingTeamMember.team.teamName
-          : 'another team';
-        
-        const existingOrgName = existingTeamMember?.organization && typeof existingTeamMember.organization === 'object' && 'name' in existingTeamMember.organization
-          ? existingTeamMember.organization.name
-          : 'another organization';
-        
-        const statusMessage = existingMemberInAnyTeam.status === 'pending' 
-          ? 'has a pending invitation' 
-          : 'is already a member';
-        
+        const existingTeamMember = await this.teamMemberModel
+          .findOne({
+            email: memberEmail,
+          })
+          .populate('team', 'teamName')
+          .populate('organization', 'name');
+
+        const existingTeamName =
+          existingTeamMember?.team &&
+          typeof existingTeamMember.team === 'object' &&
+          'teamName' in existingTeamMember.team
+            ? existingTeamMember.team.teamName
+            : 'another team';
+
+        const existingOrgName =
+          existingTeamMember?.organization &&
+          typeof existingTeamMember.organization === 'object' &&
+          'name' in existingTeamMember.organization
+            ? existingTeamMember.organization.name
+            : 'another organization';
+
+        const statusMessage =
+          existingMemberInAnyTeam.status === 'pending'
+            ? 'has a pending invitation'
+            : 'is already a member';
+
         throw new BadRequestException(
-          `User with email ${memberEmail} ${statusMessage} in team "${existingTeamName}" in organization "${existingOrgName}". A member can only be in one team across all organizations.`
+          `User with email ${memberEmail} ${statusMessage} in team "${existingTeamName}" in organization "${existingOrgName}". A member can only be in one team across all organizations.`,
         );
       }
 
@@ -1389,11 +1572,13 @@ export class TeamService {
         email: memberEmail,
         isAdmin: false,
         status: 'pending',
-        creator: adminUser._id
+        creator: adminUser._id,
       });
 
       // Increment memberCount (only non-creator members are counted)
-      await this.teamModel.findByIdAndUpdate(teamId, { $inc: { memberCount: 1 } });
+      await this.teamModel.findByIdAndUpdate(teamId, {
+        $inc: { memberCount: 1 },
+      });
 
       // const frontendUrl = 'http://192.168.29.65:1212/api#/Auth%20Controller/AuthController_memberRegister';
       const frontendUrl = 'http://localhost:3000/teams/signup';
@@ -1403,8 +1588,8 @@ export class TeamService {
       //     <h2>Team Invitation</h2>
       //     <p>You have been invited to join the team "<strong>${team.teamName}</strong>" in organization "${organization.name}".</p>
       //     <p>Please click the link below to register and join the team:</p>
-      //     <a href="${frontendUrl}?email=${encodeURIComponent(memberEmail)}" 
-      //        style="display:inline-block;padding:10px 20px;background:#4CAF50;color:#fff;text-decoration:none;border-radius:5px;" 
+      //     <a href="${frontendUrl}?email=${encodeURIComponent(memberEmail)}"
+      //        style="display:inline-block;padding:10px 20px;background:#4CAF50;color:#fff;text-decoration:none;border-radius:5px;"
       //        target="_blank">
       //       Join Now
       //     </a>
@@ -1559,13 +1744,13 @@ export class TeamService {
 
 </html>
 
-`
+`;
 
       try {
-         this.sendMail(
+        this.sendMail(
           memberEmail,
           'You have been invited to join a team',
-          html
+          html,
         );
       } catch (err) {
         return {
@@ -1587,11 +1772,11 @@ export class TeamService {
     teamId: string,
     adminUserId: string,
     memberEmails: string[],
-    organizationId: string | undefined
+    organizationId: string | undefined,
   ) {
     try {
       // await this.assertNonIndividualUser(adminUserId);
-      
+
       // Step 0: Validate inputs
       if (!isValidObjectId(teamId)) {
         throw new BadRequestException('Invalid team ID');
@@ -1608,13 +1793,13 @@ export class TeamService {
       // Clean and validate all emails are business emails (not free email domains)
       const cleanedEmails = memberEmails
         .filter(Boolean)
-        .map(email => email.trim().toLowerCase());
+        .map((email) => email.trim().toLowerCase());
 
       if (cleanedEmails.length === 0) {
         throw new BadRequestException('No valid email addresses provided');
       }
 
-      cleanedEmails.forEach(email => this.validateBusinessEmail(email));
+      cleanedEmails.forEach((email) => this.validateBusinessEmail(email));
 
       // Step 1: Validate Team
       const team = await this.teamModel.findById(teamId);
@@ -1630,23 +1815,31 @@ export class TeamService {
 
       // Step 3: If organizationId is not provided, derive it from adminUser
       let effectiveOrganizationId = organizationId;
-      
+
       if (!effectiveOrganizationId) {
         if (adminUser.userType === USER_TYPE[2]) {
           // If adminUser is an admin, get organization from their organization field
           if (!adminUser.organization) {
-            throw new BadRequestException('Admin user does not have an organization. Organization ID is required.');
+            throw new BadRequestException(
+              'Admin user does not have an organization. Organization ID is required.',
+            );
           }
           effectiveOrganizationId = adminUser.organization.toString();
         } else if (adminUser.userType === USER_TYPE[1]) {
           // If adminUser is superAdmin, get their first created organization
-          const createdOrganization = await this.organizationModel.findOne({ creatorId: adminUserId });
+          const createdOrganization = await this.organizationModel.findOne({
+            creatorId: adminUserId,
+          });
           if (!createdOrganization) {
-            throw new BadRequestException('SuperAdmin has not created any organization. Organization ID is required.');
+            throw new BadRequestException(
+              'SuperAdmin has not created any organization. Organization ID is required.',
+            );
           }
           effectiveOrganizationId = createdOrganization._id.toString();
         } else {
-          throw new ForbiddenException('Only superAdmin or admin users can add members to teams.');
+          throw new ForbiddenException(
+            'Only superAdmin or admin users can add members to teams.',
+          );
         }
       }
 
@@ -1656,19 +1849,24 @@ export class TeamService {
       }
 
       // Step 4: Validate Organization
-      const organization = await this.organizationModel.findById(effectiveOrganizationId);
+      const organization = await this.organizationModel.findById(
+        effectiveOrganizationId,
+      );
       if (!organization) {
         throw new NotFoundException('Organization not found');
       }
 
       // Step 5: Check authorization - admin must be superAdmin or admin of this org
       const isSuperAdmin = adminUser.userType === USER_TYPE[1];
-      const isAdminOfOrg = adminUser.userType === USER_TYPE[2] && 
-        adminUser.organization && 
+      const isAdminOfOrg =
+        adminUser.userType === USER_TYPE[2] &&
+        adminUser.organization &&
         adminUser.organization.toString() === effectiveOrganizationId;
 
       if (!isSuperAdmin && !isAdminOfOrg) {
-        throw new ForbiddenException('Not authorized to add members to this team');
+        throw new ForbiddenException(
+          'Not authorized to add members to this team',
+        );
       }
 
       // Step 4.5: Detect enterprise plan for unlimited members
@@ -1676,7 +1874,9 @@ export class TeamService {
       try {
         let subscriptionOwner = adminUser;
         if (adminUser.userType === USER_TYPE[2] && organization.creatorId) {
-          const organizationCreator = await this.userModel.findById(organization.creatorId);
+          const organizationCreator = await this.userModel.findById(
+            organization.creatorId,
+          );
           if (organizationCreator) {
             subscriptionOwner = organizationCreator;
           }
@@ -1698,29 +1898,36 @@ export class TeamService {
         }
 
         const planName = subscriptionPlan?.name?.toLowerCase() || '';
-        allowUnlimitedMembers = planName === 'enterprise' || userTeamPlan === 'enterprise';
+        allowUnlimitedMembers =
+          planName === 'enterprise' || userTeamPlan === 'enterprise';
       } catch (err) {
         allowUnlimitedMembers = false;
       }
 
       // Validate: Maximum 10 members can be invited in a single API call unless enterprise
       if (!allowUnlimitedMembers && cleanedEmails.length > 10) {
-        throw new BadRequestException('Maximum of 10 members can be invited in a single request. Please split the invitations into multiple requests.');
+        throw new BadRequestException(
+          'Maximum of 10 members can be invited in a single request. Please split the invitations into multiple requests.',
+        );
       }
 
       // Step 5: Filter out duplicates and admin's email (normalize admin email for comparison)
       const adminEmailNormalized = adminUser.email?.trim().toLowerCase();
       const uniqueEmails = [...new Set(cleanedEmails)].filter(
-        email => email && email !== adminEmailNormalized
+        (email) => email && email !== adminEmailNormalized,
       );
 
       if (uniqueEmails.length === 0) {
-        throw new BadRequestException('No valid member emails provided (excluding duplicates and admin email)');
+        throw new BadRequestException(
+          'No valid member emails provided (excluding duplicates and admin email)',
+        );
       }
 
       // Step 5.5: Check current member count before processing (creator is not in TeamMember)
       const maxMembers = allowUnlimitedMembers ? Number.POSITIVE_INFINITY : 10;
-      const currentMemberCount = await this.teamMemberModel.countDocuments({ team: teamId });
+      const currentMemberCount = await this.teamMemberModel.countDocuments({
+        team: teamId,
+      });
       if (currentMemberCount >= maxMembers) {
         throw new BadRequestException(
           allowUnlimitedMembers
@@ -1734,18 +1941,19 @@ export class TeamService {
       const emailsToProcess = allowUnlimitedMembers
         ? uniqueEmails
         : uniqueEmails.slice(0, remainingSlots);
-      
+
       // Step 6: Process each member
       const memberResults: MemberResult[] = [];
-      
+
       // Add failed status for emails that exceed the limit
       if (!allowUnlimitedMembers && uniqueEmails.length > remainingSlots) {
         const skippedEmails = uniqueEmails.slice(remainingSlots);
-        skippedEmails.forEach(email => {
+        skippedEmails.forEach((email) => {
           memberResults.push({
             email: email,
-            message: 'Maximum team member limit (10) reached. This member was not added.',
-            status: 'failed'
+            message:
+              'Maximum team member limit (10) reached. This member was not added.',
+            status: 'failed',
           });
         });
       }
@@ -1754,12 +1962,14 @@ export class TeamService {
         try {
           // Double-check limit before each addition
           if (!allowUnlimitedMembers) {
-            const checkCount = await this.teamMemberModel.countDocuments({ team: teamId });
+            const checkCount = await this.teamMemberModel.countDocuments({
+              team: teamId,
+            });
             if (checkCount >= maxMembers) {
               memberResults.push({
                 email: memberEmail,
                 message: 'Maximum team member limit (10) reached',
-                status: 'failed'
+                status: 'failed',
               });
               break;
             }
@@ -1772,7 +1982,7 @@ export class TeamService {
             effectiveOrganizationId,
             team,
             organization,
-            allowUnlimitedMembers
+            allowUnlimitedMembers,
           );
           memberResults.push(result);
         } catch (error) {
@@ -1791,9 +2001,15 @@ export class TeamService {
       const updatedTeam = await this.teamModel.findById(teamId);
 
       // Step 8: Count successful additions
-      const successCount = memberResults.filter(r => r.status === 'approved' || r.status === 'pending').length;
-      const failedCount = memberResults.filter(r => r.status === 'failed').length;
-      const skippedCount = memberResults.filter(r => r.status === 'skipped').length;
+      const successCount = memberResults.filter(
+        (r) => r.status === 'approved' || r.status === 'pending',
+      ).length;
+      const failedCount = memberResults.filter(
+        (r) => r.status === 'failed',
+      ).length;
+      const skippedCount = memberResults.filter(
+        (r) => r.status === 'skipped',
+      ).length;
 
       return {
         statusCode: HttpStatus.OK,
@@ -1805,8 +2021,8 @@ export class TeamService {
             memberCount: updatedTeam?.memberCount || actualMemberCount,
           },
           memberResults: memberResults,
-          members: members
-        }
+          members: members,
+        },
       };
     } catch (error) {
       if (
@@ -1828,11 +2044,11 @@ export class TeamService {
     teamId: string,
     adminUserId: string,
     memberId: string,
-    organizationId: string | undefined
+    organizationId: string | undefined,
   ) {
     try {
       // await this.assertNonIndividualUser(adminUserId);
-      
+
       // Step 0: Validate inputs
       if (!isValidObjectId(teamId)) {
         throw new BadRequestException('Invalid team ID');
@@ -1860,23 +2076,31 @@ export class TeamService {
 
       // Step 3: If organizationId is not provided, derive it from adminUser
       let effectiveOrganizationId = organizationId;
-      
+
       if (!effectiveOrganizationId) {
         if (adminUser.userType === USER_TYPE[2]) {
           // If adminUser is an admin, get organization from their organization field
           if (!adminUser.organization) {
-            throw new BadRequestException('Admin user does not have an organization. Organization ID is required.');
+            throw new BadRequestException(
+              'Admin user does not have an organization. Organization ID is required.',
+            );
           }
           effectiveOrganizationId = adminUser.organization.toString();
         } else if (adminUser.userType === USER_TYPE[1]) {
           // If adminUser is superAdmin, get their first created organization
-          const createdOrganization = await this.organizationModel.findOne({ creatorId: adminUserId });
+          const createdOrganization = await this.organizationModel.findOne({
+            creatorId: adminUserId,
+          });
           if (!createdOrganization) {
-            throw new BadRequestException('SuperAdmin has not created any organization. Organization ID is required.');
+            throw new BadRequestException(
+              'SuperAdmin has not created any organization. Organization ID is required.',
+            );
           }
           effectiveOrganizationId = createdOrganization._id.toString();
         } else {
-          throw new ForbiddenException('Only superAdmin or admin users can remove members from teams.');
+          throw new ForbiddenException(
+            'Only superAdmin or admin users can remove members from teams.',
+          );
         }
       }
 
@@ -1886,40 +2110,49 @@ export class TeamService {
       }
 
       // Step 4: Validate Organization
-      const organization = await this.organizationModel.findById(effectiveOrganizationId);
+      const organization = await this.organizationModel.findById(
+        effectiveOrganizationId,
+      );
       if (!organization) {
         throw new NotFoundException('Organization not found');
       }
 
       // Step 5: Check authorization - admin must be superAdmin or admin of this org
       const isSuperAdmin = adminUser.userType === USER_TYPE[1];
-      const isAdminOfOrg = adminUser.userType === USER_TYPE[2] && 
-        adminUser.organization && 
+      const isAdminOfOrg =
+        adminUser.userType === USER_TYPE[2] &&
+        adminUser.organization &&
         adminUser.organization.toString() === effectiveOrganizationId;
 
       if (!isSuperAdmin && !isAdminOfOrg) {
-        throw new ForbiddenException('Not authorized to remove members from this team');
+        throw new ForbiddenException(
+          'Not authorized to remove members from this team',
+        );
       }
 
       // Step 6: Validate that team belongs to the organization
       if (team.organization.toString() !== effectiveOrganizationId) {
-        throw new BadRequestException('Team does not belong to the specified organization');
+        throw new BadRequestException(
+          'Team does not belong to the specified organization',
+        );
       }
 
       // Step 7: Find the team member
       // First try to find by TeamMember _id, if not found, try to find by user _id
       let teamMember = await this.teamMemberModel.findById(memberId);
-      
+
       // If not found by _id, try to find by user field (in case memberId is actually a userId)
       if (!teamMember) {
         teamMember = await this.teamMemberModel.findOne({
           user: memberId,
-          team: teamId
+          team: teamId,
         });
       }
-      
+
       if (!teamMember) {
-        throw new NotFoundException('Team member not found. Please provide either TeamMember ID or User ID that belongs to this team.');
+        throw new NotFoundException(
+          'Team member not found. Please provide either TeamMember ID or User ID that belongs to this team.',
+        );
       }
 
       // Step 8: Validate that member belongs to this team
@@ -1943,7 +2176,9 @@ export class TeamService {
       await this.teamMemberModel.findByIdAndDelete(teamMember._id);
 
       // Step 12: Decrement memberCount
-      await this.teamModel.findByIdAndUpdate(teamId, { $inc: { memberCount: -1 } });
+      await this.teamModel.findByIdAndUpdate(teamId, {
+        $inc: { memberCount: -1 },
+      });
 
       // Step 13: Sync memberCount and fetch updated members list
       const actualMemberCount = await this.syncTeamMemberCount(teamId);
@@ -1952,7 +2187,8 @@ export class TeamService {
 
       return {
         statusCode: HttpStatus.OK,
-        message: 'Member removed from team successfully. Team member and user (if applicable) have been permanently deleted from the database.',
+        message:
+          'Member removed from team successfully. Team member and user (if applicable) have been permanently deleted from the database.',
         data: {
           team: {
             id: team._id,
@@ -1967,8 +2203,8 @@ export class TeamService {
             status: memberStatus,
             userDeleted: memberUserId ? true : false,
           },
-          members: members
-        }
+          members: members,
+        },
       };
     } catch (error) {
       if (
@@ -1990,11 +2226,11 @@ export class TeamService {
     teamId: string,
     adminUserId: string,
     memberId: string,
-    moveTeamId: string
+    moveTeamId: string,
   ) {
     try {
       // await this.assertNonIndividualUser(adminUserId);
-      
+
       // Step 0: Validate inputs
       if (!isValidObjectId(teamId)) {
         throw new BadRequestException('Invalid source team ID');
@@ -2014,7 +2250,9 @@ export class TeamService {
 
       // Check if source and destination teams are different
       if (teamId === moveTeamId) {
-        throw new BadRequestException('Source team and destination team cannot be the same');
+        throw new BadRequestException(
+          'Source team and destination team cannot be the same',
+        );
       }
 
       // Step 1: Validate Admin User first to get organization
@@ -2038,19 +2276,25 @@ export class TeamService {
       // Step 4: Get organizationId from user or teams
       let organizationId: string;
       const isSuperAdmin = adminUser.userType === USER_TYPE[1];
-      
+
       if (isSuperAdmin) {
         // For superAdmin, get organization from source team
         organizationId = sourceTeam.organization.toString();
-      } else if (adminUser.userType === USER_TYPE[2] && adminUser.organization) {
+      } else if (
+        adminUser.userType === USER_TYPE[2] &&
+        adminUser.organization
+      ) {
         // For admin, get organization from user's organization field
         organizationId = adminUser.organization.toString();
       } else {
-        throw new ForbiddenException('User is not authorized to move members between teams');
+        throw new ForbiddenException(
+          'User is not authorized to move members between teams',
+        );
       }
 
       // Step 5: Validate Organization
-      const organization = await this.organizationModel.findById(organizationId);
+      const organization =
+        await this.organizationModel.findById(organizationId);
       if (!organization) {
         throw new NotFoundException('Organization not found');
       }
@@ -2059,51 +2303,69 @@ export class TeamService {
       if (isSuperAdmin) {
         // For superAdmin, verify they created this organization
         if (organization.creatorId.toString() !== adminUserId) {
-          throw new ForbiddenException('You are not authorized to move members in this organization. Only the organization creator can perform this action.');
+          throw new ForbiddenException(
+            'You are not authorized to move members in this organization. Only the organization creator can perform this action.',
+          );
         }
       } else {
         // For admin, verify they belong to this organization
-        const isAdminOfOrg = adminUser.userType === USER_TYPE[2] && 
-          adminUser.organization && 
+        const isAdminOfOrg =
+          adminUser.userType === USER_TYPE[2] &&
+          adminUser.organization &&
           adminUser.organization.toString() === organizationId;
 
         if (!isAdminOfOrg) {
-          throw new ForbiddenException('Not authorized to move members between teams in this organization');
+          throw new ForbiddenException(
+            'Not authorized to move members between teams in this organization',
+          );
         }
       }
 
       // Step 7: Validate that both teams belong to the organization and are in the same organization
       if (sourceTeam.organization.toString() !== organizationId) {
-        throw new BadRequestException('Source team does not belong to your organization');
+        throw new BadRequestException(
+          'Source team does not belong to your organization',
+        );
       }
 
       if (destinationTeam.organization.toString() !== organizationId) {
-        throw new BadRequestException('Destination team does not belong to your organization');
+        throw new BadRequestException(
+          'Destination team does not belong to your organization',
+        );
       }
 
       // Ensure both teams are in the same organization
-      if (sourceTeam.organization.toString() !== destinationTeam.organization.toString()) {
-        throw new BadRequestException('Source team and destination team must belong to the same organization');
+      if (
+        sourceTeam.organization.toString() !==
+        destinationTeam.organization.toString()
+      ) {
+        throw new BadRequestException(
+          'Source team and destination team must belong to the same organization',
+        );
       }
 
       // Step 8: Find the team member in source team
       let teamMember = await this.teamMemberModel.findById(memberId);
-      
+
       // If not found by _id, try to find by user field (in case memberId is actually a userId)
       if (!teamMember) {
         teamMember = await this.teamMemberModel.findOne({
           user: memberId,
-          team: teamId
+          team: teamId,
         });
       }
-      
+
       if (!teamMember) {
-        throw new NotFoundException('Team member not found in source team. Please provide either TeamMember ID or User ID that belongs to this team.');
+        throw new NotFoundException(
+          'Team member not found in source team. Please provide either TeamMember ID or User ID that belongs to this team.',
+        );
       }
 
       // Step 9: Validate that member belongs to source team
       if (teamMember.team.toString() !== teamId) {
-        throw new BadRequestException('Member does not belong to the source team');
+        throw new BadRequestException(
+          'Member does not belong to the source team',
+        );
       }
 
       // Step 9.5: Detect enterprise plan for unlimited member moves
@@ -2112,7 +2374,9 @@ export class TeamService {
         // Determine subscription owner: if admin, check organization creator's subscription; if superAdmin, check their own
         let subscriptionOwner = adminUser;
         if (adminUser.userType === USER_TYPE[2] && organization.creatorId) {
-          const organizationCreator = await this.userModel.findById(organization.creatorId);
+          const organizationCreator = await this.userModel.findById(
+            organization.creatorId,
+          );
           if (organizationCreator) {
             subscriptionOwner = organizationCreator;
           }
@@ -2135,16 +2399,21 @@ export class TeamService {
         }
 
         const planName = subscriptionPlan?.name?.toLowerCase() || '';
-        allowUnlimitedMembers = planName === 'enterprise' || userTeamPlan === 'enterprise';
+        allowUnlimitedMembers =
+          planName === 'enterprise' || userTeamPlan === 'enterprise';
       } catch (err) {
         // If there's any error checking subscription, default to limited members
         allowUnlimitedMembers = false;
       }
 
       // Step 10: Check destination team member count (max 10 members unless enterprise plan)
-      const destinationMemberCount = await this.teamMemberModel.countDocuments({ team: moveTeamId });
+      const destinationMemberCount = await this.teamMemberModel.countDocuments({
+        team: moveTeamId,
+      });
       if (!allowUnlimitedMembers && destinationMemberCount >= 10) {
-        throw new BadRequestException('Destination team has reached maximum member limit (10). Cannot move member to this team.');
+        throw new BadRequestException(
+          'Destination team has reached maximum member limit (10). Cannot move member to this team.',
+        );
       }
 
       // Step 11: Check if member already exists in destination team
@@ -2152,17 +2421,19 @@ export class TeamService {
       if (teamMember.user) {
         existingMemberInDestination = await this.teamMemberModel.findOne({
           user: teamMember.user,
-          team: moveTeamId
+          team: moveTeamId,
         });
       } else if (teamMember.email) {
         existingMemberInDestination = await this.teamMemberModel.findOne({
           email: teamMember.email,
-          team: moveTeamId
+          team: moveTeamId,
         });
       }
 
       if (existingMemberInDestination) {
-        throw new BadRequestException('Member already exists in the destination team');
+        throw new BadRequestException(
+          'Member already exists in the destination team',
+        );
       }
 
       // Step 12: Store member info before moving
@@ -2170,13 +2441,17 @@ export class TeamService {
       const memberEmail = teamMember.email || null;
       const memberStatus = teamMember.status;
       const memberIsAdmin = teamMember.isAdmin;
-      const memberCreatorId = teamMember.creator ? teamMember.creator.toString() : adminUserId;
+      const memberCreatorId = teamMember.creator
+        ? teamMember.creator.toString()
+        : adminUserId;
 
       // Step 13: Remove member from source team
       await this.teamMemberModel.findByIdAndDelete(teamMember._id);
-      
+
       // Step 14: Decrement source team member count
-      await this.teamModel.findByIdAndUpdate(teamId, { $inc: { memberCount: -1 } });
+      await this.teamModel.findByIdAndUpdate(teamId, {
+        $inc: { memberCount: -1 },
+      });
 
       // Step 15: Add member to destination team with same properties
       const newTeamMember = await this.teamMemberModel.create({
@@ -2187,19 +2462,22 @@ export class TeamService {
         isAdmin: memberIsAdmin,
         status: memberStatus,
         creator: memberCreatorId,
-        joinedAt: new Date() // Reset joinedAt for the new team
+        joinedAt: new Date(), // Reset joinedAt for the new team
       });
 
       // Step 16: Increment destination team member count
-      await this.teamModel.findByIdAndUpdate(moveTeamId, { $inc: { memberCount: 1 } });
+      await this.teamModel.findByIdAndUpdate(moveTeamId, {
+        $inc: { memberCount: 1 },
+      });
 
       // Step 17: Sync member counts and fetch updated teams
       const sourceMemberCount = await this.syncTeamMemberCount(teamId);
-      const destinationMemberCountAfter = await this.syncTeamMemberCount(moveTeamId);
-      
+      const destinationMemberCountAfter =
+        await this.syncTeamMemberCount(moveTeamId);
+
       const updatedSourceTeam = await this.teamModel.findById(teamId);
       const updatedDestinationTeam = await this.teamModel.findById(moveTeamId);
-      
+
       const sourceTeamMembers = await this.getTeamMembers(teamId);
       const destinationTeamMembers = await this.getTeamMembers(moveTeamId);
 
@@ -2211,13 +2489,15 @@ export class TeamService {
             id: sourceTeam._id,
             name: sourceTeam.teamName,
             memberCount: updatedSourceTeam?.memberCount || sourceMemberCount,
-            members: sourceTeamMembers
+            members: sourceTeamMembers,
           },
           destinationTeam: {
             id: destinationTeam._id,
             name: destinationTeam.teamName,
-            memberCount: updatedDestinationTeam?.memberCount || destinationMemberCountAfter,
-            members: destinationTeamMembers
+            memberCount:
+              updatedDestinationTeam?.memberCount ||
+              destinationMemberCountAfter,
+            members: destinationTeamMembers,
           },
           movedMember: {
             id: newTeamMember._id,
@@ -2226,9 +2506,9 @@ export class TeamService {
             isAdmin: memberIsAdmin,
             status: memberStatus,
             previousTeamId: teamId,
-            newTeamId: moveTeamId
-          }
-        }
+            newTeamId: moveTeamId,
+          },
+        },
       };
     } catch (error) {
       if (
@@ -2246,15 +2526,19 @@ export class TeamService {
     }
   }
 
-  async removeAdmin(adminUserId: string, organizationId: string | undefined, requesterUserId: string) {
+  async removeAdmin(
+    adminUserId: string,
+    organizationId: string | undefined,
+    requesterUserId: string,
+  ) {
     try {
       // await this.assertNonIndividualUser(requesterUserId);
-      
+
       // Step 0: Validate inputs - trim whitespace
       const trimmedAdminUserId = adminUserId?.trim();
       const trimmedOrganizationId = organizationId?.trim();
       const trimmedRequesterUserId = requesterUserId?.trim();
-      
+
       if (!trimmedRequesterUserId || !isValidObjectId(trimmedRequesterUserId)) {
         throw new BadRequestException('Invalid requester user ID');
       }
@@ -2266,25 +2550,36 @@ export class TeamService {
       }
 
       // Step 2: Check authorization - only superAdmin or admin can remove admins
-      if (requester.userType !== USER_TYPE[1] && requester.userType !== USER_TYPE[2]) {
-        throw new ForbiddenException('Only superAdmin or admin users can remove admins from the organization');
+      if (
+        requester.userType !== USER_TYPE[1] &&
+        requester.userType !== USER_TYPE[2]
+      ) {
+        throw new ForbiddenException(
+          'Only superAdmin or admin users can remove admins from the organization',
+        );
       }
 
       // Step 3: If organizationId is not provided, derive it from requester
       let effectiveOrganizationId = trimmedOrganizationId;
-      
+
       if (!effectiveOrganizationId) {
         if (requester.userType === USER_TYPE[2]) {
           // If requester is an admin, get organization from their organization field
           if (!requester.organization) {
-            throw new BadRequestException('Admin user does not have an organization. Organization ID is required.');
+            throw new BadRequestException(
+              'Admin user does not have an organization. Organization ID is required.',
+            );
           }
           effectiveOrganizationId = requester.organization.toString();
         } else if (requester.userType === USER_TYPE[1]) {
           // Get superAdmin's first created organization
-          const createdOrganization = await this.organizationModel.findOne({ creatorId: trimmedRequesterUserId });
+          const createdOrganization = await this.organizationModel.findOne({
+            creatorId: trimmedRequesterUserId,
+          });
           if (!createdOrganization) {
-            throw new BadRequestException('SuperAdmin has not created any organization. Organization ID is required.');
+            throw new BadRequestException(
+              'SuperAdmin has not created any organization. Organization ID is required.',
+            );
           }
           effectiveOrganizationId = createdOrganization._id.toString();
         }
@@ -2296,7 +2591,9 @@ export class TeamService {
       }
 
       // Step 4: Validate Organization
-      const organization = await this.organizationModel.findById(effectiveOrganizationId);
+      const organization = await this.organizationModel.findById(
+        effectiveOrganizationId,
+      );
       if (!organization) {
         throw new NotFoundException('Organization not found');
       }
@@ -2305,12 +2602,19 @@ export class TeamService {
       if (requester.userType === USER_TYPE[1]) {
         // For superAdmin, verify they created this organization
         if (organization.creatorId.toString() !== trimmedRequesterUserId) {
-          throw new ForbiddenException('Only the organization creator (superAdmin) can remove admins');
+          throw new ForbiddenException(
+            'Only the organization creator (superAdmin) can remove admins',
+          );
         }
       } else if (requester.userType === USER_TYPE[2]) {
         // For admin, verify they belong to this organization
-        if (!requester.organization || requester.organization.toString() !== effectiveOrganizationId) {
-          throw new ForbiddenException('You are not authorized to remove admins from this organization');
+        if (
+          !requester.organization ||
+          requester.organization.toString() !== effectiveOrganizationId
+        ) {
+          throw new ForbiddenException(
+            'You are not authorized to remove admins from this organization',
+          );
         }
       }
 
@@ -2330,7 +2634,7 @@ export class TeamService {
         approvedAdminCreation = await this.adminCreationModel.findOne({
           createdAdmin: trimmedAdminUserId,
           organization: effectiveOrganizationId,
-          status: 'approved'
+          status: 'approved',
         });
       }
 
@@ -2338,26 +2642,30 @@ export class TeamService {
       if (!adminUser) {
         // Try to find by AdminCreation _id using findById (more efficient)
         if (isValidObjectId(trimmedAdminUserId)) {
-          pendingAdminCreation = await this.adminCreationModel.findById(trimmedAdminUserId);
-          
+          pendingAdminCreation =
+            await this.adminCreationModel.findById(trimmedAdminUserId);
+
           // Verify it's a pending admin for this organization
-          if (pendingAdminCreation && 
-              pendingAdminCreation.status === 'pending' &&
-              pendingAdminCreation.organization?.toString() === effectiveOrganizationId) {
+          if (
+            pendingAdminCreation &&
+            pendingAdminCreation.status === 'pending' &&
+            pendingAdminCreation.organization?.toString() ===
+              effectiveOrganizationId
+          ) {
             isPendingAdmin = true;
           } else {
             pendingAdminCreation = null;
           }
         }
-        
+
         // If still not found, try findOne with all conditions
         if (!pendingAdminCreation) {
           pendingAdminCreation = await this.adminCreationModel.findOne({
             _id: trimmedAdminUserId,
             organization: effectiveOrganizationId,
-            status: 'pending'
+            status: 'pending',
           });
-          
+
           if (pendingAdminCreation) {
             isPendingAdmin = true;
           }
@@ -2367,60 +2675,77 @@ export class TeamService {
       // Step 7: Handle pending admin removal
       if (isPendingAdmin && pendingAdminCreation) {
         // Prevent removing yourself (if requester is also pending - though unlikely)
-        if (pendingAdminCreation.email && requester.email && pendingAdminCreation.email.toLowerCase() === requester.email.toLowerCase()) {
+        if (
+          pendingAdminCreation.email &&
+          requester.email &&
+          pendingAdminCreation.email.toLowerCase() ===
+            requester.email.toLowerCase()
+        ) {
           throw new BadRequestException('You cannot remove yourself');
         }
 
         // Delete the pending AdminCreation record
-        await this.adminCreationModel.findByIdAndDelete(pendingAdminCreation._id);
+        await this.adminCreationModel.findByIdAndDelete(
+          pendingAdminCreation._id,
+        );
 
         // Get updated list of admins (approved + pending)
-        const remainingApprovedAdmins = await this.userModel.find({
-          userType: USER_TYPE[2],
-          organization: effectiveOrganizationId
-        }).select('name email _id').exec();
+        const remainingApprovedAdmins = await this.userModel
+          .find({
+            userType: USER_TYPE[2],
+            organization: effectiveOrganizationId,
+          })
+          .select('name email _id')
+          .exec();
 
-        const remainingPendingAdmins = await this.adminCreationModel.find({
-          organization: effectiveOrganizationId,
-          status: 'pending'
-        }).select('name email _id').exec();
+        const remainingPendingAdmins = await this.adminCreationModel
+          .find({
+            organization: effectiveOrganizationId,
+            status: 'pending',
+          })
+          .select('name email _id')
+          .exec();
 
         return {
           statusCode: HttpStatus.OK,
-          message: 'Pending admin invitation removed from organization successfully',
+          message:
+            'Pending admin invitation removed from organization successfully',
           data: {
             removedAdmin: {
               id: pendingAdminCreation._id,
               email: pendingAdminCreation.email || null,
               name: pendingAdminCreation.name || null,
-              status: 'pending'
+              status: 'pending',
             },
             organization: {
               id: organization._id,
-              name: organization.name
+              name: organization.name,
             },
             remainingAdmins: [
-              ...remainingApprovedAdmins.map(admin => ({
+              ...remainingApprovedAdmins.map((admin) => ({
                 id: admin._id,
                 email: admin.email,
                 name: admin.name,
-                status: 'approved'
+                status: 'approved',
               })),
-              ...remainingPendingAdmins.map(admin => ({
+              ...remainingPendingAdmins.map((admin) => ({
                 id: admin._id,
                 email: admin.email,
                 name: admin.name || null,
-                status: 'pending'
-              }))
+                status: 'pending',
+              })),
             ],
-            totalRemainingAdmins: remainingApprovedAdmins.length + remainingPendingAdmins.length
-          }
+            totalRemainingAdmins:
+              remainingApprovedAdmins.length + remainingPendingAdmins.length,
+          },
         };
       }
 
       // Step 8: Handle approved admin removal (status="approved")
       if (!adminUser) {
-        throw new NotFoundException('Admin user or pending admin invitation not found');
+        throw new NotFoundException(
+          'Admin user or pending admin invitation not found',
+        );
       }
 
       // Step 9: Verify that the user is actually an admin
@@ -2429,8 +2754,13 @@ export class TeamService {
       }
 
       // Step 10: Verify that the admin belongs to this organization
-      if (!adminUser.organization || adminUser.organization.toString() !== effectiveOrganizationId) {
-        throw new BadRequestException('Admin does not belong to this organization');
+      if (
+        !adminUser.organization ||
+        adminUser.organization.toString() !== effectiveOrganizationId
+      ) {
+        throw new BadRequestException(
+          'Admin does not belong to this organization',
+        );
       }
 
       // Step 11: Prevent removing yourself
@@ -2444,19 +2774,25 @@ export class TeamService {
       // Step 13: Permanently delete all AdminCreation records (both pending and approved status) for this admin and organization
       await this.adminCreationModel.deleteMany({
         createdAdmin: trimmedAdminUserId,
-        organization: effectiveOrganizationId
+        organization: effectiveOrganizationId,
       });
 
       // Step 14: Get updated list of admins in the organization (approved + pending)
-      const remainingApprovedAdmins = await this.userModel.find({
-        userType: USER_TYPE[2],
-        organization: effectiveOrganizationId
-      }).select('name email _id').exec();
+      const remainingApprovedAdmins = await this.userModel
+        .find({
+          userType: USER_TYPE[2],
+          organization: effectiveOrganizationId,
+        })
+        .select('name email _id')
+        .exec();
 
-      const remainingPendingAdmins = await this.adminCreationModel.find({
-        organization: effectiveOrganizationId,
-        status: 'pending'
-      }).select('name email _id').exec();
+      const remainingPendingAdmins = await this.adminCreationModel
+        .find({
+          organization: effectiveOrganizationId,
+          status: 'pending',
+        })
+        .select('name email _id')
+        .exec();
 
       return {
         statusCode: HttpStatus.OK,
@@ -2466,28 +2802,29 @@ export class TeamService {
             id: adminUser._id,
             email: adminUser.email,
             name: adminUser.name,
-            status: 'approved'
+            status: 'approved',
           },
           organization: {
             id: organization._id,
-            name: organization.name
+            name: organization.name,
           },
           remainingAdmins: [
-            ...remainingApprovedAdmins.map(admin => ({
+            ...remainingApprovedAdmins.map((admin) => ({
               id: admin._id,
               email: admin.email,
               name: admin.name,
-              status: 'approved'
+              status: 'approved',
             })),
-            ...remainingPendingAdmins.map(admin => ({
+            ...remainingPendingAdmins.map((admin) => ({
               id: admin._id,
               email: admin.email,
               name: admin.name || null,
-              status: 'pending'
-            }))
+              status: 'pending',
+            })),
           ],
-          totalRemainingAdmins: remainingApprovedAdmins.length + remainingPendingAdmins.length
-        }
+          totalRemainingAdmins:
+            remainingApprovedAdmins.length + remainingPendingAdmins.length,
+        },
       };
     } catch (error) {
       if (
@@ -2504,7 +2841,12 @@ export class TeamService {
     }
   }
 
-  async getAdmin(userId: string, organizationId: string | undefined, name?: string, status?: string) {
+  async getAdmin(
+    userId: string,
+    organizationId: string | undefined,
+    name?: string,
+    status?: string,
+  ) {
     try {
       // Step 0: Validate inputs
       if (!isValidObjectId(userId)) {
@@ -2519,28 +2861,38 @@ export class TeamService {
 
       // Step 2: Check authorization - only superAdmin or admin can access
       if (user.userType !== USER_TYPE[1] && user.userType !== USER_TYPE[2]) {
-        throw new ForbiddenException('Only superAdmin or admin users can access this API');
+        throw new ForbiddenException(
+          'Only superAdmin or admin users can access this API',
+        );
       }
 
       // Step 3: If organizationId is not provided, derive it from user
       let effectiveOrganizationId = organizationId;
-      
+
       if (!effectiveOrganizationId) {
         if (user.userType === USER_TYPE[2]) {
           // If user is an admin, get organization from their organization field
           if (!user.organization) {
-            throw new BadRequestException('Admin user does not have an organization. Organization ID is required.');
+            throw new BadRequestException(
+              'Admin user does not have an organization. Organization ID is required.',
+            );
           }
           effectiveOrganizationId = user.organization.toString();
         } else if (user.userType === USER_TYPE[1]) {
           // If user is superAdmin, get their first created organization
-          const createdOrganization = await this.organizationModel.findOne({ creatorId: userId });
+          const createdOrganization = await this.organizationModel.findOne({
+            creatorId: userId,
+          });
           if (!createdOrganization) {
-            throw new BadRequestException('SuperAdmin has not created any organization. Organization ID is required.');
+            throw new BadRequestException(
+              'SuperAdmin has not created any organization. Organization ID is required.',
+            );
           }
           effectiveOrganizationId = createdOrganization._id.toString();
         } else {
-          throw new BadRequestException('Organization ID is required for this user type.');
+          throw new BadRequestException(
+            'Organization ID is required for this user type.',
+          );
         }
       }
 
@@ -2550,7 +2902,9 @@ export class TeamService {
       }
 
       // Step 4: Validate Organization
-      const organization = await this.organizationModel.findById(effectiveOrganizationId);
+      const organization = await this.organizationModel.findById(
+        effectiveOrganizationId,
+      );
       if (!organization) {
         throw new NotFoundException('Organization not found');
       }
@@ -2559,18 +2913,25 @@ export class TeamService {
       if (user.userType === USER_TYPE[1]) {
         // For superAdmin, verify they created this organization
         if (organization.creatorId.toString() !== userId) {
-          throw new ForbiddenException('You are not authorized to view admins of this organization');
+          throw new ForbiddenException(
+            'You are not authorized to view admins of this organization',
+          );
         }
       } else if (user.userType === USER_TYPE[2]) {
         // For admin, verify they belong to this organization
-        if (!user.organization || user.organization.toString() !== effectiveOrganizationId) {
-          throw new ForbiddenException('You are not authorized to view admins of this organization');
+        if (
+          !user.organization ||
+          user.organization.toString() !== effectiveOrganizationId
+        ) {
+          throw new ForbiddenException(
+            'You are not authorized to view admins of this organization',
+          );
         }
       }
 
       // Step 6: Get all AdminCreation records for this organization
       const adminCreationQuery: QueryFilter = {
-        organization: effectiveOrganizationId
+        organization: effectiveOrganizationId,
       };
 
       // Apply status filter to AdminCreation query if provided
@@ -2609,7 +2970,7 @@ export class TeamService {
       // Step 8: Get approved admins from User table
       const adminQuery: QueryFilter = {
         userType: USER_TYPE[2],
-        organization: effectiveOrganizationId
+        organization: effectiveOrganizationId,
       };
 
       // Apply status filter logic
@@ -2642,28 +3003,39 @@ export class TeamService {
       // Step 9: Create a map of AdminCreation records by email and createdAdmin
       const adminCreationByEmailMap = new Map<string, AdminCreationLean>();
       const adminCreationByUserIdMap = new Map<string, AdminCreationLean>();
-      
+
       allAdminCreations.forEach((ac) => {
         const acTyped = ac as unknown as AdminCreationLean;
         if (acTyped.email) {
           adminCreationByEmailMap.set(acTyped.email.toLowerCase(), acTyped);
         }
         if (acTyped.createdAdmin) {
-          adminCreationByUserIdMap.set(acTyped.createdAdmin.toString(), acTyped);
+          adminCreationByUserIdMap.set(
+            acTyped.createdAdmin.toString(),
+            acTyped,
+          );
         }
       });
 
       // Step 10: Format approved admins (from User table)
       const formattedApprovedAdmins = approvedAdmins.map((admin) => {
-        const adminTyped = admin as unknown as PopulatedUserInfo & { _id: Types.ObjectId; email?: string; name?: string; profileImage?: string | null; createdAt?: Date };
-        const adminCreation = adminCreationByUserIdMap.get(adminTyped._id.toString());
+        const adminTyped = admin as unknown as PopulatedUserInfo & {
+          _id: Types.ObjectId;
+          email?: string;
+          name?: string;
+          profileImage?: string | null;
+          createdAt?: Date;
+        };
+        const adminCreation = adminCreationByUserIdMap.get(
+          adminTyped._id.toString(),
+        );
         return {
           id: adminTyped._id,
           email: adminTyped.email || null,
           name: adminTyped.name || null,
           profileImage: adminTyped.profileImage || null,
           invitationStatus: adminCreation?.status || 'approved',
-          createdAt: adminTyped.createdAt || new Date()
+          createdAt: adminTyped.createdAt || new Date(),
         };
       });
 
@@ -2681,13 +3053,15 @@ export class TeamService {
         .map((ac) => {
           const acTyped = ac as unknown as AdminCreationLean;
           // Check if this email already exists as an approved admin
-          const existingApprovedAdmin = approvedAdmins.find(
-            (admin) => {
-              const adminTyped = admin as unknown as PopulatedUserInfo & { email?: string };
-              return adminTyped.email?.toLowerCase() === acTyped.email?.toLowerCase();
-            }
-          );
-          
+          const existingApprovedAdmin = approvedAdmins.find((admin) => {
+            const adminTyped = admin as unknown as PopulatedUserInfo & {
+              email?: string;
+            };
+            return (
+              adminTyped.email?.toLowerCase() === acTyped.email?.toLowerCase()
+            );
+          });
+
           // Only include if not already in approved admins list
           if (!existingApprovedAdmin) {
             return {
@@ -2696,7 +3070,7 @@ export class TeamService {
               name: acTyped.name || null,
               profileImage: null, // Pending admins don't have profileImage yet
               invitationStatus: acTyped.status || 'pending',
-              createdAt: acTyped.createdAt
+              createdAt: acTyped.createdAt,
             };
           }
           return null;
@@ -2704,13 +3078,14 @@ export class TeamService {
         .filter((admin): admin is NonNullable<typeof admin> => admin !== null); // Remove null entries
 
       // Step 12: Combine and sort all admins by createdAt (newest first)
-      const allFormattedAdmins = [...formattedApprovedAdmins, ...formattedPendingAdmins].sort(
-        (a, b) => {
-          const dateA = new Date(a.createdAt).getTime();
-          const dateB = new Date(b.createdAt).getTime();
-          return dateB - dateA; // Descending order
-        }
-      );
+      const allFormattedAdmins = [
+        ...formattedApprovedAdmins,
+        ...formattedPendingAdmins,
+      ].sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return dateB - dateA; // Descending order
+      });
 
       // Build filter applied object
       const filterApplied: Record<string, string> = {};
@@ -2727,12 +3102,13 @@ export class TeamService {
         data: {
           organization: {
             id: organization._id,
-            name: organization.name
+            name: organization.name,
           },
           admins: allFormattedAdmins,
           totalAdmins: allFormattedAdmins.length,
-          filterApplied: Object.keys(filterApplied).length > 0 ? filterApplied : null
-        }
+          filterApplied:
+            Object.keys(filterApplied).length > 0 ? filterApplied : null,
+        },
       };
     } catch (error) {
       if (
@@ -2758,7 +3134,7 @@ export class TeamService {
   ) {
     try {
       // await this.assertNonIndividualUser(userId);
-      
+
       // Step 0: Validate input
       if (!isValidObjectId(userId)) {
         throw new BadRequestException('Invalid user ID');
@@ -2780,14 +3156,14 @@ export class TeamService {
           .select('_id')
           .lean()
           .exec();
-        organizationIds = createdOrganizations.map(org => org._id.toString());
+        organizationIds = createdOrganizations.map((org) => org._id.toString());
       }
 
       // Case 2: User is admin - find their organization
       if (user.userType === USER_TYPE[2] && user.organization) {
         const orgId = user.organization.toString();
-        organizationIds = organizationIds.includes(orgId) 
-          ? organizationIds 
+        organizationIds = organizationIds.includes(orgId)
+          ? organizationIds
           : [...organizationIds, orgId];
       }
 
@@ -2795,16 +3171,16 @@ export class TeamService {
       const teamMemberships = await this.teamMemberModel
         .find({
           user: userId,
-          status: 'approved'
+          status: 'approved',
         })
         .select('organization')
         .lean()
         .exec();
 
       const teamMemberOrgIds = teamMemberships
-        .map(membership => membership.organization.toString())
-        .filter(orgId => !organizationIds.includes(orgId));
-      
+        .map((membership) => membership.organization.toString())
+        .filter((orgId) => !organizationIds.includes(orgId));
+
       organizationIds = [...organizationIds, ...teamMemberOrgIds];
 
       if (organizationIds.length === 0) {
@@ -2816,15 +3192,15 @@ export class TeamService {
               id: user._id,
               email: user.email,
               name: user.name,
-              role: user.role
+              role: user.role,
             },
             organizations: [],
             decks: [],
             totalDecks: 0,
             page: page,
             limit: limit,
-            totalPages: 0
-          }
+            totalPages: 0,
+          },
         };
       }
 
@@ -2838,35 +3214,35 @@ export class TeamService {
 
       // Extract unique creator IDs
       const creatorIds = orgsForAdmins
-        .map(org => this.normalizeId(org.creatorId))
+        .map((org) => this.normalizeId(org.creatorId))
         .filter((id): id is string => id !== null && isValidObjectId(id));
 
       // Batch fetch all creators at once
       const creators = await this.userModel
-        .find({ 
+        .find({
           _id: { $in: creatorIds },
-          userType: USER_TYPE[1]
+          userType: USER_TYPE[1],
         })
         .select('_id')
         .lean()
         .exec();
 
       const allSuperAdminIds = creators
-        .map(creator => this.normalizeId(creator._id))
+        .map((creator) => this.normalizeId(creator._id))
         .filter((id): id is string => id !== null);
 
       // Batch fetch all admin users for all organizations at once
       const adminUsers = await this.userModel
         .find({
           userType: USER_TYPE[2],
-          organization: { $in: organizationIds }
+          organization: { $in: organizationIds },
         })
         .select('_id')
         .lean()
         .exec();
 
       const allAdminIds = adminUsers
-        .map(admin => this.normalizeId(admin._id))
+        .map((admin) => this.normalizeId(admin._id))
         .filter((id): id is string => id !== null);
 
       // Step 4: Combine all user IDs (SuperAdmin and Admin)
@@ -2881,22 +3257,22 @@ export class TeamService {
               id: user._id,
               email: user.email,
               name: user.name,
-              role: user.role
+              role: user.role,
             },
-            organizations: organizationIds.map(orgId => ({ id: orgId })),
+            organizations: organizationIds.map((orgId) => ({ id: orgId })),
             decks: [],
             totalDecks: 0,
             page: page,
             limit: limit,
-            totalPages: 0
-          }
+            totalPages: 0,
+          },
         };
       }
 
       // Step 5: Build query for decks with category and name filters
       const skip = (page - 1) * limit;
       const deckQuery: QueryFilter = {
-        userId: { $in: allUserIds }
+        userId: { $in: allUserIds },
       };
 
       // Add category filter if provided
@@ -2920,8 +3296,8 @@ export class TeamService {
         .exec();
 
       // Step 7: Fetch all topics and TopicProgress records upfront for optimization
-      const allContentIds = decks.flatMap(d => d.contentIds || []);
-      
+      const allContentIds = decks.flatMap((d) => d.contentIds || []);
+
       // Fetch all topics in a single query
       const allTopics = await this.topicModel
         .find({ _id: { $in: allContentIds } })
@@ -2943,54 +3319,76 @@ export class TeamService {
       const allTopicProgressRecords = await this.topicProgressModel
         .find({
           userId: userId,
-          topicId: { $in: allContentIds }
+          topicId: { $in: allContentIds },
         })
         .select('topicId completedSubTopicIds')
         .lean()
         .exec();
 
       // Create a map of completed subtopic IDs by topic ID
-      const completedSubTopicsByTopic = allTopicProgressRecords.reduce((map, progress) => {
-        const progressTyped = progress as { topicId?: string | Types.ObjectId; completedSubTopicIds?: (string | Types.ObjectId)[] };
-        const topicId = this.normalizeId(progressTyped.topicId);
-        if (!topicId) return map;
+      const completedSubTopicsByTopic = allTopicProgressRecords.reduce(
+        (map, progress) => {
+          const progressTyped = progress as {
+            topicId?: string | Types.ObjectId;
+            completedSubTopicIds?: (string | Types.ObjectId)[];
+          };
+          const topicId = this.normalizeId(progressTyped.topicId);
+          if (!topicId) return map;
 
-        if (!map.has(topicId)) {
-          map.set(topicId, new Set<string>());
-        }
+          if (!map.has(topicId)) {
+            map.set(topicId, new Set<string>());
+          }
 
-        const completedSet = map.get(topicId);
-        if (progressTyped.completedSubTopicIds && Array.isArray(progressTyped.completedSubTopicIds)) {
-          const normalizedIds = progressTyped.completedSubTopicIds
-            .map((subTopicId) => this.normalizeId(subTopicId))
-            .filter((id): id is string => id !== null);
-          
-          normalizedIds.reduce((set, id) => {
-            set.add(id);
-            return set;
-          }, completedSet!);
-        }
-        return map;
-      }, new Map<string, Set<string>>());
+          const completedSet = map.get(topicId);
+          if (
+            progressTyped.completedSubTopicIds &&
+            Array.isArray(progressTyped.completedSubTopicIds)
+          ) {
+            const normalizedIds = progressTyped.completedSubTopicIds
+              .map((subTopicId) => this.normalizeId(subTopicId))
+              .filter((id): id is string => id !== null);
+
+            normalizedIds.reduce((set, id) => {
+              set.add(id);
+              return set;
+            }, completedSet!);
+          }
+          return map;
+        },
+        new Map<string, Set<string>>(),
+      );
 
       // Step 8: Format the response with userPercentage calculation
       const formattedDecks = decks.map((deck) => {
-        const deckTyped = deck as unknown as DeckLean & { userId?: string | Types.ObjectId | PopulatedUserInfo };
-        let creator: { id: string; name: string | null; email: string | null; userType: string | null } | null = null;
-        if (deckTyped.userId && typeof deckTyped.userId === 'object' && '_id' in deckTyped.userId) {
-          const userTyped = deckTyped.userId as PopulatedUserInfo & { userType?: string };
+        const deckTyped = deck as unknown as DeckLean & {
+          userId?: string | Types.ObjectId | PopulatedUserInfo;
+        };
+        let creator: {
+          id: string;
+          name: string | null;
+          email: string | null;
+          userType: string | null;
+        } | null = null;
+        if (
+          deckTyped.userId &&
+          typeof deckTyped.userId === 'object' &&
+          '_id' in deckTyped.userId
+        ) {
+          const userTyped = deckTyped.userId as PopulatedUserInfo & {
+            userType?: string;
+          };
           creator = {
             id: userTyped._id.toString(),
             name: userTyped.name || null,
             email: userTyped.email || null,
-            userType: userTyped.userType || null
+            userType: userTyped.userType || null,
           };
         }
 
         // Calculate userPercentage
         let userPercentage = 0;
         const contentIds = deckTyped.contentIds || [];
-        
+
         if (contentIds.length > 0) {
           // Get topics for this deck from the pre-fetched map
           const deckTopics = contentIds
@@ -3002,13 +3400,15 @@ export class TeamService {
 
           // Count total subtopics across all topics
           const allSubtopicIds = deckTopics
-            .filter((topic) => topic.subTopics && Array.isArray(topic.subTopics))
-            .flatMap((topic) => 
+            .filter(
+              (topic) => topic.subTopics && Array.isArray(topic.subTopics),
+            )
+            .flatMap((topic) =>
               (topic.subTopics || [])
                 .map((id) => this.normalizeId(id))
-                .filter((id): id is string => id !== null)
+                .filter((id): id is string => id !== null),
             );
-          
+
           const totalSubtopics = allSubtopicIds.length;
 
           // Count completed subtopics for this user
@@ -3019,7 +3419,8 @@ export class TeamService {
               .map((topicId) => this.normalizeId(topicId))
               .filter((id): id is string => id !== null)
               .reduce((set, normalizedTopicId) => {
-                const completedSet = completedSubTopicsByTopic.get(normalizedTopicId);
+                const completedSet =
+                  completedSubTopicsByTopic.get(normalizedTopicId);
                 if (completedSet) {
                   completedSet.forEach((subTopicId) => set.add(subTopicId));
                 }
@@ -3027,14 +3428,17 @@ export class TeamService {
               }, new Set<string>());
 
             // Count how many of the deck's subtopics are completed
-            completedSubtopics = allSubtopicIds.filter((subTopicId) => 
-              completedSubTopicIds.has(subTopicId)
+            completedSubtopics = allSubtopicIds.filter((subTopicId) =>
+              completedSubTopicIds.has(subTopicId),
             ).length;
 
             // Calculate percentage
-            userPercentage = totalSubtopics > 0
-              ? Math.round((completedSubtopics / totalSubtopics) * 100 * 100) / 100
-              : 0;
+            userPercentage =
+              totalSubtopics > 0
+                ? Math.round(
+                    (completedSubtopics / totalSubtopics) * 100 * 100,
+                  ) / 100
+                : 0;
           }
         }
 
@@ -3051,7 +3455,7 @@ export class TeamService {
           creator: creator,
           userPercentage: userPercentage,
           createdAt: deck.createdAt,
-          updatedAt: deck.updatedAt
+          updatedAt: deck.updatedAt,
         };
       });
 
@@ -3082,8 +3486,8 @@ export class TeamService {
           totalDecks: total,
           page: page,
           limit: limit,
-          totalPages: totalPages
-        }
+          totalPages: totalPages,
+        },
       };
     } catch (error) {
       if (
@@ -3177,17 +3581,22 @@ export class TeamService {
 
       if (flashcardGames.length > 0) {
         flashcardGamesPlayed = flashcardGames.length;
-        
+
         // Calculate accuracy from playerAnswers (more accurate than using accuracy field)
         flashcardGames.forEach((game) => {
           const gameTyped = game as unknown as GameLean;
-          if (gameTyped.playerAnswers && Array.isArray(gameTyped.playerAnswers)) {
+          if (
+            gameTyped.playerAnswers &&
+            Array.isArray(gameTyped.playerAnswers)
+          ) {
             // Calculate from playerAnswers - the source of truth
             const userAnswers = gameTyped.playerAnswers.filter(
-              (answer) => this.normalizeId(answer.userId) === normalizedUserId
+              (answer) => this.normalizeId(answer.userId) === normalizedUserId,
             );
             if (userAnswers.length > 0) {
-              const correct = userAnswers.filter((answer) => answer.isCorrect === true).length;
+              const correct = userAnswers.filter(
+                (answer) => answer.isCorrect === true,
+              ).length;
               flashcardCorrect += correct;
               flashcardTotal += userAnswers.length;
             }
@@ -3195,7 +3604,8 @@ export class TeamService {
         });
 
         if (flashcardTotal > 0) {
-          flashcardAccuracy = Math.round((flashcardCorrect / flashcardTotal) * 100 * 100) / 100;
+          flashcardAccuracy =
+            Math.round((flashcardCorrect / flashcardTotal) * 100 * 100) / 100;
         }
       }
 
@@ -3207,17 +3617,22 @@ export class TeamService {
 
       if (battleGames.length > 0) {
         battleGamesPlayed = battleGames.length;
-        
+
         // Calculate accuracy from playerAnswers (more accurate than using accuracy field)
         battleGames.forEach((game) => {
           const gameTyped = game as unknown as GameLean;
-          if (gameTyped.playerAnswers && Array.isArray(gameTyped.playerAnswers)) {
+          if (
+            gameTyped.playerAnswers &&
+            Array.isArray(gameTyped.playerAnswers)
+          ) {
             // Calculate from playerAnswers - the source of truth
             const userAnswers = gameTyped.playerAnswers.filter(
-              (answer) => this.normalizeId(answer.userId) === normalizedUserId
+              (answer) => this.normalizeId(answer.userId) === normalizedUserId,
             );
             if (userAnswers.length > 0) {
-              const correct = userAnswers.filter((answer) => answer.isCorrect === true).length;
+              const correct = userAnswers.filter(
+                (answer) => answer.isCorrect === true,
+              ).length;
               battleCorrect += correct;
               battleTotal += userAnswers.length;
             }
@@ -3225,26 +3640,30 @@ export class TeamService {
         });
 
         if (battleTotal > 0) {
-          battleAccuracy = Math.round((battleCorrect / battleTotal) * 100 * 100) / 100;
+          battleAccuracy =
+            Math.round((battleCorrect / battleTotal) * 100 * 100) / 100;
         }
       }
 
       // Calculate average accuracy
       const accuracies = [flashcardAccuracy, battleAccuracy].filter(
         (val) => typeof val === 'number',
-      ) as number[];
-      
+      );
+
       const average =
         accuracies.length > 0
           ? Math.round(
-              (accuracies.reduce((sum, val) => sum + val, 0) / accuracies.length) * 100,
+              (accuracies.reduce((sum, val) => sum + val, 0) /
+                accuracies.length) *
+                100,
             ) / 100
           : 0;
 
       // Calculate improvement percentage
       let improvementPercentage: number | null = null;
       let improvementStatus = 'no_data';
-      let improvementMessage = 'Need both flashcard and battle data to calculate improvement';
+      let improvementMessage =
+        'Need both flashcard and battle data to calculate improvement';
 
       if (
         typeof flashcardAccuracy === 'number' &&
@@ -3252,7 +3671,7 @@ export class TeamService {
         battleAccuracy > 0
       ) {
         improvementPercentage =
-          Math.round(((flashcardAccuracy / battleAccuracy) * 100) * 100) / 100;
+          Math.round((flashcardAccuracy / battleAccuracy) * 100 * 100) / 100;
         improvementStatus = 'calculated';
         improvementMessage = 'Improvement calculated using flashcard/battle';
       }
@@ -3263,7 +3682,7 @@ export class TeamService {
         accuracy: number;
         gamesPlayed: number;
       }> = [];
-      
+
       if (flashcardAccuracy !== null) {
         allEntries.push({
           type: 'flashcard',
@@ -3271,7 +3690,7 @@ export class TeamService {
           gamesPlayed: flashcardGamesPlayed,
         });
       }
-      
+
       if (battleAccuracy !== null) {
         allEntries.push({
           type: 'battle',
@@ -3313,7 +3732,7 @@ export class TeamService {
   /**
    * Fetch decks for the user's organizations with accuracy/improvement stats.
    * Optional searchTerm filters decks by name (case-insensitive).
-   * 
+   *
    * Logic:
    * - For superAdmin/admin: userId is optional. If provided, show that user's data; otherwise show requester's data.
    * - For member: userId is not allowed. Always use requester's userId from token. Only searchTerm is allowed.
@@ -3325,7 +3744,7 @@ export class TeamService {
   ) {
     try {
       // await this.assertNonIndividualUser(requesterUserId);
-      
+
       // Step 1: Validate requester user first
       if (!isValidObjectId(requesterUserId)) {
         throw new BadRequestException('Invalid requester user ID');
@@ -3342,15 +3761,20 @@ export class TeamService {
       if (requesterUser.userType === USER_TYPE[3]) {
         // For members: always use requester's userId, ignore targetUserId
         effectiveUserId = requesterUserId;
-        
+
         // If member tries to provide targetUserId, throw error
         if (targetUserId && targetUserId.trim()) {
-          throw new BadRequestException('Members cannot specify userId. Only searchTerm is allowed.');
+          throw new BadRequestException(
+            'Members cannot specify userId. Only searchTerm is allowed.',
+          );
         }
-      } else if (requesterUser.userType === USER_TYPE[1] || requesterUser.userType === USER_TYPE[2]) {
+      } else if (
+        requesterUser.userType === USER_TYPE[1] ||
+        requesterUser.userType === USER_TYPE[2]
+      ) {
         // For superAdmin/admin: use targetUserId if provided, otherwise use requesterUserId
         const trimmedTargetUserId = targetUserId?.trim();
-        
+
         if (trimmedTargetUserId) {
           // Validate targetUserId
           if (!isValidObjectId(trimmedTargetUserId)) {
@@ -3362,7 +3786,9 @@ export class TeamService {
           effectiveUserId = requesterUserId;
         }
       } else {
-        throw new ForbiddenException('Invalid user type. Only superAdmin, admin, or member can access this API.');
+        throw new ForbiddenException(
+          'Invalid user type. Only superAdmin, admin, or member can access this API.',
+        );
       }
 
       // Step 3: Validate and get the target user (the one whose data we're fetching)
@@ -3406,11 +3832,14 @@ export class TeamService {
         .exec();
 
       teamMemberships.forEach((membership) => {
-        const membershipTyped = membership as unknown as PopulatedTeamMemberLean;
+        const membershipTyped =
+          membership as unknown as PopulatedTeamMemberLean;
         const orgId = this.normalizeId(
-          typeof membershipTyped.organization === 'object' && membershipTyped.organization && '_id' in membershipTyped.organization
+          typeof membershipTyped.organization === 'object' &&
+            membershipTyped.organization &&
+            '_id' in membershipTyped.organization
             ? membershipTyped.organization._id
-            : membershipTyped.organization
+            : membershipTyped.organization,
         );
         if (orgId && !organizationIds.includes(orgId)) {
           organizationIds.push(orgId);
@@ -3481,31 +3910,34 @@ export class TeamService {
         // Calculate user accuracy and rank even when no decks exist
         let userAccuracy = 0;
         let userRank: number | null = null;
-        
+
         if (user.userType === USER_TYPE[3]) {
           try {
             const teamMember = await this.teamMemberModel
-              .findOne({ 
+              .findOne({
                 user: effectiveUserId,
-                status: 'approved'
+                status: 'approved',
               })
               .lean()
               .exec();
 
             if (teamMember) {
-              const teamMemberTyped = teamMember as unknown as PopulatedTeamMemberLean;
+              const teamMemberTyped =
+                teamMember as unknown as PopulatedTeamMemberLean;
               userAccuracy = teamMemberTyped.gameAccuracy || 0;
 
               const teamId = this.normalizeId(
-                typeof teamMemberTyped.team === 'object' && teamMemberTyped.team && '_id' in teamMemberTyped.team
+                typeof teamMemberTyped.team === 'object' &&
+                  teamMemberTyped.team &&
+                  '_id' in teamMemberTyped.team
                   ? teamMemberTyped.team._id
-                  : teamMemberTyped.team
+                  : teamMemberTyped.team,
               );
               if (teamId && isValidObjectId(teamId)) {
                 const allTeamMembers = await this.teamMemberModel
-                  .find({ 
+                  .find({
                     team: teamId,
-                    status: 'approved'
+                    status: 'approved',
                   })
                   .populate('user', '_id')
                   .lean()
@@ -3515,11 +3947,16 @@ export class TeamService {
                 const memberUserIds = allTeamMembers
                   .map((m) => {
                     const mTyped = m as unknown as TeamMemberPopulated;
-                    return mTyped.user && typeof mTyped.user === 'object' && '_id' in mTyped.user
+                    return mTyped.user &&
+                      typeof mTyped.user === 'object' &&
+                      '_id' in mTyped.user
                       ? this.normalizeId(mTyped.user._id)
                       : null;
                   })
-                  .filter((id: string | null): id is string => id !== null && isValidObjectId(id))
+                  .filter(
+                    (id: string | null): id is string =>
+                      id !== null && isValidObjectId(id),
+                  )
                   .map((id: string) => new Types.ObjectId(id));
 
                 // Single aggregation query for all members
@@ -3530,15 +3967,15 @@ export class TeamService {
                       {
                         $match: {
                           userId: { $in: memberUserIds },
-                          teamId: new Types.ObjectId(teamId)
-                        }
+                          teamId: new Types.ObjectId(teamId),
+                        },
                       },
                       {
                         $group: {
                           _id: '$userId',
-                          totalPoints: { $sum: '$points' }
-                        }
-                      }
+                          totalPoints: { $sum: '$points' },
+                        },
+                      },
                     ]);
                   } catch (err) {
                     // Error calculating points for members
@@ -3558,24 +3995,32 @@ export class TeamService {
                 // Map members with their points
                 const membersWithPoints = allTeamMembers.map((member) => {
                   const memberTyped = member as unknown as TeamMemberPopulated;
-                  const memberUserId = memberTyped.user && typeof memberTyped.user === 'object' && '_id' in memberTyped.user
-                    ? this.normalizeId((memberTyped.user as PopulatedUserInfo)._id)
-                    : null;
-                  const totalPoints = memberUserId ? (pointsMap.get(memberUserId) || 0) : 0;
+                  const memberUserId =
+                    memberTyped.user &&
+                    typeof memberTyped.user === 'object' &&
+                    '_id' in memberTyped.user
+                      ? this.normalizeId(
+                          (memberTyped.user as PopulatedUserInfo)._id,
+                        )
+                      : null;
+                  const totalPoints = memberUserId
+                    ? pointsMap.get(memberUserId) || 0
+                    : 0;
 
                   return {
                     userId: memberUserId,
-                    totalPoints: totalPoints
+                    totalPoints: totalPoints,
                   };
                 });
 
                 membersWithPoints.sort((a, b) => b.totalPoints - a.totalPoints);
-                
-                const normalizedEffectiveUserId = this.normalizeId(effectiveUserId);
+
+                const normalizedEffectiveUserId =
+                  this.normalizeId(effectiveUserId);
                 const userIndex = membersWithPoints.findIndex(
-                  (m) => m.userId && m.userId === normalizedEffectiveUserId
+                  (m) => m.userId && m.userId === normalizedEffectiveUserId,
                 );
-                
+
                 if (userIndex !== -1) {
                   userRank = userIndex + 1;
                 }
@@ -3591,7 +4036,8 @@ export class TeamService {
           message: 'Knowledge improvement decks fetched successfully',
           usertype: user.userType,
           organizationId: this.normalizeId(primaryOrg?._id),
-          organizationName: (primaryOrg as unknown as PopulatedOrganizationLean)?.name || null,
+          organizationName:
+            (primaryOrg as unknown as PopulatedOrganizationLean)?.name || null,
           searchTerm: searchTerm ?? null,
           accuracy: userAccuracy.toFixed(2),
           rank: userRank,
@@ -3615,7 +4061,7 @@ export class TeamService {
           .select('averageResponseTime')
           .lean()
           .exec();
-        
+
         if (latestTeamGameScore) {
           averageResponseTime = latestTeamGameScore.averageResponseTime || 0;
         }
@@ -3661,14 +4107,17 @@ export class TeamService {
       // Create Maps: key = `${topicId}:${userId}`, value = accuracy
       const flashcardAccuracyMap = new Map<string, number>();
       const battleAccuracyMap = new Map<string, number>();
-      
+
       allTopics.forEach((topic) => {
         const topicTyped = topic as unknown as TopicLean;
         const topicId = this.normalizeId(topicTyped._id);
         if (!topicId) return;
 
         // Process flashcard accuracies
-        if (topicTyped.flashcardAccuracies && Array.isArray(topicTyped.flashcardAccuracies)) {
+        if (
+          topicTyped.flashcardAccuracies &&
+          Array.isArray(topicTyped.flashcardAccuracies)
+        ) {
           topicTyped.flashcardAccuracies.forEach((entry) => {
             const userId = this.normalizeId(entry.userId);
             if (userId) {
@@ -3679,7 +4128,10 @@ export class TeamService {
         }
 
         // Process battle accuracies
-        if (topicTyped.battleAccuracies && Array.isArray(topicTyped.battleAccuracies)) {
+        if (
+          topicTyped.battleAccuracies &&
+          Array.isArray(topicTyped.battleAccuracies)
+        ) {
           topicTyped.battleAccuracies.forEach((entry) => {
             const userId = this.normalizeId(entry.userId);
             if (userId) {
@@ -3695,7 +4147,7 @@ export class TeamService {
         const deckTyped = deck as unknown as DeckLean;
         // Get all topics for this deck
         const topicIds = (deckTyped.contentIds || []).filter((id) => id);
-        
+
         // Build topics array with accuracy per topic from pre-fetched topics map
         const topicsWithAccuracy = topicIds.map((topicId) => {
           const normalizedTopicId = this.normalizeId(topicId);
@@ -3719,7 +4171,7 @@ export class TeamService {
               improvementPercentage: 0,
             };
           }
-          
+
           // OPTIMIZATION: Use Map.get() instead of array.find() - O(1) vs O(n)
           const accuracyKey = `${normalizedTopicId}:${effectiveUserId}`;
           const flashAccuracy = flashcardAccuracyMap.get(accuracyKey) ?? 0;
@@ -3728,9 +4180,10 @@ export class TeamService {
           // Calculate improvement percentage (battleAccuracy/flashcardAccuracy * 100)
           let improvementPercentage = 0;
           if (flashAccuracy > 0) {
-            improvementPercentage = Math.round((battleAccuracy / flashAccuracy) * 100 * 100) / 100;
+            improvementPercentage =
+              Math.round((battleAccuracy / flashAccuracy) * 100 * 100) / 100;
           }
-          
+
           return {
             topicId: normalizedTopicId,
             title: topic.title || null,
@@ -3753,36 +4206,39 @@ export class TeamService {
       // Calculate user accuracy from TeamMember's gameAccuracy field
       let userAccuracy = 0;
       let userRank: number | null = null;
-      
+
       // Only calculate accuracy and rank for members (not superAdmin/admin)
       if (user.userType === USER_TYPE[3]) {
         try {
           // Get TeamMember record to get gameAccuracy
           const teamMember = await this.teamMemberModel
-            .findOne({ 
+            .findOne({
               user: effectiveUserId,
-              status: 'approved'
+              status: 'approved',
             })
             .lean()
             .exec();
 
           if (teamMember) {
             // Get accuracy from TeamMember's gameAccuracy field
-            const teamMemberTyped = teamMember as unknown as PopulatedTeamMemberLean;
+            const teamMemberTyped =
+              teamMember as unknown as PopulatedTeamMemberLean;
             userAccuracy = teamMemberTyped.gameAccuracy || 0;
 
             // Get the team for this member
             const teamId = this.normalizeId(
-              typeof teamMemberTyped.team === 'object' && teamMemberTyped.team && '_id' in teamMemberTyped.team
+              typeof teamMemberTyped.team === 'object' &&
+                teamMemberTyped.team &&
+                '_id' in teamMemberTyped.team
                 ? teamMemberTyped.team._id
-                : teamMemberTyped.team
+                : teamMemberTyped.team,
             );
             if (teamId && isValidObjectId(teamId)) {
               // Get all approved members of this team
               const allTeamMembers = await this.teamMemberModel
-                .find({ 
+                .find({
                   team: teamId,
-                  status: 'approved'
+                  status: 'approved',
                 })
                 .populate('user', '_id')
                 .lean()
@@ -3792,11 +4248,16 @@ export class TeamService {
               const memberUserIds = allTeamMembers
                 .map((m) => {
                   const mTyped = m as unknown as TeamMemberPopulated;
-                  return mTyped.user && typeof mTyped.user === 'object' && '_id' in mTyped.user
+                  return mTyped.user &&
+                    typeof mTyped.user === 'object' &&
+                    '_id' in mTyped.user
                     ? this.normalizeId(mTyped.user._id)
                     : null;
                 })
-                .filter((id: string | null): id is string => id !== null && isValidObjectId(id))
+                .filter(
+                  (id: string | null): id is string =>
+                    id !== null && isValidObjectId(id),
+                )
                 .map((id: string) => new Types.ObjectId(id));
 
               // Single aggregation query for all members
@@ -3807,15 +4268,15 @@ export class TeamService {
                     {
                       $match: {
                         userId: { $in: memberUserIds },
-                        teamId: new Types.ObjectId(teamId)
-                      }
+                        teamId: new Types.ObjectId(teamId),
+                      },
                     },
                     {
                       $group: {
                         _id: '$userId',
-                        totalPoints: { $sum: '$points' }
-                      }
-                    }
+                        totalPoints: { $sum: '$points' },
+                      },
+                    },
                   ]);
                 } catch (err) {
                   // If aggregation fails, allPoints remains empty
@@ -3835,26 +4296,32 @@ export class TeamService {
               // Map members with their points
               const membersWithPoints = allTeamMembers.map((member) => {
                 const memberTyped = member as unknown as TeamMemberPopulated;
-                const memberUserId = memberTyped.user && typeof memberTyped.user === 'object' && '_id' in memberTyped.user
-                  ? this.normalizeId(memberTyped.user._id)
-                  : null;
-                const totalPoints = memberUserId ? (pointsMap.get(memberUserId) || 0) : 0;
+                const memberUserId =
+                  memberTyped.user &&
+                  typeof memberTyped.user === 'object' &&
+                  '_id' in memberTyped.user
+                    ? this.normalizeId(memberTyped.user._id)
+                    : null;
+                const totalPoints = memberUserId
+                  ? pointsMap.get(memberUserId) || 0
+                  : 0;
 
                 return {
                   userId: memberUserId,
-                  totalPoints: totalPoints
+                  totalPoints: totalPoints,
                 };
               });
 
               // Sort by points (descending) and assign rank
               membersWithPoints.sort((a, b) => b.totalPoints - a.totalPoints);
-              
+
               // Find the user's rank
-              const normalizedEffectiveUserId = this.normalizeId(effectiveUserId);
+              const normalizedEffectiveUserId =
+                this.normalizeId(effectiveUserId);
               const userIndex = membersWithPoints.findIndex(
-                (m) => m.userId && m.userId === normalizedEffectiveUserId
+                (m) => m.userId && m.userId === normalizedEffectiveUserId,
               );
-              
+
               if (userIndex !== -1) {
                 userRank = userIndex + 1;
               }
@@ -3871,7 +4338,8 @@ export class TeamService {
         message: 'Knowledge improvement decks fetched successfully',
         usertype: user.userType,
         organizationId: this.normalizeId(primaryOrg?._id),
-        organizationName: (primaryOrg as unknown as PopulatedOrganizationLean)?.name || null,
+        organizationName:
+          (primaryOrg as unknown as PopulatedOrganizationLean)?.name || null,
         searchTerm: searchTerm ?? null,
         accuracy: userAccuracy.toFixed(2),
         rank: userRank,
@@ -3907,7 +4375,9 @@ export class TeamService {
       }
 
       // Step 2: Get organization details
-      const organization = await this.organizationModel.findById(team.organization);
+      const organization = await this.organizationModel.findById(
+        team.organization,
+      );
       if (!organization) {
         throw new NotFoundException('Organization not found for this team');
       }
@@ -3929,11 +4399,15 @@ export class TeamService {
       const memberUserIds = members
         .map((m) => {
           const mTyped = m as unknown as TeamMemberPopulated;
-          return mTyped.user && typeof mTyped.user === 'object' && '_id' in mTyped.user
+          return mTyped.user &&
+            typeof mTyped.user === 'object' &&
+            '_id' in mTyped.user
             ? new Types.ObjectId(mTyped.user._id)
             : null;
         })
-        .filter((id: Types.ObjectId | null): id is Types.ObjectId => id !== null);
+        .filter(
+          (id: Types.ObjectId | null): id is Types.ObjectId => id !== null,
+        );
 
       // Single aggregation query for all members
       let allPoints: AggregationResult[] = [];
@@ -3943,15 +4417,15 @@ export class TeamService {
             {
               $match: {
                 userId: { $in: memberUserIds },
-                teamId: team._id
-              }
+                teamId: team._id,
+              },
             },
             {
               $group: {
                 _id: '$userId',
-                totalPoints: { $sum: '$points' }
-              }
-            }
+                totalPoints: { $sum: '$points' },
+              },
+            },
           ]);
         } catch (err) {
           // Error calculating points for members
@@ -3968,22 +4442,31 @@ export class TeamService {
         }
       });
 
-        // Map members with their points
+      // Map members with their points
       const membersWithPoints = members.map((member) => {
         const memberTyped = member as unknown as TeamMemberPopulated;
         let userId: Types.ObjectId | null = null;
         let totalPoints = 0;
 
-        if (memberTyped.user && typeof memberTyped.user === 'object' && '_id' in memberTyped.user) {
+        if (
+          memberTyped.user &&
+          typeof memberTyped.user === 'object' &&
+          '_id' in memberTyped.user
+        ) {
           const userTyped = memberTyped.user as PopulatedUserInfo;
           userId = userTyped._id;
           const normalizedUserId = this.normalizeId(userId);
-          totalPoints = normalizedUserId ? (pointsMap.get(normalizedUserId) || 0) : 0;
+          totalPoints = normalizedUserId
+            ? pointsMap.get(normalizedUserId) || 0
+            : 0;
         }
 
-        const userInfo = memberTyped.user && typeof memberTyped.user === 'object' && '_id' in memberTyped.user
-          ? memberTyped.user as PopulatedUserInfo
-          : null;
+        const userInfo =
+          memberTyped.user &&
+          typeof memberTyped.user === 'object' &&
+          '_id' in memberTyped.user
+            ? (memberTyped.user as PopulatedUserInfo)
+            : null;
 
         return {
           id: this.normalizeId(memberTyped._id),
@@ -3995,7 +4478,7 @@ export class TeamService {
           status: memberTyped.status ?? null,
           joinedAt: memberTyped.joinedAt ?? null,
           points: totalPoints,
-          isOnline: userInfo?.isOnline ?? false
+          isOnline: userInfo?.isOnline ?? false,
         };
       });
 
@@ -4024,20 +4507,20 @@ export class TeamService {
             creator: {
               id: creator._id,
               email: creator.email,
-              name: creator.name
+              name: creator.name,
             },
             organization: {
               id: organization._id,
               name: organization.name,
-              logo: organization.logo
+              logo: organization.logo,
             },
             memberCount: updatedTeam?.memberCount || actualMemberCount,
             isActive: team.isActive,
-            createdAt: team.createdAt
+            createdAt: team.createdAt,
           },
           members: membersWithPoints,
-          totalMembers: membersWithPoints.length
-        }
+          totalMembers: membersWithPoints.length,
+        },
       };
     } catch (error) {
       if (
@@ -4068,7 +4551,9 @@ export class TeamService {
         if (statusLower === 'approved' || statusLower === 'pending') {
           statusFilter = [statusLower];
         } else {
-          throw new BadRequestException('Invalid status. Status must be "approved" or "pending"');
+          throw new BadRequestException(
+            'Invalid status. Status must be "approved" or "pending"',
+          );
         }
       }
 
@@ -4087,7 +4572,9 @@ export class TeamService {
           .find({ creatorId: userId })
           .select('_id name logo')
           .exec();
-        const superAdminOrgIds = createdOrganizations.map(org => org._id.toString());
+        const superAdminOrgIds = createdOrganizations.map((org) =>
+          org._id.toString(),
+        );
         organizationIds.push(...superAdminOrgIds);
       }
 
@@ -4103,14 +4590,14 @@ export class TeamService {
       const teamMemberships = await this.teamMemberModel
         .find({
           user: userId,
-          status: 'approved'
+          status: 'approved',
         })
         .select('organization')
         .exec();
 
       const teamMemberOrgIds = teamMemberships
-        .map(membership => membership.organization.toString())
-        .filter(orgId => !organizationIds.includes(orgId));
+        .map((membership) => membership.organization.toString())
+        .filter((orgId) => !organizationIds.includes(orgId));
       organizationIds.push(...teamMemberOrgIds);
 
       if (organizationIds.length === 0) {
@@ -4119,8 +4606,8 @@ export class TeamService {
           message: 'User is not associated with any organization',
           data: {
             organizations: [],
-            teams: []
-          }
+            teams: [],
+          },
         };
       }
 
@@ -4132,26 +4619,25 @@ export class TeamService {
 
       // Step 4: Get all teams in these organizations with optional name filter
       const teamQuery: QueryFilter = { organization: { $in: organizationIds } };
-      
+
       // Add name filter if provided (case-insensitive partial match)
       if (name && name.trim()) {
         teamQuery.teamName = { $regex: name.trim(), $options: 'i' };
       }
-      
-      const teams = await this.teamModel
-        .find(teamQuery)
-        .lean()
-        .exec();
+
+      const teams = await this.teamModel.find(teamQuery).lean().exec();
 
       // Step 5: Batch fetch all data at once (optimization)
       const teamIds = teams.map((t) => {
         const tTyped = t as { _id: Types.ObjectId };
         return tTyped._id;
       });
-      const creatorIds = teams.map((t) => {
-        const tTyped = t as unknown as { creator?: Types.ObjectId };
-        return tTyped.creator;
-      }).filter((id): id is Types.ObjectId => id !== undefined && id !== null);
+      const creatorIds = teams
+        .map((t) => {
+          const tTyped = t as unknown as { creator?: Types.ObjectId };
+          return tTyped.creator;
+        })
+        .filter((id): id is Types.ObjectId => id !== undefined && id !== null);
 
       // 1. Batch fetch all creators
       const allCreators = await this.userModel
@@ -4159,9 +4645,13 @@ export class TeamService {
         .select('_id name email')
         .lean()
         .exec();
-      
+
       const creatorsMap = allCreators.reduce((map, creator) => {
-        const creatorTyped = creator as unknown as PopulatedUserInfo & { _id: Types.ObjectId; email?: string; name?: string };
+        const creatorTyped = creator as unknown as PopulatedUserInfo & {
+          _id: Types.ObjectId;
+          email?: string;
+          name?: string;
+        };
         const creatorId = this.normalizeId(creatorTyped._id);
         if (creatorId) {
           map.set(creatorId, creatorTyped);
@@ -4173,7 +4663,7 @@ export class TeamService {
       const allMembers = await this.teamMemberModel
         .find({
           team: { $in: teamIds },
-          status: { $in: statusFilter }
+          status: { $in: statusFilter },
         })
         .populate('user', 'name email profileImage')
         .lean()
@@ -4183,19 +4673,21 @@ export class TeamService {
       const memberCountsByTeam = await this.teamMemberModel.aggregate([
         {
           $match: {
-            team: { $in: teamIds }
-          }
+            team: { $in: teamIds },
+          },
         },
         {
           $group: {
             _id: '$team',
-            totalCount: { $sum: 1 }
-          }
-        }
+            totalCount: { $sum: 1 },
+          },
+        },
       ]);
 
       const memberCountMap = memberCountsByTeam.reduce((map, result) => {
-        const resultTyped = result as unknown as AggregationResult & { totalCount?: number };
+        const resultTyped = result as unknown as AggregationResult & {
+          totalCount?: number;
+        };
         const teamId = this.normalizeId(resultTyped._id);
         if (teamId) {
           map.set(teamId, resultTyped.totalCount || 0);
@@ -4220,7 +4712,12 @@ export class TeamService {
       const allApprovedMemberUserIds = allMembers
         .filter((m) => {
           const mTyped = m as unknown as TeamMemberPopulated;
-          return mTyped.user && typeof mTyped.user === 'object' && '_id' in mTyped.user && mTyped.status === 'approved';
+          return (
+            mTyped.user &&
+            typeof mTyped.user === 'object' &&
+            '_id' in mTyped.user &&
+            mTyped.status === 'approved'
+          );
         })
         .map((m) => {
           const mTyped = m as unknown as TeamMemberPopulated;
@@ -4236,18 +4733,18 @@ export class TeamService {
             {
               $match: {
                 userId: { $in: allApprovedMemberUserIds },
-                teamId: { $in: teamIds }
-              }
+                teamId: { $in: teamIds },
+              },
             },
             {
               $group: {
                 _id: {
                   userId: '$userId',
-                  teamId: '$teamId'
+                  teamId: '$teamId',
                 },
-                totalPoints: { $sum: '$points' }
-              }
-            }
+                totalPoints: { $sum: '$points' },
+              },
+            },
           ]);
         } catch (err) {
           // Error calculating points for members
@@ -4256,7 +4753,12 @@ export class TeamService {
 
       // Create a map of (userId, teamId) to totalPoints
       const pointsMap = allPointsAggregation.reduce((map, result) => {
-        const resultTyped = result as unknown as AggregationResult & { _id: { userId: string | Types.ObjectId; teamId: string | Types.ObjectId } };
+        const resultTyped = result as unknown as AggregationResult & {
+          _id: {
+            userId: string | Types.ObjectId;
+            teamId: string | Types.ObjectId;
+          };
+        };
         const userId = this.normalizeId(resultTyped._id.userId);
         const teamId = this.normalizeId(resultTyped._id.teamId);
         if (userId && teamId) {
@@ -4268,10 +4770,17 @@ export class TeamService {
 
       // Step 5: Process teams with members
       const teamsWithMembers = teams.map((team) => {
-        const teamTyped = team as unknown as { _id: Types.ObjectId; teamName?: string; organization: Types.ObjectId; creator: Types.ObjectId; isActive?: boolean; createdAt?: Date };
+        const teamTyped = team as unknown as {
+          _id: Types.ObjectId;
+          teamName?: string;
+          organization: Types.ObjectId;
+          creator: Types.ObjectId;
+          isActive?: boolean;
+          createdAt?: Date;
+        };
         // Get organization details for this team
         const teamOrg = organizations.find(
-          org => org._id.toString() === team.organization.toString()
+          (org) => org._id.toString() === team.organization.toString(),
         );
 
         // Get creator from map
@@ -4289,7 +4798,12 @@ export class TeamService {
           let userId: Types.ObjectId | null = null;
 
           // Only calculate points for approved members with user accounts
-          if (memberTyped.user && typeof memberTyped.user === 'object' && '_id' in memberTyped.user && memberTyped.status === 'approved') {
+          if (
+            memberTyped.user &&
+            typeof memberTyped.user === 'object' &&
+            '_id' in memberTyped.user &&
+            memberTyped.status === 'approved'
+          ) {
             const userTyped = memberTyped.user as PopulatedUserInfo;
             userId = userTyped._id;
             const normalizedUserId = this.normalizeId(userId);
@@ -4299,9 +4813,12 @@ export class TeamService {
             }
           }
 
-          const userInfo = memberTyped.user && typeof memberTyped.user === 'object' && '_id' in memberTyped.user
-            ? memberTyped.user as PopulatedUserInfo
-            : null;
+          const userInfo =
+            memberTyped.user &&
+            typeof memberTyped.user === 'object' &&
+            '_id' in memberTyped.user
+              ? (memberTyped.user as PopulatedUserInfo)
+              : null;
 
           return {
             id: this.normalizeId(memberTyped._id),
@@ -4312,7 +4829,7 @@ export class TeamService {
             isAdmin: memberTyped.isAdmin ?? false,
             status: memberTyped.status ?? null,
             joinedAt: memberTyped.joinedAt ?? null,
-            points: totalPoints
+            points: totalPoints,
           };
         });
 
@@ -4328,7 +4845,7 @@ export class TeamService {
         // Assign rank
         const membersWithRank = sortedMembers.map((member, index) => ({
           ...member,
-          rank: index + 1
+          rank: index + 1,
         }));
 
         // Get synced memberCount (total count of all members regardless of status filter)
@@ -4337,21 +4854,25 @@ export class TeamService {
         return {
           id: team._id.toString(),
           name: team.teamName,
-          creator: creator ? {
-            id: creator._id.toString(),
-            email: creator.email,
-            name: creator.name
-          } : null,
-          organization: teamOrg ? {
-            id: teamOrg._id.toString(),
-            name: teamOrg.name,
-            logo: teamOrg.logo
-          } : null,
+          creator: creator
+            ? {
+                id: creator._id.toString(),
+                email: creator.email,
+                name: creator.name,
+              }
+            : null,
+          organization: teamOrg
+            ? {
+                id: teamOrg._id.toString(),
+                name: teamOrg.name,
+                logo: teamOrg.logo,
+              }
+            : null,
           memberCount: actualMemberCount,
           isActive: team.isActive,
           createdAt: team.createdAt,
           members: membersWithRank,
-          totalMembers: membersWithRank.length
+          totalMembers: membersWithRank.length,
         };
       });
 
@@ -4363,25 +4884,31 @@ export class TeamService {
           return {
             updateOne: {
               filter: { _id: teamTyped._id },
-              update: { $set: { memberCount: memberCountMap.get(teamTyped._id.toString()) || 0 } },
+              update: {
+                $set: {
+                  memberCount:
+                    memberCountMap.get(teamTyped._id.toString()) || 0,
+                },
+              },
             },
           };
         });
-        
+
         await this.teamModel.bulkWrite(bulkOps);
       }
 
       // Step 6: Format response with organizations and their teams
-      const organizationsWithTeams = organizations.map(org => {
+      const organizationsWithTeams = organizations.map((org) => {
         const orgTeams = teamsWithMembers.filter(
-          team => team.organization && team.organization.id === org._id.toString()
+          (team) =>
+            team.organization && team.organization.id === org._id.toString(),
         );
 
         return {
           id: org._id.toString(),
           name: org.name,
           logo: org.logo,
-          teams: orgTeams
+          teams: orgTeams,
         };
       });
 
@@ -4391,8 +4918,8 @@ export class TeamService {
         data: {
           organizations: organizationsWithTeams,
           totalOrganizations: organizationsWithTeams.length,
-          totalTeams: teamsWithMembers.length
-        }
+          totalTeams: teamsWithMembers.length,
+        },
       };
     } catch (error) {
       if (
@@ -4412,7 +4939,7 @@ export class TeamService {
   async getDashboard(userId: string) {
     try {
       // await this.assertNonIndividualUser(userId);
-      
+
       // Step 0: Validate input
       if (!isValidObjectId(userId)) {
         throw new BadRequestException('Invalid user ID');
@@ -4433,7 +4960,7 @@ export class TeamService {
           .find({ creatorId: userId })
           .select('_id')
           .exec();
-        organizationIds = createdOrganizations.map(org => org._id.toString());
+        organizationIds = createdOrganizations.map((org) => org._id.toString());
       }
 
       // Case 2: User is admin - find their organization
@@ -4448,12 +4975,12 @@ export class TeamService {
       const teamMemberships = await this.teamMemberModel
         .find({
           user: userId,
-          status: 'approved'
+          status: 'approved',
         })
         .select('organization')
         .exec();
 
-      teamMemberships.forEach(membership => {
+      teamMemberships.forEach((membership) => {
         const orgId = membership.organization.toString();
         if (!organizationIds.includes(orgId)) {
           organizationIds.push(orgId);
@@ -4461,12 +4988,15 @@ export class TeamService {
       });
 
       if (organizationIds.length === 0) {
-        throw new NotFoundException('User is not associated with any organization');
+        throw new NotFoundException(
+          'User is not associated with any organization',
+        );
       }
 
       // For now, we'll return data for the first organization (or you can modify to return all)
       const organizationId = organizationIds[0];
-      const organization = await this.organizationModel.findById(organizationId);
+      const organization =
+        await this.organizationModel.findById(organizationId);
       if (!organization) {
         throw new NotFoundException('Organization not found');
       }
@@ -4487,7 +5017,7 @@ export class TeamService {
       const allMembers = await this.teamMemberModel
         .find({
           team: { $in: teamIds },
-          status: 'approved'
+          status: 'approved',
         })
         .populate('user', 'name email profileImage')
         .lean()
@@ -4510,7 +5040,11 @@ export class TeamService {
       const allMemberUserIds = allMembers
         .filter((m) => {
           const mTyped = m as unknown as TeamMemberPopulated;
-          return mTyped.user && typeof mTyped.user === 'object' && '_id' in mTyped.user;
+          return (
+            mTyped.user &&
+            typeof mTyped.user === 'object' &&
+            '_id' in mTyped.user
+          );
         })
         .map((m) => {
           const mTyped = m as unknown as TeamMemberPopulated;
@@ -4538,7 +5072,7 @@ export class TeamService {
       const allTeamGameScores = await this.teamGameScoreModel
         .find({
           userId: { $in: allMemberUserIds },
-          teamId: { $in: teamIds }
+          teamId: { $in: teamIds },
         })
         .lean()
         .exec();
@@ -4556,8 +5090,12 @@ export class TeamService {
             latestTeamGameScoresMap.set(key, scoreTyped);
           } else {
             // Keep the latest one based on updatedAt
-            const existingDate = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-            const scoreDate = scoreTyped.updatedAt ? new Date(scoreTyped.updatedAt).getTime() : 0;
+            const existingDate = existing.updatedAt
+              ? new Date(existing.updatedAt).getTime()
+              : 0;
+            const scoreDate = scoreTyped.updatedAt
+              ? new Date(scoreTyped.updatedAt).getTime()
+              : 0;
             if (scoreDate > existingDate) {
               latestTeamGameScoresMap.set(key, scoreTyped);
             }
@@ -4570,16 +5108,16 @@ export class TeamService {
         .find({
           $or: [
             { organization: organizationId, userType: USER_TYPE[2] },
-            { userType: USER_TYPE[1] }
-          ]
+            { userType: USER_TYPE[1] },
+          ],
         })
         .select('_id')
         .lean()
         .exec();
 
-      const adminUserIds = orgAdmins.map((admin) =>
-        this.normalizeId(admin._id),
-      ).filter((id): id is string => id !== null);
+      const adminUserIds = orgAdmins
+        .map((admin) => this.normalizeId(admin._id))
+        .filter((id): id is string => id !== null);
 
       // 6. Fetch all decks once (not in loop)
       const orgDecks = await this.deckModel
@@ -4621,14 +5159,17 @@ export class TeamService {
       // Create Maps: key = `${topicId}:${userId}`, value = accuracy
       const flashcardAccuracyMap = new Map<string, number>();
       const battleAccuracyMap = new Map<string, number>();
-      
+
       allTopics.forEach((topic) => {
         const topicTyped = topic as unknown as TopicLean;
         const topicId = this.normalizeId(topicTyped._id);
         if (!topicId) return;
 
         // Process flashcard accuracies
-        if (topicTyped.flashcardAccuracies && Array.isArray(topicTyped.flashcardAccuracies)) {
+        if (
+          topicTyped.flashcardAccuracies &&
+          Array.isArray(topicTyped.flashcardAccuracies)
+        ) {
           topicTyped.flashcardAccuracies.forEach((entry) => {
             const userId = this.normalizeId(entry.userId);
             if (userId) {
@@ -4639,7 +5180,10 @@ export class TeamService {
         }
 
         // Process battle accuracies
-        if (topicTyped.battleAccuracies && Array.isArray(topicTyped.battleAccuracies)) {
+        if (
+          topicTyped.battleAccuracies &&
+          Array.isArray(topicTyped.battleAccuracies)
+        ) {
           topicTyped.battleAccuracies.forEach((entry) => {
             const userId = this.normalizeId(entry.userId);
             if (userId) {
@@ -4651,9 +5195,26 @@ export class TeamService {
       });
 
       // Helper function to build subjectModeStats (now using pre-fetched Maps - O(1) lookup)
-      const buildSubjectModeStats = (topicIds: string[], memberUserId: string): Record<string, { flashcardAccuracy: number; battleAccuracy: number; Improvement: number }> => {
-        const subjectModeStats: Record<string, { flashcardAccuracy: number; battleAccuracy: number; Improvement: number }> = {};
-        
+      const buildSubjectModeStats = (
+        topicIds: string[],
+        memberUserId: string,
+      ): Record<
+        string,
+        {
+          flashcardAccuracy: number;
+          battleAccuracy: number;
+          Improvement: number;
+        }
+      > => {
+        const subjectModeStats: Record<
+          string,
+          {
+            flashcardAccuracy: number;
+            battleAccuracy: number;
+            Improvement: number;
+          }
+        > = {};
+
         if (topicIds.length === 0) {
           return subjectModeStats;
         }
@@ -4664,25 +5225,24 @@ export class TeamService {
             subjectModeStats[topicId] = {
               flashcardAccuracy: 0,
               battleAccuracy: 0,
-              Improvement: 0
+              Improvement: 0,
             };
             continue;
           }
-          
+
           // OPTIMIZATION: Use Map.get() instead of array.find() - O(1) vs O(n)
           const accuracyKey = `${topicId}:${memberUserId}`;
           const flashcardAccuracy = flashcardAccuracyMap.get(accuracyKey) || 0;
           const battleAccuracy = battleAccuracyMap.get(accuracyKey) || 0;
 
           // Calculate improvement (flashcardAccuracy/battleAccuracy * 100, handle division by zero)
-          const improvement = battleAccuracy > 0 
-            ? (flashcardAccuracy / battleAccuracy) * 100 
-            : 0;
+          const improvement =
+            battleAccuracy > 0 ? (flashcardAccuracy / battleAccuracy) * 100 : 0;
 
           subjectModeStats[topicId] = {
             flashcardAccuracy: flashcardAccuracy,
             battleAccuracy: battleAccuracy,
-            Improvement: Math.round(improvement * 100) / 100 || 0
+            Improvement: Math.round(improvement * 100) / 100 || 0,
           };
         }
 
@@ -4691,7 +5251,15 @@ export class TeamService {
 
       // Step 5: Process teams with members
       const teamsData = teams.map((team) => {
-        const teamTyped = team as unknown as { _id: Types.ObjectId; teamName?: string; points?: number; organization: Types.ObjectId; creator: Types.ObjectId; isActive?: boolean; createdAt?: Date };
+        const teamTyped = team as unknown as {
+          _id: Types.ObjectId;
+          teamName?: string;
+          points?: number;
+          organization: Types.ObjectId;
+          creator: Types.ObjectId;
+          isActive?: boolean;
+          createdAt?: Date;
+        };
         // Get team's total points from team table
         const teamTotalPoints = team.points || 0;
         const teamIdStr = team._id.toString();
@@ -4702,7 +5270,11 @@ export class TeamService {
         // Process each member
         const membersData = members.map((member) => {
           const memberTyped = member as unknown as TeamMemberPopulated;
-          if (!memberTyped.user || (typeof memberTyped.user === 'object' && !('_id' in memberTyped.user))) {
+          if (
+            !memberTyped.user ||
+            (typeof memberTyped.user === 'object' &&
+              !('_id' in memberTyped.user))
+          ) {
             // Member without user account (pending)
             return {
               ...memberTyped,
@@ -4711,13 +5283,16 @@ export class TeamService {
               accuracy: '0.00',
               totalGamesPlayed: 0,
               totalQuestionsAnswered: 0,
-              correctAnswers: 0
+              correctAnswers: 0,
             };
           }
 
-          const userInfo = memberTyped.user && typeof memberTyped.user === 'object' && '_id' in memberTyped.user
-            ? memberTyped.user as PopulatedUserInfo
-            : null;
+          const userInfo =
+            memberTyped.user &&
+            typeof memberTyped.user === 'object' &&
+            '_id' in memberTyped.user
+              ? (memberTyped.user as PopulatedUserInfo)
+              : null;
 
           if (!userInfo) {
             return {
@@ -4727,7 +5302,7 @@ export class TeamService {
               accuracy: '0.00',
               totalGamesPlayed: 0,
               totalQuestionsAnswered: 0,
-              correctAnswers: 0
+              correctAnswers: 0,
             };
           }
 
@@ -4740,7 +5315,7 @@ export class TeamService {
               accuracy: '0.00',
               totalGamesPlayed: 0,
               totalQuestionsAnswered: 0,
-              correctAnswers: 0
+              correctAnswers: 0,
             };
           }
 
@@ -4770,79 +5345,96 @@ export class TeamService {
             totalQuestionsAnswered: number;
             correctAnswers: number;
             averageResponseTime: number;
-            subjectModeStats: Record<string, { flashcardAccuracy: number; battleAccuracy: number; Improvement: number }>;
+            subjectModeStats: Record<
+              string,
+              {
+                flashcardAccuracy: number;
+                battleAccuracy: number;
+                Improvement: number;
+              }
+            >;
             createdAt: Date;
             updatedAt: Date;
             __v: number;
           }> = [];
           let memberPoints = 0;
-          
+
           if (latestScore) {
             memberPoints = latestScore.points || 0;
-            
-            // Build subjectModeStats using pre-fetched topics
-            const subjectModeStats = buildSubjectModeStats(topicIdsForStats, memberUserId);
 
-            scoresData = [{
-              _id: latestScore._id,
-              teamId: latestScore.teamId?.toString() || teamIdStr,
-              userId: latestScore.userId?.toString() || memberUserId,
-              points: latestScore.points || 0,
-              accuracy: accuracy,
-              totalGamesPlayed: totalGamesPlayed,
-              totalQuestionsAnswered: totalQuestionsAnswered,
-              correctAnswers: correctAnswers,
-              averageResponseTime: latestScore.averageResponseTime || 0,
-              subjectModeStats: subjectModeStats,
-              createdAt: latestScore.createdAt || new Date(),
-              updatedAt: latestScore.updatedAt || new Date(),
-              __v: latestScore.__v || 0
-            }];
+            // Build subjectModeStats using pre-fetched topics
+            const subjectModeStats = buildSubjectModeStats(
+              topicIdsForStats,
+              memberUserId,
+            );
+
+            scoresData = [
+              {
+                _id: latestScore._id,
+                teamId: latestScore.teamId?.toString() || teamIdStr,
+                userId: latestScore.userId?.toString() || memberUserId,
+                points: latestScore.points || 0,
+                accuracy: accuracy,
+                totalGamesPlayed: totalGamesPlayed,
+                totalQuestionsAnswered: totalQuestionsAnswered,
+                correctAnswers: correctAnswers,
+                averageResponseTime: latestScore.averageResponseTime || 0,
+                subjectModeStats: subjectModeStats,
+                createdAt: latestScore.createdAt || new Date(),
+                updatedAt: latestScore.updatedAt || new Date(),
+                __v: latestScore.__v || 0,
+              },
+            ];
           } else {
             // If no TeamGameScore exists, create a default one with GameProgress data
-            scoresData = [{
-              _id: null,
-              teamId: teamIdStr,
-              userId: memberUserId,
-              points: 0,
-              accuracy: accuracy,
-              totalGamesPlayed: totalGamesPlayed,
-              totalQuestionsAnswered: totalQuestionsAnswered,
-              correctAnswers: correctAnswers,
-              averageResponseTime: 0,
-              subjectModeStats: {},
-              createdAt: new Date(),
-              updatedAt: new Date(),
-              __v: 0
-            }];
+            scoresData = [
+              {
+                _id: null,
+                teamId: teamIdStr,
+                userId: memberUserId,
+                points: 0,
+                accuracy: accuracy,
+                totalGamesPlayed: totalGamesPlayed,
+                totalQuestionsAnswered: totalQuestionsAnswered,
+                correctAnswers: correctAnswers,
+                averageResponseTime: 0,
+                subjectModeStats: {},
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                __v: 0,
+              },
+            ];
           }
 
           return {
             _id: memberTyped._id,
             team: this.normalizeId(memberTyped.team) || teamIdStr,
-            organization: this.normalizeId(memberTyped.organization) || organizationId,
+            organization:
+              this.normalizeId(memberTyped.organization) || organizationId,
             email: memberTyped.email || userInfo?.email || null,
             isAdmin: memberTyped.isAdmin || false,
             status: memberTyped.status || 'approved',
             joinedAt: memberTyped.joinedAt || new Date(),
             __v: (memberTyped as { __v?: number }).__v || 0,
-            user: userInfo ? {
-              _id: userInfo._id,
-              name: userInfo.name || null,
-              email: userInfo.email || null,
-              profileImage: userInfo.profileImage || null
-            } : {
-              _id: null,
-              name: null,
-              email: null,
-              profileImage: null
-            },
+            user: userInfo
+              ? {
+                  _id: userInfo._id,
+                  name: userInfo.name || null,
+                  email: userInfo.email || null,
+                  profileImage: userInfo.profileImage || null,
+                }
+              : {
+                  _id: null,
+                  name: null,
+                  email: null,
+                  profileImage: null,
+                },
             scores: scoresData,
             totalPoints: memberPoints, // Member-specific points for ranking
             accuracy: accuracy.toFixed(2),
             totalGamesPlayed: totalGamesPlayed,
             totalQuestionsAnswered: totalQuestionsAnswered,
-            correctAnswers: correctAnswers
+            correctAnswers: correctAnswers,
           };
         });
 
@@ -4859,14 +5451,14 @@ export class TeamService {
           teamName: team.teamName,
           totalPoints: teamTotalPoints,
           memberCount: membersWithRank.length,
-          members: membersWithRank
+          members: membersWithRank,
         };
       });
 
       return {
         message: 'Dashboard data fetched successfully',
         organizationId: organizationId,
-        data: teamsData
+        data: teamsData,
       };
     } catch (error) {
       if (
@@ -4884,68 +5476,65 @@ export class TeamService {
   }
 
   async updateDeckName(deckId: string, userId: string, name: string) {
-  if (!deckId) {
-    throw new BadRequestException('Deck ID is required');
+    if (!deckId) {
+      throw new BadRequestException('Deck ID is required');
+    }
+
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
+    const trimmedName = name?.trim();
+    if (!trimmedName) {
+      throw new BadRequestException('Deck name is required');
+    }
+
+    const normalizedDeckId = this.normalizeId(deckId);
+    const normalizedUserId = this.normalizeId(userId);
+
+    if (!normalizedDeckId) {
+      throw new BadRequestException('Invalid deck ID');
+    }
+
+    if (!normalizedUserId) {
+      throw new BadRequestException('Invalid user ID');
+    }
+
+    // ✅ Get User
+    const user = await this.userModel.findById(normalizedUserId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // ✅ Get Deck
+    const deck = await this.deckModel.findById(normalizedDeckId);
+    if (!deck) {
+      throw new NotFoundException('Deck not found');
+    }
+
+    const deckOwnerId = this.normalizeId(deck.userId);
+
+    /**
+     * ✅ Permission Logic
+     * - SUPER_ADMIN → allowed
+     * - ADMIN → allowed
+     * - NORMAL USER → only if owner
+     */
+    const isAdmin =
+      user.userType === USER_TYPE[1] || user.userType === USER_TYPE[2];
+
+    const isOwner = deckOwnerId === normalizedUserId;
+
+    if (!isAdmin && !isOwner) {
+      throw new BadRequestException('You are not allowed to update this deck');
+    }
+
+    // ✅ Update
+    deck.name = trimmedName;
+    await deck.save();
+
+    return deck.toObject();
   }
-
-  if (!userId) {
-    throw new BadRequestException('User ID is required');
-  }
-
-  const trimmedName = name?.trim();
-  if (!trimmedName) {
-    throw new BadRequestException('Deck name is required');
-  }
-
-  const normalizedDeckId = this.normalizeId(deckId);
-  const normalizedUserId = this.normalizeId(userId);
-
-  if (!normalizedDeckId) {
-    throw new BadRequestException('Invalid deck ID');
-  }
-
-  if (!normalizedUserId) {
-    throw new BadRequestException('Invalid user ID');
-  }
-
-  // ✅ Get User
-  const user = await this.userModel.findById(normalizedUserId);
-  if (!user) {
-    throw new NotFoundException('User not found');
-  }
-
-  // ✅ Get Deck
-  const deck = await this.deckModel.findById(normalizedDeckId);
-  if (!deck) {
-    throw new NotFoundException('Deck not found');
-  }
-
-  const deckOwnerId = this.normalizeId(deck.userId);
-
-  /**
-   * ✅ Permission Logic
-   * - SUPER_ADMIN → allowed
-   * - ADMIN → allowed
-   * - NORMAL USER → only if owner
-   */
-  const isAdmin =
-    user.userType === USER_TYPE[1] ||
-    user.userType === USER_TYPE[2];
-
-  const isOwner = deckOwnerId === normalizedUserId;
-
-  if (!isAdmin && !isOwner) {
-    throw new BadRequestException(
-      'You are not allowed to update this deck',
-    );
-  }
-
-  // ✅ Update
-  deck.name = trimmedName;
-  await deck.save();
-
-  return deck.toObject();
-}
 
   async deleteDeck(deckId: string, userId: string) {
     try {
@@ -4977,7 +5566,9 @@ export class TeamService {
 
       // Step 2: Check authorization - only superAdmin or admin can delete decks
       if (user.userType !== USER_TYPE[1] && user.userType !== USER_TYPE[2]) {
-        throw new ForbiddenException('Only superAdmin or admin users can delete decks');
+        throw new ForbiddenException(
+          'Only superAdmin or admin users can delete decks',
+        );
       }
 
       // Step 3: Validate Deck
@@ -4988,21 +5579,27 @@ export class TeamService {
 
       // Step 4: Get all topic IDs from deck.contentIds
       const topicIds = deck.contentIds || [];
-      
+
       // Step 5: Get all topics and their subtopic IDs
-      const topics = await this.topicModel.find({ _id: { $in: topicIds } }).exec();
-      
+      const topics = await this.topicModel
+        .find({ _id: { $in: topicIds } })
+        .exec();
+
       // Collect all subtopic IDs from all topics
       const subtopicIds: string[] = [];
       for (const topic of topics) {
         if (topic.subTopics && Array.isArray(topic.subTopics)) {
-          subtopicIds.push(...topic.subTopics.map(subTopicId => subTopicId.toString()));
+          subtopicIds.push(
+            ...topic.subTopics.map((subTopicId) => subTopicId.toString()),
+          );
         }
       }
 
       // Step 6: Delete all subtopics
       if (subtopicIds.length > 0) {
-        await this.subTopicModel.deleteMany({ _id: { $in: subtopicIds } }).exec();
+        await this.subTopicModel
+          .deleteMany({ _id: { $in: subtopicIds } })
+          .exec();
       }
 
       // Step 7: Delete all topics
@@ -5019,11 +5616,11 @@ export class TeamService {
         data: {
           deletedDeck: {
             id: deck._id,
-            name: deck.name
+            name: deck.name,
           },
           deletedTopicsCount: topics.length,
-          deletedSubtopicsCount: subtopicIds.length
-        }
+          deletedSubtopicsCount: subtopicIds.length,
+        },
       };
     } catch (error) {
       if (
@@ -5054,18 +5651,26 @@ export class TeamService {
       }
 
       // Step 2: Check authorization - only superAdmin, admin, or member can access this API
-      const allowedUserTypes: string[] = [USER_TYPE[1], USER_TYPE[2], USER_TYPE[3]];
+      const allowedUserTypes: string[] = [
+        USER_TYPE[1],
+        USER_TYPE[2],
+        USER_TYPE[3],
+      ];
       if (!allowedUserTypes.includes(requester.userType)) {
-        throw new ForbiddenException('Only superAdmin, admin, or member users can access this API');
+        throw new ForbiddenException(
+          'Only superAdmin, admin, or member users can access this API',
+        );
       }
 
       // Step 3: Query users with userType in ['superAdmin', 'admin', 'member'] and isOnline = true
       const onlineUsers = await this.userModel
         .find({
           userType: { $in: [USER_TYPE[1], USER_TYPE[2], USER_TYPE[3]] },
-          isOnline: true
+          isOnline: true,
         })
-        .select('name email userType isOnline profileImage organization lastSeen')
+        .select(
+          'name email userType isOnline profileImage organization lastSeen',
+        )
         .populate('organization', 'name logo')
         .lean()
         .exec();
@@ -5074,7 +5679,9 @@ export class TeamService {
       // 1. Collect all member user IDs
       const memberUserIds = onlineUsers
         .filter((user) => {
-          const userTyped = user as unknown as PopulatedUserInfo & { userType?: string };
+          const userTyped = user as unknown as PopulatedUserInfo & {
+            userType?: string;
+          };
           return userTyped.userType === USER_TYPE[3];
         })
         .map((user) => {
@@ -5087,7 +5694,7 @@ export class TeamService {
       const allTeamMembers = await this.teamMemberModel
         .find({
           user: { $in: memberUserIds },
-          status: 'approved' // Only approved members
+          status: 'approved', // Only approved members
         })
         .populate('team', 'teamName _id')
         .lean()
@@ -5105,13 +5712,24 @@ export class TeamService {
 
       // 4. Format users with team information from the map
       const formattedUsers = onlineUsers.map((user) => {
-        const userTyped = user as unknown as PopulatedUserInfo & { _id: Types.ObjectId; email?: string; userType?: string; isOnline?: boolean; profileImage?: string | null; lastSeen?: Date; organization?: Types.ObjectId | PopulatedOrgInfo };
+        const userTyped = user as unknown as PopulatedUserInfo & {
+          _id: Types.ObjectId;
+          email?: string;
+          userType?: string;
+          isOnline?: boolean;
+          profileImage?: string | null;
+          lastSeen?: Date;
+          organization?: Types.ObjectId | PopulatedOrgInfo;
+        };
         const normalizedUserId = this.normalizeId(userTyped._id);
-        const normalizedOrgId = userTyped.organization && typeof userTyped.organization === 'object' && '_id' in userTyped.organization
-          ? this.normalizeId((userTyped.organization as PopulatedOrgInfo)._id) 
-          : userTyped.organization
-            ? this.normalizeId(userTyped.organization as Types.ObjectId)
-            : null;
+        const normalizedOrgId =
+          userTyped.organization &&
+          typeof userTyped.organization === 'object' &&
+          '_id' in userTyped.organization
+            ? this.normalizeId((userTyped.organization as PopulatedOrgInfo)._id)
+            : userTyped.organization
+              ? this.normalizeId(userTyped.organization as Types.ObjectId)
+              : null;
 
         // Initialize teamId and teamName
         let teamId: string | null = null;
@@ -5121,8 +5739,13 @@ export class TeamService {
         if (userTyped.userType === USER_TYPE[3] && normalizedUserId) {
           const teamMember = teamMemberMap.get(normalizedUserId);
           if (teamMember && teamMember.team) {
-            const teamMemberTyped = teamMember as unknown as PopulatedTeamMemberLean;
-            if (typeof teamMemberTyped.team === 'object' && teamMemberTyped.team && '_id' in teamMemberTyped.team) {
+            const teamMemberTyped =
+              teamMember as unknown as PopulatedTeamMemberLean;
+            if (
+              typeof teamMemberTyped.team === 'object' &&
+              teamMemberTyped.team &&
+              '_id' in teamMemberTyped.team
+            ) {
               const team = teamMemberTyped.team as PopulatedTeamInfo;
               teamId = this.normalizeId(team._id);
               teamName = team.teamName || null;
@@ -5133,9 +5756,12 @@ export class TeamService {
         }
         // For superAdmin and admin, teamId and teamName remain null
 
-        const orgInfo = userTyped.organization && typeof userTyped.organization === 'object' && '_id' in userTyped.organization
-          ? userTyped.organization as PopulatedOrgInfo
-          : null;
+        const orgInfo =
+          userTyped.organization &&
+          typeof userTyped.organization === 'object' &&
+          '_id' in userTyped.organization
+            ? (userTyped.organization as PopulatedOrgInfo)
+            : null;
 
         return {
           id: normalizedUserId,
@@ -5151,9 +5777,9 @@ export class TeamService {
             ? {
                 id: normalizedOrgId,
                 name: orgInfo.name || null,
-                logo: (orgInfo as { logo?: string }).logo || null
+                logo: (orgInfo as { logo?: string }).logo || null,
               }
-            : null
+            : null,
         };
       });
 
@@ -5162,8 +5788,8 @@ export class TeamService {
         message: 'Online users retrieved successfully',
         data: {
           users: formattedUsers,
-          totalOnlineUsers: formattedUsers.length
-        }
+          totalOnlineUsers: formattedUsers.length,
+        },
       };
     } catch (error) {
       if (
@@ -5179,5 +5805,4 @@ export class TeamService {
       );
     }
   }
-
 }

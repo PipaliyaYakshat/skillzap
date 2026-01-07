@@ -1,10 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsArray,
-  IsEmail,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { IsArray, IsEmail, IsOptional, IsString } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class UpdateUserDto {
@@ -61,7 +56,10 @@ export class UpdateUserDto {
         /* fall through */
       }
       // handle comma separated values
-      return value.split(',').map((v) => v.trim()).filter(Boolean);
+      return value
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean);
     }
     return [String(value)];
   })
@@ -93,7 +91,10 @@ export class UpdateUserDto {
       } catch {
         /* fall through */
       }
-      return value.split(',').map((v) => v.trim()).filter(Boolean);
+      return value
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean);
     }
     return [String(value)];
   })

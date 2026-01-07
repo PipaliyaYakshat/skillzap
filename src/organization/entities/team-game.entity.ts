@@ -14,7 +14,11 @@ export class TeamGame extends Document {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   creator: MongooseSchema.Types.ObjectId;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Organization', required: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Organization',
+    required: true,
+  })
   organization: MongooseSchema.Types.ObjectId;
 
   @Prop({ required: true, enum: ['REGULAR', 'KNOCKOUT'] })
@@ -35,13 +39,25 @@ export class TeamGame extends Document {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'SubTopic' })
   selectedSubTopicId: MongooseSchema.Types.ObjectId;
 
-  @Prop({ type: [MongooseSchema.Types.ObjectId], ref: 'TeamMember', default: [] })
+  @Prop({
+    type: [MongooseSchema.Types.ObjectId],
+    ref: 'TeamMember',
+    default: [],
+  })
   participants: MongooseSchema.Types.ObjectId[];
 
-  @Prop({ type: [MongooseSchema.Types.ObjectId], ref: 'TeamMember', default: [] })
+  @Prop({
+    type: [MongooseSchema.Types.ObjectId],
+    ref: 'TeamMember',
+    default: [],
+  })
   activeParticipants: MongooseSchema.Types.ObjectId[];
 
-  @Prop({ type: [MongooseSchema.Types.ObjectId], ref: 'TeamMember', default: [] })
+  @Prop({
+    type: [MongooseSchema.Types.ObjectId],
+    ref: 'TeamMember',
+    default: [],
+  })
   eliminatedParticipants: MongooseSchema.Types.ObjectId[];
 
   @Prop({ type: [MongooseSchema.Types.ObjectId], ref: 'User', default: [] })
@@ -68,12 +84,15 @@ export class TeamGame extends Document {
   scores: Record<string, number>;
 
   @Prop({ type: Object, default: {} })
-  answers: Record<string, Array<{
-    questionIndex: number;
-    answer: string;
-    isCorrect: boolean;
-    timestamp: Date;
-  }>>;
+  answers: Record<
+    string,
+    Array<{
+      questionIndex: number;
+      answer: string;
+      isCorrect: boolean;
+      timestamp: Date;
+    }>
+  >;
 
   @Prop({ type: Object, default: {} })
   wrongAnswersCount: Record<string, number>;
@@ -84,7 +103,11 @@ export class TeamGame extends Document {
   @Prop({ default: 20 })
   questionTimeLimit: number;
 
-  @Prop({ required: true, enum: ['WAITING', 'STARTED', 'COMPLETED', 'CANCELED'], default: 'WAITING' })
+  @Prop({
+    required: true,
+    enum: ['WAITING', 'STARTED', 'COMPLETED', 'CANCELED'],
+    default: 'WAITING',
+  })
   status: 'WAITING' | 'STARTED' | 'COMPLETED' | 'CANCELED';
 
   @Prop({ type: Date })
@@ -103,14 +126,19 @@ export class TeamGame extends Document {
 
   // ✅ Individual member answers - each participant can answer independently
   @Prop({ type: Map, of: Map, default: () => new Map() })
-  teamAnswers: Map<string, Map<string, {
-    participantId: string;
-    answer: string;
-    isCorrect: boolean;
-    timestamp: Date;
-    teamId: string; // Store team ID for reference
-  }>>;
-  
+  teamAnswers: Map<
+    string,
+    Map<
+      string,
+      {
+        participantId: string;
+        answer: string;
+        isCorrect: boolean;
+        timestamp: Date;
+        teamId: string; // Store team ID for reference
+      }
+    >
+  >;
 
   @Prop({ type: Object, default: {} })
   metadata: Record<string, any>;
@@ -146,26 +174,34 @@ export class TeamGameScore extends Document {
   gamesPlayed: number; // number of games played (for calculating running average)
 
   @Prop({ type: Object, default: {} })
-  knowledgeImprovement: Record<string, {
-    correct: number;
-    total: number;
-    percentage: number;
-  }>;
+  knowledgeImprovement: Record<
+    string,
+    {
+      correct: number;
+      total: number;
+      percentage: number;
+    }
+  >;
 
   // Subject-wise analytics fields
 
-
   // Subject/mode analytics (flashcard/battle accuracy and improvement)
   @Prop({ type: Object, default: {} })
-  subjectModeStats?: Record<string, {
-    flashcardAccuracy: number;
-    battleAccuracy: number;
-    flashcardImprovement: number;
-    battleImprovement: number;
-  }>;
+  subjectModeStats?: Record<
+    string,
+    {
+      flashcardAccuracy: number;
+      battleAccuracy: number;
+      flashcardImprovement: number;
+      battleImprovement: number;
+    }
+  >;
 }
 
 export const TeamGameScoreSchema = SchemaFactory.createForClass(TeamGameScore);
 
 // Add unique index to prevent duplicates
-TeamGameScoreSchema.index({ teamId: 1, userId: 1, gameId: 1 }, { unique: true });
+TeamGameScoreSchema.index(
+  { teamId: 1, userId: 1, gameId: 1 },
+  { unique: true },
+);

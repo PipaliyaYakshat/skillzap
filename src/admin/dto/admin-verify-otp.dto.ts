@@ -13,4 +13,3 @@ export class AdminVerifyOtpDto {
   @IsNotEmpty()
   otp: string;
 }
-

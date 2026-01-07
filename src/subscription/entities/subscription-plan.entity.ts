@@ -34,4 +34,3 @@ export class SubscriptionPlan {
 export type SubscriptionPlanDocument = SubscriptionPlan & Document;
 export const SubscriptionPlanSchema =
   SchemaFactory.createForClass(SubscriptionPlan);
-

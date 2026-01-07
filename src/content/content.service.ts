@@ -34,19 +34,31 @@ import { User, UserDocument } from '../users/entities/user.entity';
 import { UpdateQuery } from 'mongoose';
 
 // Type for authenticated user object
-type AuthUser = {
-  id?: string;
-  _id?: string | Types.ObjectId;
-  userId?: string;
-} | undefined;
+type AuthUser =
+  | {
+      id?: string;
+      _id?: string | Types.ObjectId;
+      userId?: string;
+    }
+  | undefined;
 
 // Helper type for lean document results (when using .lean())
 // Maps become Record<string, number> when using .lean()
-type LeanTopic = Omit<Topic, keyof Document | 'userPercentages'> & { _id: Types.ObjectId; userPercentages?: Record<string, number> };
-type LeanSubTopic = Omit<SubTopic, keyof Document | 'userPercentages'> & { _id: Types.ObjectId; userPercentages?: Record<string, number> };
+type LeanTopic = Omit<Topic, keyof Document | 'userPercentages'> & {
+  _id: Types.ObjectId;
+  userPercentages?: Record<string, number>;
+};
+type LeanSubTopic = Omit<SubTopic, keyof Document | 'userPercentages'> & {
+  _id: Types.ObjectId;
+  userPercentages?: Record<string, number>;
+};
 type LeanDeck = Omit<Deck, keyof Document> & { _id: Types.ObjectId };
-type LeanGameProgress = Omit<GameProgress, keyof Document> & { _id: Types.ObjectId };
-type LeanTopicProgress = Omit<TopicProgress, keyof Document> & { _id: Types.ObjectId };
+type LeanGameProgress = Omit<GameProgress, keyof Document> & {
+  _id: Types.ObjectId;
+};
+type LeanTopicProgress = Omit<TopicProgress, keyof Document> & {
+  _id: Types.ObjectId;
+};
 
 type ContentFilters = {
   userId?: string;
@@ -221,7 +233,9 @@ export class ContentService {
     }
 
     if (user.userType !== USER_TYPE[0]) {
-      throw new ForbiddenException('Only Individual users can access this service');
+      throw new ForbiddenException(
+        'Only Individual users can access this service',
+      );
     }
   }
 
@@ -292,7 +306,7 @@ export class ContentService {
 
   async getUserTopicProgress(userId: string, topicId: string) {
     // await this.assertIndividualUser(userId);
-    
+
     const normalizedUserId = this.normalizeId(userId);
     const normalizedTopicId = this.normalizeId(topicId);
 
@@ -326,14 +340,18 @@ export class ContentService {
     }));
 
     // Show only completed subtopics plus the next pending one
-    const firstPendingIndex = subTopicProgress.findIndex((st) => !st.isCompleted);
+    const firstPendingIndex = subTopicProgress.findIndex(
+      (st) => !st.isCompleted,
+    );
     const visibleSubTopicProgress =
       firstPendingIndex === -1
         ? subTopicProgress // all completed, show all
         : subTopicProgress.slice(0, firstPendingIndex + 1);
 
     // Get all subtopic IDs that need to be fetched
-    const visibleSubTopicIds = visibleSubTopicProgress.map((st) => st.subTopicId);
+    const visibleSubTopicIds = visibleSubTopicProgress.map(
+      (st) => st.subTopicId,
+    );
 
     // Fetch all subtopics in one query
     const subtopics = await this.subTopicModel
@@ -362,7 +380,7 @@ export class ContentService {
       }
 
       // Filter userPercentages if userId is provided (similar to getTopicById)
-      let filteredUserPercentages: Record<string, number> = {};
+      const filteredUserPercentages: Record<string, number> = {};
       if (subtopic.userPercentages && normalizedUserId) {
         // Handle Map case (Mongoose document)
         if (subtopic.userPercentages instanceof Map) {
@@ -376,7 +394,7 @@ export class ContentService {
           !Array.isArray(subtopic.userPercentages)
         ) {
           // Handle plain object case (when using .lean(), Maps become objects)
-          const userPercentagesObj = subtopic.userPercentages as Record<string, number>;
+          const userPercentagesObj = subtopic.userPercentages;
           const userPercentage = userPercentagesObj[normalizedUserId];
           if (userPercentage !== undefined && userPercentage !== null) {
             filteredUserPercentages[normalizedUserId] = userPercentage;
@@ -393,12 +411,12 @@ export class ContentService {
       );
 
       // Filter flashcardAccuracies - only show accuracies for current user
-      const filteredFlashcardAccuracies = (subtopic.flashcardAccuracies || []).filter(
-        (fa) => {
-          const faUserId = fa.userId ? this.normalizeId(fa.userId) : null;
-          return faUserId === normalizedUserId;
-        },
-      );
+      const filteredFlashcardAccuracies = (
+        subtopic.flashcardAccuracies || []
+      ).filter((fa) => {
+        const faUserId = fa.userId ? this.normalizeId(fa.userId) : null;
+        return faUserId === normalizedUserId;
+      });
 
       // Filter battleAccuracies - only show accuracies for current user
       const filteredBattleAccuracies = (subtopic.battleAccuracies || []).filter(
@@ -409,21 +427,31 @@ export class ContentService {
       );
 
       // Filter moreDetailsRequests - only show requests made by current user
-      const filteredMoreDetailsRequests = (subtopic.moreDetailsRequests || []).filter(
-        (mdr) => {
-          const mdrUserId = mdr.userId ? this.normalizeId(mdr.userId) : null;
-          return mdrUserId === normalizedUserId;
-        },
-      );
+      const filteredMoreDetailsRequests = (
+        subtopic.moreDetailsRequests || []
+      ).filter((mdr) => {
+        const mdrUserId = mdr.userId ? this.normalizeId(mdr.userId) : null;
+        return mdrUserId === normalizedUserId;
+      });
 
       // Return full subtopic data with isCompleted flag and filtered user-specific data
       return {
         ...subtopic,
-        userPercentages: normalizedUserId ? filteredUserPercentages : subtopic.userPercentages,
-        questionsAsked: normalizedUserId ? filteredQuestionsAsked : subtopic.questionsAsked,
-        flashcardAccuracies: normalizedUserId ? filteredFlashcardAccuracies : subtopic.flashcardAccuracies,
-        battleAccuracies: normalizedUserId ? filteredBattleAccuracies : subtopic.battleAccuracies,
-        moreDetailsRequests: normalizedUserId ? filteredMoreDetailsRequests : subtopic.moreDetailsRequests,
+        userPercentages: normalizedUserId
+          ? filteredUserPercentages
+          : subtopic.userPercentages,
+        questionsAsked: normalizedUserId
+          ? filteredQuestionsAsked
+          : subtopic.questionsAsked,
+        flashcardAccuracies: normalizedUserId
+          ? filteredFlashcardAccuracies
+          : subtopic.flashcardAccuracies,
+        battleAccuracies: normalizedUserId
+          ? filteredBattleAccuracies
+          : subtopic.battleAccuracies,
+        moreDetailsRequests: normalizedUserId
+          ? filteredMoreDetailsRequests
+          : subtopic.moreDetailsRequests,
         isCompleted: st.isCompleted,
       };
     });
@@ -506,7 +534,7 @@ export class ContentService {
 
   async markSubTopicCompletedForUser(userId: string, subTopicId: string) {
     // await this.assertIndividualUser(userId);
-    
+
     const normalizedSubTopicId = this.normalizeId(subTopicId);
     if (!userId || !normalizedSubTopicId) {
       return;
@@ -557,7 +585,7 @@ export class ContentService {
     deckName?: string;
   }> {
     // await this.assertIndividualUser(userId);
-    
+
     if (!userId) {
       throw new BadRequestException('userId is required');
     }
@@ -643,10 +671,7 @@ export class ContentService {
     return content;
   }
 
-  async uploadFile(
-    authUser: AuthUser,
-    file?: Express.Multer.File,
-  ) {
+  async uploadFile(authUser: AuthUser, file?: Express.Multer.File) {
     if (!file) {
       throw new BadRequestException('File is required');
     }
@@ -757,7 +782,9 @@ export class ContentService {
   async findOne(id: string) {
     // Validate that id is a valid ObjectId
     if (!Types.ObjectId.isValid(id)) {
-      throw new BadRequestException(`Invalid content ID: ${id}. Expected a valid MongoDB ObjectId.`);
+      throw new BadRequestException(
+        `Invalid content ID: ${id}. Expected a valid MongoDB ObjectId.`,
+      );
     }
 
     const content = await this.contentModel.findById(id).lean().exec();
@@ -770,7 +797,9 @@ export class ContentService {
   async update(id: string, updateContentDto: UpdateContentDto) {
     // Validate that id is a valid ObjectId
     if (!Types.ObjectId.isValid(id)) {
-      throw new BadRequestException(`Invalid content ID: ${id}. Expected a valid MongoDB ObjectId.`);
+      throw new BadRequestException(
+        `Invalid content ID: ${id}. Expected a valid MongoDB ObjectId.`,
+      );
     }
 
     const updated = await this.contentModel
@@ -791,7 +820,9 @@ export class ContentService {
   async remove(id: string) {
     // Validate that id is a valid ObjectId
     if (!Types.ObjectId.isValid(id)) {
-      throw new BadRequestException(`Invalid content ID: ${id}. Expected a valid MongoDB ObjectId.`);
+      throw new BadRequestException(
+        `Invalid content ID: ${id}. Expected a valid MongoDB ObjectId.`,
+      );
     }
 
     const deleted = await this.contentModel.findByIdAndDelete(id).lean().exec();
@@ -809,7 +840,7 @@ export class ContentService {
    */
   async updateDailyStreak(userId: string) {
     // await this.assertIndividualUser(userId);
-    
+
     const normalizedUserId = this.normalizeId(userId);
     if (!normalizedUserId) {
       return null;
@@ -831,7 +862,7 @@ export class ContentService {
 
     // Get or initialize dailyGamesCount
     const dailyGamesCount = progress.dailyGamesCount || {};
-    
+
     // Increment games count for today
     const todayGamesCount = (dailyGamesCount[todayDateString] || 0) + 1;
     dailyGamesCount[todayDateString] = todayGamesCount;
@@ -918,9 +949,7 @@ export class ContentService {
    * - "cross": 0 games on past days (day already completed)
    * - "": empty string for today if no games played yet (day not completed)
    */
-  private update7DayIcons(
-    dailyGamesCount: Record<string, number>,
-  ): string[] {
+  private update7DayIcons(dailyGamesCount: Record<string, number>): string[] {
     const icons: string[] = [];
     const today = new Date();
     const todayStart = new Date(today);
@@ -976,7 +1005,7 @@ export class ContentService {
    */
   async checkAndResetDailyStreak(userId: string) {
     // await this.assertIndividualUser(userId);
-    
+
     const normalizedUserId = this.normalizeId(userId);
     if (!normalizedUserId) {
       return null;
@@ -1017,12 +1046,9 @@ export class ContentService {
     return progress;
   }
 
-  async updateProgressAfterQuestion(
-    userId: string,
-    isCorrect: boolean,
-  ) {
+  async updateProgressAfterQuestion(userId: string, isCorrect: boolean) {
     // await this.assertIndividualUser(userId);
-    
+
     const progress = await this.gameProgressModel.findOne({ userId });
     const today = new Date().toDateString();
 
@@ -1091,7 +1117,7 @@ export class ContentService {
 
   async incrementTotalGamesPlayed(userId: string) {
     // await this.assertIndividualUser(userId);
-    
+
     const updated = await this.gameProgressModel.findOneAndUpdate(
       { userId },
       {
@@ -1119,9 +1145,9 @@ export class ContentService {
     if (points > 0 && points % 100 === 0) {
       return 'Mastery';
     }
-    
+
     const pointsInCycle = points % 100;
-    
+
     if (pointsInCycle >= 1 && pointsInCycle <= 20) {
       return 'Spark';
     } else if (pointsInCycle >= 21 && pointsInCycle <= 40) {
@@ -1162,8 +1188,14 @@ export class ContentService {
    */
   private calculateAllEarnedBadges(points: number): string[] {
     const badges: string[] = [];
-    const badgeOrder = ['Spark', 'Momentum', 'Breakthrough', 'Pioneer', 'Mastery'];
-    
+    const badgeOrder = [
+      'Spark',
+      'Momentum',
+      'Breakthrough',
+      'Pioneer',
+      'Mastery',
+    ];
+
     if (points === 0) {
       return [];
     }
@@ -1171,13 +1203,13 @@ export class ContentService {
     // Calculate badges earned in current level only
     // For level 1: 1-100, for level 2: 101-200, etc.
     const pointsInCurrentCycle = points % 100;
-    
+
     // Special case: when points is exactly 100, 200, etc. (end of level)
     // At 100 points (end of level 1), user has earned all badges
     if (points > 0 && points % 100 === 0) {
       return [...badgeOrder]; // Return all badges (Mastery level)
     }
-    
+
     if (pointsInCurrentCycle > 0) {
       // Badge ranges within each 100-point cycle:
       // 1-20 or 101-120 or 201-220: Spark
@@ -1201,13 +1233,9 @@ export class ContentService {
     return badges;
   }
 
-  async awardPointsAndCoins(
-    userId: string,
-    points: number,
-    coins: number,
-  ) {
+  async awardPointsAndCoins(userId: string, points: number, coins: number) {
     // await this.assertIndividualUser(userId);
-    
+
     const normalizedUserId = this.normalizeId(userId);
     if (!normalizedUserId) {
       return null;
@@ -1257,7 +1285,7 @@ export class ContentService {
 
   async decrementLives(userId: string, amount: number = 1) {
     // await this.assertIndividualUser(userId);
-    
+
     const updated = await this.gameProgressModel.findOneAndUpdate(
       { userId },
       {
@@ -1288,7 +1316,7 @@ export class ContentService {
 
   async deductCoins(userId: string, amount: number = 5) {
     // await this.assertIndividualUser(userId);
-    
+
     const normalizedUserId = this.normalizeId(userId);
     if (!normalizedUserId) {
       throw new BadRequestException('Invalid user ID');
@@ -1358,7 +1386,7 @@ export class ContentService {
 
   async requestPublicAccess(userId: string, deckId: string) {
     // await this.assertIndividualUser(userId);
-    
+
     if (!userId) {
       throw new BadRequestException('User ID is required');
     }
@@ -1374,9 +1402,11 @@ export class ContentService {
     // Verify that the deck belongs to the user
     const normalizedUserId = this.normalizeId(userId);
     const normalizedDeckUserId = this.normalizeId(deck.userId);
-    
+
     if (normalizedDeckUserId !== normalizedUserId) {
-      throw new BadRequestException('You can only request public access for your own decks');
+      throw new BadRequestException(
+        'You can only request public access for your own decks',
+      );
     }
 
     // Check if deck is already approved/published
@@ -1395,126 +1425,127 @@ export class ContentService {
   }
 
   async getMyDecks(userId: string) {
-  // 1️⃣ Validate userId
-  if (!userId) {
-    throw new BadRequestException('User ID is required');
-  }
+    // 1️⃣ Validate userId
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
 
-  const normalizedUserId = this.normalizeId(userId);
+    const normalizedUserId = this.normalizeId(userId);
 
-  // 2️⃣ Fetch all decks of user
-  const decks = await this.deckModel
-    .find({ userId: normalizedUserId })
-    .sort({ createdAt: -1 })
-    .lean()
-    .exec();
+    // 2️⃣ Fetch all decks of user
+    const decks = await this.deckModel
+      .find({ userId: normalizedUserId })
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec();
 
-  // 3️⃣ Collect all unique topicIds from all decks
-  const allTopicIds: string[] = Array.from(
-    new Set(
-      decks.flatMap(deck =>
-        (deck.contentIds || [])
-          .map(id => this.normalizeId(id))
-          .filter((id): id is string => !!id),
+    // 3️⃣ Collect all unique topicIds from all decks
+    const allTopicIds: string[] = Array.from(
+      new Set(
+        decks.flatMap((deck) =>
+          (deck.contentIds || [])
+            .map((id) => this.normalizeId(id))
+            .filter((id): id is string => !!id),
+        ),
       ),
-    ),
-  );
-
-  // 4️⃣ Fetch topics in one query
-  const allTopics = await this.topicModel
-    .find({ _id: { $in: allTopicIds } })
-    .lean()
-    .exec();
-
-  // 5️⃣ Fetch topic progress records in one query
-  const allTopicProgressRecords = await this.topicProgressModel
-    .find({
-      userId: normalizedUserId,
-      topicId: { $in: allTopicIds },
-    })
-    .lean()
-    .exec();
-
-  // 6️⃣ Create lookup maps
-  const topicsMap = new Map<string, LeanTopic>(
-    allTopics.map(topic => [
-      this.normalizeId(topic._id) as string,
-      topic as unknown as LeanTopic,
-    ]),
-  );
-
-  const progressMap = new Map<string, LeanTopicProgress>(
-    allTopicProgressRecords.map(progress => [
-      this.normalizeId(progress.topicId) as string,
-      progress as unknown as LeanTopicProgress,
-    ]),
-  );
-
-  // 7️⃣ Process each deck
-  const decksWithPercentage = decks.map(deck => {
-    const totalCard = (deck.contentIds || []).length;
-
-    const topicIds = (deck.contentIds || [])
-      .map(id => this.normalizeId(id))
-      .filter((id): id is string => !!id);
-
-    if (topicIds.length === 0) {
-      return { ...deck, percentage: 0, totalCard };
-    }
-
-    // 8️⃣ Get topics from map
-    const topics = topicIds
-      .map(id => topicsMap.get(id))
-      .filter((topic): topic is LeanTopic => topic !== undefined);
-
-    // 9️⃣ Collect all subtopic IDs using flatMap (no loop needed)
-    const allSubTopicIds: string[] = topics
-      .flatMap(topic => (topic.subTopics || []))
-      .map(id => this.normalizeId(id))
-      .filter((id): id is string => !!id);
-
-    const totalSubTopics = allSubTopicIds.length;
-
-    if (totalSubTopics === 0) {
-      return { ...deck, percentage: 0, totalCard };
-    }
-
-    // 🔟 Collect completed subtopics using flatMap (no nested loops)
-    const completedSubTopicIdsSet = new Set<string>(
-      topicIds
-        .map(id => progressMap.get(id))
-        .filter((progress): progress is LeanTopicProgress => progress !== undefined)
-        .flatMap(progress => (progress.completedSubTopicIds || []))
-        .map(id => this.normalizeId(id))
-        .filter((id): id is string => !!id)
     );
 
-    // 1️⃣1️⃣ Count completed subtopics only from deck
-    const completedInDeck = Array.from(completedSubTopicIdsSet).filter(
-      id => allSubTopicIds.includes(id),
+    // 4️⃣ Fetch topics in one query
+    const allTopics = await this.topicModel
+      .find({ _id: { $in: allTopicIds } })
+      .lean()
+      .exec();
+
+    // 5️⃣ Fetch topic progress records in one query
+    const allTopicProgressRecords = await this.topicProgressModel
+      .find({
+        userId: normalizedUserId,
+        topicId: { $in: allTopicIds },
+      })
+      .lean()
+      .exec();
+
+    // 6️⃣ Create lookup maps
+    const topicsMap = new Map<string, LeanTopic>(
+      allTopics.map((topic) => [
+        this.normalizeId(topic._id) as string,
+        topic as unknown as LeanTopic,
+      ]),
     );
 
-    const percentage = Math.round(
-      (completedInDeck.length / totalSubTopics) * 100,
+    const progressMap = new Map<string, LeanTopicProgress>(
+      allTopicProgressRecords.map((progress) => [
+        this.normalizeId(progress.topicId) as string,
+        progress as unknown as LeanTopicProgress,
+      ]),
     );
 
-    return {
-      ...deck,
-      percentage,
-      totalCard,
-    };
-  });
+    // 7️⃣ Process each deck
+    const decksWithPercentage = decks.map((deck) => {
+      const totalCard = (deck.contentIds || []).length;
 
-  return decksWithPercentage;
-}
+      const topicIds = (deck.contentIds || [])
+        .map((id) => this.normalizeId(id))
+        .filter((id): id is string => !!id);
 
+      if (topicIds.length === 0) {
+        return { ...deck, percentage: 0, totalCard };
+      }
+
+      // 8️⃣ Get topics from map
+      const topics = topicIds
+        .map((id) => topicsMap.get(id))
+        .filter((topic): topic is LeanTopic => topic !== undefined);
+
+      // 9️⃣ Collect all subtopic IDs using flatMap (no loop needed)
+      const allSubTopicIds: string[] = topics
+        .flatMap((topic) => topic.subTopics || [])
+        .map((id) => this.normalizeId(id))
+        .filter((id): id is string => !!id);
+
+      const totalSubTopics = allSubTopicIds.length;
+
+      if (totalSubTopics === 0) {
+        return { ...deck, percentage: 0, totalCard };
+      }
+
+      // 🔟 Collect completed subtopics using flatMap (no nested loops)
+      const completedSubTopicIdsSet = new Set<string>(
+        topicIds
+          .map((id) => progressMap.get(id))
+          .filter(
+            (progress): progress is LeanTopicProgress => progress !== undefined,
+          )
+          .flatMap((progress) => progress.completedSubTopicIds || [])
+          .map((id) => this.normalizeId(id))
+          .filter((id): id is string => !!id),
+      );
+
+      // 1️⃣1️⃣ Count completed subtopics only from deck
+      const completedInDeck = Array.from(completedSubTopicIdsSet).filter((id) =>
+        allSubTopicIds.includes(id),
+      );
+
+      const percentage = Math.round(
+        (completedInDeck.length / totalSubTopics) * 100,
+      );
+
+      return {
+        ...deck,
+        percentage,
+        totalCard,
+      };
+    });
+
+    return decksWithPercentage;
+  }
 
   /**
    * Update a deck's name. Only the deck owner can perform this action.
    */
   async updateDeckName(deckId: string, userId: string, name: string) {
     // await this.assertIndividualUser(userId);
-    
+
     if (!deckId) {
       throw new BadRequestException('Deck ID is required');
     }
@@ -1562,13 +1593,15 @@ export class ContentService {
     if (userId) {
       // await this.assertIndividualUser(userId);
     }
-    
+
     const skip = (page - 1) * limit;
     const query: FilterQuery<DeckDocument> = {};
 
     if (filter === 'private') {
       if (!userId) {
-        throw new BadRequestException('User authentication required for private decks');
+        throw new BadRequestException(
+          'User authentication required for private decks',
+        );
       }
       const normalizedUserId = this.normalizeId(userId);
       query.userId = normalizedUserId;
@@ -1578,7 +1611,9 @@ export class ContentService {
       query.isPublic = true;
       query.status = 'approve';
     } else {
-      throw new BadRequestException('Filter must be either "private" or "public"');
+      throw new BadRequestException(
+        'Filter must be either "private" or "public"',
+      );
     }
 
     // Add category filter if provided
@@ -1612,7 +1647,13 @@ export class ContentService {
       .exec();
 
     // Create user map for quick lookup
-    type LeanUserLibrary = { _id: Types.ObjectId; name?: string | null; profileImage?: string; avatarId?: string[]; purchasedAvatars?: string[] };
+    type LeanUserLibrary = {
+      _id: Types.ObjectId;
+      name?: string | null;
+      profileImage?: string;
+      avatarId?: string[];
+      purchasedAvatars?: string[];
+    };
     const userMap = new Map<string, LeanUserLibrary>();
     users.forEach((user) => {
       const userId = this.normalizeId(user._id);
@@ -1721,7 +1762,10 @@ export class ContentService {
             subTopics: populatedSubTopics,
           };
         })
-        .filter((topic): topic is LeanTopic & { subTopics: LeanSubTopic[] } => topic !== null);
+        .filter(
+          (topic): topic is LeanTopic & { subTopics: LeanSubTopic[] } =>
+            topic !== null,
+        );
 
       // Calculate deckPercentage if userId is provided
       let deckPercentage: number | null = null;
@@ -1751,16 +1795,19 @@ export class ContentService {
               const completedSubTopicIdsSet = new Set<string>(
                 topicIds
                   .map((id) => progressMap.get(id))
-                  .filter((progress): progress is LeanTopicProgress => progress !== undefined)
+                  .filter(
+                    (progress): progress is LeanTopicProgress =>
+                      progress !== undefined,
+                  )
                   .flatMap((progress) => progress.completedSubTopicIds || [])
                   .map((id) => this.normalizeId(id))
                   .filter((id): id is string => !!id),
               );
 
               // Count completed subtopics only from deck
-              const completedInDeck = Array.from(completedSubTopicIdsSet).filter(
-                (id) => allSubTopicIds.includes(id),
-              );
+              const completedInDeck = Array.from(
+                completedSubTopicIdsSet,
+              ).filter((id) => allSubTopicIds.includes(id));
 
               deckPercentage = Math.round(
                 (completedInDeck.length / totalSubTopics) * 100,
@@ -1800,12 +1847,9 @@ export class ContentService {
     };
   }
 
-  async inviteUserToGame(
-    inviterId: string,
-    data: InviteUserPayload,
-  ) {
-    await this.assertIndividualUser(inviterId);
-    
+  async inviteUserToGame(inviterId: string, data: InviteUserPayload) {
+    // await this.assertIndividualUser(inviterId);
+
     const normalizedInviterId = this.normalizeId(inviterId);
 
     if (!normalizedInviterId) {
@@ -1821,7 +1865,9 @@ export class ContentService {
       // Backward compatibility: single user
       userIdsToInvite.push(data.userId);
     } else {
-      throw new BadRequestException('Either userId or userIds array is required');
+      throw new BadRequestException(
+        'Either userId or userIds array is required',
+      );
     }
 
     if (userIdsToInvite.length === 0) {
@@ -1829,7 +1875,7 @@ export class ContentService {
     }
 
     // Get or create room for the inviter
-    let inviterRoom = this.getRoomByUserId(normalizedInviterId);
+    const inviterRoom = this.getRoomByUserId(normalizedInviterId);
     let roomId = data?.gameId ?? null;
 
     // If inviter doesn't have a room, we'll create one when first invite is accepted
@@ -1837,7 +1883,7 @@ export class ContentService {
     if (!roomId) {
       roomId = randomUUID();
     }
-    
+
     // If room already exists and deckId/topicId are provided, update the room
     if (inviterRoom && roomId === inviterRoom.roomId) {
       if (data.deckId && !inviterRoom.deckId) {
@@ -1864,7 +1910,7 @@ export class ContentService {
 
     // Verify all users exist in the database and filter online users
     const users = await this.userModel
-      .find({ 
+      .find({
         _id: { $in: normalizedUserIds },
         isOnline: true, // Filter online users directly in query
       })
@@ -1874,15 +1920,23 @@ export class ContentService {
 
     // Create user lookup maps for O(1) access
     const existingUserIds = new Set(
-      users.map((u) => this.normalizeId(u._id)).filter((id): id is string => !!id),
+      users
+        .map((u) => this.normalizeId(u._id))
+        .filter((id): id is string => !!id),
     );
     const userMap = new Map(
-      users.map((u) => {
-        const userId = this.normalizeId(u._id);
-        return userId ? [userId, u] : null;
-      }).filter((entry): entry is [string, typeof users[0]] => entry !== null),
+      users
+        .map((u) => {
+          const userId = this.normalizeId(u._id);
+          return userId ? [userId, u] : null;
+        })
+        .filter(
+          (entry): entry is [string, (typeof users)[0]] => entry !== null,
+        ),
     );
-    const roomParticipantsSet = inviterRoom ? new Set(inviterRoom.participants) : new Set<string>();
+    const roomParticipantsSet = inviterRoom
+      ? new Set(inviterRoom.participants)
+      : new Set<string>();
 
     // Filter valid users before processing using array methods
     const validUserIds = normalizedUserIds.filter((userId) => {
@@ -1927,7 +1981,7 @@ export class ContentService {
         fromUserId: normalizedInviterId,
         toUserId: userId,
         deviceId: data.deviceId ?? null,
-        gameMode: gameMode as AllGameMode,
+        gameMode: gameMode,
         gameId: roomId,
         createdAt: new Date().toISOString(),
         deckId: data.deckId ?? null,
@@ -1984,20 +2038,20 @@ export class ContentService {
     return inviteEntry ? inviteEntry[1] : null;
   }
 
-  async acceptInvite(
-    acceptorId: string,
-    data: AcceptInvitePayload,
-  ) {
-    await this.assertIndividualUser(acceptorId);
-    
+  async acceptInvite(acceptorId: string, data: AcceptInvitePayload) {
+    // await this.assertIndividualUser(acceptorId);
+
     const normalizedAcceptorId = this.normalizeId(acceptorId);
-    
+
     // If userId is not provided in data, try to find it from pending invites
     let normalizedInviterId = this.normalizeId(data?.userId);
-    
+
     if (!normalizedInviterId) {
       // Try to find the invite first to get the inviter ID
-      const foundInvite = this.findPendingInviteForUser(acceptorId, data?.gameId);
+      const foundInvite = this.findPendingInviteForUser(
+        acceptorId,
+        data?.gameId,
+      );
       if (foundInvite) {
         normalizedInviterId = this.normalizeId(foundInvite.fromUserId);
       }
@@ -2022,7 +2076,8 @@ export class ContentService {
     const inviteEntry = Array.from(this.pendingInvites.entries()).find(
       ([inviteId, invite]) => {
         const matchesAcceptor = invite.toUserId === normalizedAcceptorId;
-        const matchesInviter = !normalizedInviterId || invite.fromUserId === normalizedInviterId;
+        const matchesInviter =
+          !normalizedInviterId || invite.fromUserId === normalizedInviterId;
         const matchesGameId = !data.gameId || invite.gameId === data.gameId;
         return matchesAcceptor && matchesInviter && matchesGameId;
       },
@@ -2030,14 +2085,16 @@ export class ContentService {
 
     const foundInvite = inviteEntry ? inviteEntry[1] : null;
     const foundInviteId = inviteEntry ? inviteEntry[0] : null;
-    
+
     // Remove found invite from pending invites
     if (foundInviteId) {
       this.pendingInvites.delete(foundInviteId);
     }
-    
-    const isTeamGame = foundInvite?.gameMode === 'Regular' || foundInvite?.gameMode === 'Knockout';
-    
+
+    const isTeamGame =
+      foundInvite?.gameMode === 'Regular' ||
+      foundInvite?.gameMode === 'Knockout';
+
     if (!isTeamGame) {
       const inviterSocket = this.userSockets.get(normalizedInviterId);
       if (!inviterSocket) {
@@ -2071,10 +2128,10 @@ export class ContentService {
       if (foundInvite?.topicId && !inviterRoom.topicId) {
         inviterRoom.topicId = foundInvite.topicId;
       }
-        // Update mode from invite if provided
-        if (foundInvite?.gameMode && !inviterRoom.mode) {
-          inviterRoom.mode = foundInvite.gameMode as ActiveRoom['mode'];
-        }
+      // Update mode from invite if provided
+      if (foundInvite?.gameMode && !inviterRoom.mode) {
+        inviterRoom.mode = foundInvite.gameMode as ActiveRoom['mode'];
+      }
       // Update the room in the map (use roomId as key)
       this.activeRooms.set(inviterRoom.roomId, inviterRoom);
       roomId = inviterRoom.roomId;
@@ -2111,12 +2168,9 @@ export class ContentService {
     };
   }
 
-  async cancelInvite(
-    userId: string,
-    data: CancelInvitePayload,
-  ) {
+  async cancelInvite(userId: string, data: CancelInvitePayload) {
     // await this.assertIndividualUser(userId);
-    
+
     const normalizedUserId = this.normalizeId(userId);
     const normalizedInviterId = this.normalizeId(data?.inviterId);
 
@@ -2213,7 +2267,7 @@ export class ContentService {
 
   async removeUserFromRoomParticipants(roomId: string, userId: string) {
     // await this.assertIndividualUser(userId);
-    
+
     const normalizedUserId = this.normalizeId(userId);
     if (!normalizedUserId) {
       throw new BadRequestException('User ID is required');
@@ -2273,7 +2327,7 @@ export class ContentService {
 
   async leaveUser(userId: string) {
     // await this.assertIndividualUser(userId);
-    
+
     const normalizedUserId = this.normalizeId(userId);
     if (!normalizedUserId) {
       throw new BadRequestException('User ID is required');
@@ -2326,8 +2380,8 @@ export class ContentService {
   }
 
   async removeUserFromRoom(requesterId: string, targetUserId: string) {
-    await this.assertIndividualUser(requesterId);
-    
+    // await this.assertIndividualUser(requesterId);
+
     const normalizedRequesterId = this.normalizeId(requesterId);
     const normalizedTargetUserId = this.normalizeId(targetUserId);
 
@@ -2340,7 +2394,9 @@ export class ContentService {
     }
 
     if (normalizedRequesterId === normalizedTargetUserId) {
-      throw new BadRequestException('You cannot remove yourself. Use leaveUser instead.');
+      throw new BadRequestException(
+        'You cannot remove yourself. Use leaveUser instead.',
+      );
     }
 
     // Find the room the requester is in
@@ -2422,17 +2478,19 @@ export class ContentService {
 
   async updateUserOnlineStatus(userId: string, isOnline: boolean) {
     // await this.assertIndividualUser(userId);
-    
+
     if (!userId) {
       throw new BadRequestException('User ID is required');
     }
 
     const normalizedUserId = this.normalizeId(userId);
-    const updated = await this.userModel.findByIdAndUpdate(
-      normalizedUserId,
-      { $set: { isOnline } },
-      { new: true, lean: true },
-    ).exec();
+    const updated = await this.userModel
+      .findByIdAndUpdate(
+        normalizedUserId,
+        { $set: { isOnline } },
+        { new: true, lean: true },
+      )
+      .exec();
 
     if (!updated) {
       throw new NotFoundException('User not found');
@@ -2447,13 +2505,13 @@ export class ContentService {
    */
   async toggleUserOnlineStatus(userId: string) {
     // await this.assertIndividualUser(userId);
-    
+
     if (!userId) {
       throw new BadRequestException('User ID is required');
     }
 
     const normalizedUserId = this.normalizeId(userId);
-    
+
     // Get current user status
     const user = await this.userModel.findById(normalizedUserId).lean().exec();
     if (!user) {
@@ -2464,11 +2522,13 @@ export class ContentService {
     const newStatus = !user.isOnline;
 
     // Update with new status
-    const updated = await this.userModel.findByIdAndUpdate(
-      normalizedUserId,
-      { $set: { isOnline: newStatus } },
-      { new: true, lean: true },
-    ).exec();
+    const updated = await this.userModel
+      .findByIdAndUpdate(
+        normalizedUserId,
+        { $set: { isOnline: newStatus } },
+        { new: true, lean: true },
+      )
+      .exec();
 
     if (!updated) {
       throw new NotFoundException('User not found');
@@ -2492,7 +2552,7 @@ export class ContentService {
     if (userId) {
       // await this.assertIndividualUser(userId);
     }
-    
+
     const trimmedName = name?.trim();
     if (!trimmedName) {
       return [];
@@ -2565,7 +2625,7 @@ export class ContentService {
     subTopicId: string;
   }> {
     // await this.assertIndividualUser(userId);
-    
+
     if (!userId) {
       throw new BadRequestException('userId is required');
     }
@@ -2597,7 +2657,10 @@ export class ContentService {
         throw new BadRequestException('Invalid deckId');
       }
 
-      const deckResult = await this.deckModel.findById(normalizedDeckId).lean().exec();
+      const deckResult = await this.deckModel
+        .findById(normalizedDeckId)
+        .lean()
+        .exec();
       deck = deckResult as unknown as LeanDeck | null;
       if (!deck) {
         throw new NotFoundException('Deck not found');
@@ -2763,7 +2826,7 @@ export class ContentService {
     if (userId) {
       // await this.assertIndividualUser(userId);
     }
-    
+
     if (!subTopicId) {
       throw new BadRequestException('subTopicId is required');
     }
@@ -2814,15 +2877,11 @@ export class ContentService {
     };
   }
 
-  async getMoreDetails(
-    subTopicId: string,
-    userId?: string,
-    deviceId?: string,
-  ) {
+  async getMoreDetails(subTopicId: string, userId?: string, deviceId?: string) {
     if (userId) {
       // await this.assertIndividualUser(userId);
     }
-    
+
     if (!subTopicId) {
       throw new BadRequestException('subTopicId is required');
     }
@@ -2872,7 +2931,7 @@ export class ContentService {
    */
   async getUserLevelAndBadge(userId: string) {
     // await this.assertIndividualUser(userId);
-    
+
     if (!userId) {
       throw new BadRequestException('userId is required');
     }
@@ -2903,7 +2962,7 @@ export class ContentService {
     const points = progress.points || 0;
     const badge = this.calculateBadge(points);
     const level = this.calculateLevel(points);
-    
+
     // Calculate all earned badges up to current level
     const allEarnedBadges = this.calculateAllEarnedBadges(points);
 
@@ -2922,7 +2981,7 @@ export class ContentService {
    */
   async getDailyStreak(userId: string) {
     // await this.assertIndividualUser(userId);
-    
+
     if (!userId) {
       throw new BadRequestException('userId is required');
     }
@@ -2953,7 +3012,7 @@ export class ContentService {
         const isFuture = date > todayStart;
         defaultIcons.push(isToday || isFuture ? '' : 'cross');
       }
-      
+
       return {
         currentDailyStreak: 0,
         longestDailyStreak: 0,
@@ -2966,8 +3025,11 @@ export class ContentService {
     const dailyGamesCount = progress.dailyGamesCount || {};
     const startOfWeek = this.getStartOfWeek(new Date());
     let dailyStreakIcons = this.update7DayIcons(dailyGamesCount);
-    const dailyStreakWeek = this.buildWeeklyIconMeta(startOfWeek, dailyStreakIcons);
-    
+    const dailyStreakWeek = this.buildWeeklyIconMeta(
+      startOfWeek,
+      dailyStreakIcons,
+    );
+
     // If icons array is not 7 elements, fill with empty strings for today and cross for past days
     if (dailyStreakIcons.length !== 7) {
       const today = new Date();
@@ -2976,7 +3038,7 @@ export class ContentService {
       const startOfWeek = this.getStartOfWeek(today);
       const todayDateString = this.getDateString(today);
       dailyStreakIcons = [];
-      
+
       for (let i = 0; i < 7; i++) {
         const date = new Date(startOfWeek);
         date.setDate(startOfWeek.getDate() + i);
@@ -2984,7 +3046,7 @@ export class ContentService {
         const gamesCount = dailyGamesCount[dateString] || 0;
         const isToday = dateString === todayDateString;
         const isFuture = date > todayStart;
-        
+
         if (gamesCount === 0) {
           dailyStreakIcons.push(isToday || isFuture ? '' : 'cross');
         } else if (gamesCount === 1) {
@@ -2995,9 +3057,11 @@ export class ContentService {
       }
       // rebuild meta after fixing length
       dailyStreakWeek.length = 0;
-      dailyStreakWeek.push(...this.buildWeeklyIconMeta(startOfWeek, dailyStreakIcons));
+      dailyStreakWeek.push(
+        ...this.buildWeeklyIconMeta(startOfWeek, dailyStreakIcons),
+      );
     }
-    
+
     // Update in database to keep it in sync
     await this.gameProgressModel.findOneAndUpdate(
       { userId: normalizedUserId },
@@ -3054,7 +3118,7 @@ export class ContentService {
     levelName?: string,
   ) {
     // await this.assertIndividualUser(userId);
-    
+
     if (!userId) {
       throw new BadRequestException('User ID is required');
     }
@@ -3074,21 +3138,24 @@ export class ContentService {
       .findOne({ userId: normalizedUserId })
       .lean()
       .exec();
-    
+
     const authenticatedUserPoints = authenticatedUserProgress?.points || 0;
     const authenticatedUserLevel = this.calculateLevel(authenticatedUserPoints);
 
     // Allow filtering by level name (e.g. "Awakened") OR numeric level (e.g. "1" or 1)
     // If no levelName is provided, use authenticated user's level as default filter
-    const normalizedLevelName = levelName?.toString().trim().toLowerCase() || null;
+    const normalizedLevelName =
+      levelName?.toString().trim().toLowerCase() || null;
     const levelNumberFilter = normalizedLevelName
       ? Number.parseInt(normalizedLevelName, 10)
       : null;
     const hasLevelNumberFilter =
       levelNumberFilter !== null && !Number.isNaN(levelNumberFilter);
-    
+
     // If no levelName is provided, use authenticated user's level as the filter
-    const defaultLevelFilter = normalizedLevelName ? null : authenticatedUserLevel;
+    const defaultLevelFilter = normalizedLevelName
+      ? null
+      : authenticatedUserLevel;
 
     // Get ALL game progress records from gameprogresses table with userId
     // This ensures we get all users from the gameprogresses table
@@ -3106,10 +3173,13 @@ export class ContentService {
 
       const existing = progressMap.get(progressUserId);
       const currentPoints = Number(progress.points) || 0;
-      
+
       // If no existing record or current has more points, use current
       if (!existing || currentPoints > (Number(existing.points) || 0)) {
-        progressMap.set(progressUserId, progress as unknown as LeanGameProgress);
+        progressMap.set(
+          progressUserId,
+          progress as unknown as LeanGameProgress,
+        );
       }
     });
 
@@ -3143,7 +3213,15 @@ export class ContentService {
 
     // Create a map of userId to user details (only Individual users)
     // Since we filtered by userType = 'individual' in the query, all users here are Individual
-    type LeanUserLeaderboard = { _id: Types.ObjectId; name?: string | null; email: string; profileImage?: string; isOnline?: boolean; userType?: string; createdAt?: Date | string };
+    type LeanUserLeaderboard = {
+      _id: Types.ObjectId;
+      name?: string | null;
+      email: string;
+      profileImage?: string;
+      isOnline?: boolean;
+      userType?: string;
+      createdAt?: Date | string;
+    };
     const userMap = new Map<string, LeanUserLeaderboard>();
     users.forEach((user) => {
       const progressUserId = this.normalizeId(user._id);
@@ -3158,12 +3236,12 @@ export class ContentService {
     const baseLeaderboardEntries = Array.from(progressMap.entries())
       .map(([progressUserId, progress]) => {
         const user = userMap.get(progressUserId);
-        
+
         // Skip if user is not found in userMap (means they're Organization type, excluded by query)
         if (!user) {
           return null;
         }
-        
+
         const userName = user.name || 'Unknown User';
         const userEmail = user.email || '';
         const userProfileImage = user.profileImage || null;
@@ -3195,8 +3273,20 @@ export class ContentService {
       if (b.points !== a.points) {
         return b.points - a.points;
       }
-      const aCreatedAt = a.createdAt && (a.createdAt instanceof Date || typeof a.createdAt === 'string' || typeof a.createdAt === 'number') ? new Date(a.createdAt).getTime() : 0;
-      const bCreatedAt = b.createdAt && (b.createdAt instanceof Date || typeof b.createdAt === 'string' || typeof b.createdAt === 'number') ? new Date(b.createdAt).getTime() : 0;
+      const aCreatedAt =
+        a.createdAt &&
+        (a.createdAt instanceof Date ||
+          typeof a.createdAt === 'string' ||
+          typeof a.createdAt === 'number')
+          ? new Date(a.createdAt).getTime()
+          : 0;
+      const bCreatedAt =
+        b.createdAt &&
+        (b.createdAt instanceof Date ||
+          typeof b.createdAt === 'string' ||
+          typeof b.createdAt === 'number')
+          ? new Date(b.createdAt).getTime()
+          : 0;
       if (aCreatedAt !== bCreatedAt) {
         return aCreatedAt - bCreatedAt; // earlier date wins
       }
@@ -3208,18 +3298,20 @@ export class ContentService {
 
     // Attach globalRank to entries
     let allLeaderboardEntries: BaseLeaderboardEntry[] = baseLeaderboardEntries
-      .map((entry): BaseLeaderboardEntry => ({
-        ...entry,
-        globalRank: globalRankMap.get(entry.userId) || null,
-      }))
+      .map(
+        (entry): BaseLeaderboardEntry => ({
+          ...entry,
+          globalRank: globalRankMap.get(entry.userId) || null,
+        }),
+      )
       .filter((entry) => {
         // Apply level filter if provided
         if (hasLevelNumberFilter) {
           // Clamp level filter between 1 and 20
-          const targetLevel = Math.min(Math.max(levelNumberFilter!, 1), 20);
+          const targetLevel = Math.min(Math.max(levelNumberFilter, 1), 20);
           return entry.level === targetLevel;
         }
-        
+
         // If levelName is provided, filter by levelName
         if (normalizedLevelName) {
           const entryLevelName = entry.levelName?.toLowerCase().trim() || '';
@@ -3229,12 +3321,12 @@ export class ContentService {
             entryLevelName.includes(normalizedLevelName)
           );
         }
-        
+
         // If no levelName is provided, filter by authenticated user's level
         if (defaultLevelFilter !== null) {
           return entry.level === defaultLevelFilter;
         }
-        
+
         // Fallback: include all levels (should not reach here)
         return true;
       })
@@ -3247,8 +3339,20 @@ export class ContentService {
           return b.points - a.points;
         }
         // If points are equal, earlier created user gets better rank
-        const aCreatedAt = a.createdAt && (a.createdAt instanceof Date || typeof a.createdAt === 'string' || typeof a.createdAt === 'number') ? new Date(a.createdAt).getTime() : 0;
-        const bCreatedAt = b.createdAt && (b.createdAt instanceof Date || typeof b.createdAt === 'string' || typeof b.createdAt === 'number') ? new Date(b.createdAt).getTime() : 0;
+        const aCreatedAt =
+          a.createdAt &&
+          (a.createdAt instanceof Date ||
+            typeof a.createdAt === 'string' ||
+            typeof a.createdAt === 'number')
+            ? new Date(a.createdAt).getTime()
+            : 0;
+        const bCreatedAt =
+          b.createdAt &&
+          (b.createdAt instanceof Date ||
+            typeof b.createdAt === 'string' ||
+            typeof b.createdAt === 'number')
+            ? new Date(b.createdAt).getTime()
+            : 0;
         if (aCreatedAt !== bCreatedAt) {
           return aCreatedAt - bCreatedAt; // Ascending: earlier date = smaller number = better rank
         }
@@ -3269,7 +3373,7 @@ export class ContentService {
       rank?: number;
       globalRank?: number | null;
     };
-    
+
     type BaseLeaderboardEntry = {
       userId: string;
       name: string;
@@ -3282,20 +3386,20 @@ export class ContentService {
       createdAt?: Date | string;
       globalRank: number | null;
     };
-    
+
     const entriesByLevel = new Map<number, LeaderboardEntry[]>();
-    
+
     // Determine target level if filter is applied
     let targetLevelForFilter: number | null = null;
     if (hasLevelNumberFilter) {
-      targetLevelForFilter = Math.min(Math.max(levelNumberFilter!, 1), 20);
+      targetLevelForFilter = Math.min(Math.max(levelNumberFilter, 1), 20);
     } else if (normalizedLevelName) {
       // Find the level number for the given levelName
       // We need to check which level matches the levelName
       const matchingEntry = allLeaderboardEntries.find(
         (entry) =>
           entry.levelName?.toLowerCase().trim() === normalizedLevelName ||
-          entry.levelName?.toLowerCase().trim().includes(normalizedLevelName)
+          entry.levelName?.toLowerCase().trim().includes(normalizedLevelName),
       );
       if (matchingEntry) {
         targetLevelForFilter = matchingEntry.level;
@@ -3304,16 +3408,16 @@ export class ContentService {
       // If no levelName is provided, use authenticated user's level
       targetLevelForFilter = defaultLevelFilter;
     }
-    
+
     // Group all entries by their level
     allLeaderboardEntries.forEach((entry) => {
       const level = entry.level;
-      
+
       // If level filter is applied, only process entries from that level
       if (targetLevelForFilter !== null && level !== targetLevelForFilter) {
         return; // Skip entries from other levels
       }
-      
+
       if (!entriesByLevel.has(level)) {
         entriesByLevel.set(level, []);
       }
@@ -3323,33 +3427,46 @@ export class ContentService {
 
     // Assign ranks within each level and flatten
     const rankedEntries: LeaderboardEntry[] = [];
-    
+
     // If level filter is applied, only process that level
     // Otherwise, process all levels sorted descending
-    const levelsToProcess = targetLevelForFilter !== null
-      ? [targetLevelForFilter] // Only the filtered level
-      : Array.from(entriesByLevel.keys()).sort((a, b) => b - a); // All levels sorted descending
-    
+    const levelsToProcess =
+      targetLevelForFilter !== null
+        ? [targetLevelForFilter] // Only the filtered level
+        : Array.from(entriesByLevel.keys()).sort((a, b) => b - a); // All levels sorted descending
+
     levelsToProcess.forEach((level) => {
       let levelEntries = entriesByLevel.get(level);
       if (!levelEntries || levelEntries.length === 0) {
         return;
       }
-      
+
       // Sort entries within this level: by points descending, then by createdAt ascending (earlier = better rank), then by name
       levelEntries = levelEntries.sort((a, b) => {
         if (b.points !== a.points) {
           return b.points - a.points;
         }
         // If points are equal, earlier created user gets better rank
-        const aCreatedAt = a.createdAt && (a.createdAt instanceof Date || typeof a.createdAt === 'string' || typeof a.createdAt === 'number') ? new Date(a.createdAt).getTime() : 0;
-        const bCreatedAt = b.createdAt && (b.createdAt instanceof Date || typeof b.createdAt === 'string' || typeof b.createdAt === 'number') ? new Date(b.createdAt).getTime() : 0;
+        const aCreatedAt =
+          a.createdAt &&
+          (a.createdAt instanceof Date ||
+            typeof a.createdAt === 'string' ||
+            typeof a.createdAt === 'number')
+            ? new Date(a.createdAt).getTime()
+            : 0;
+        const bCreatedAt =
+          b.createdAt &&
+          (b.createdAt instanceof Date ||
+            typeof b.createdAt === 'string' ||
+            typeof b.createdAt === 'number')
+            ? new Date(b.createdAt).getTime()
+            : 0;
         if (aCreatedAt !== bCreatedAt) {
           return aCreatedAt - bCreatedAt; // Ascending: earlier date = smaller number = better rank
         }
         return (a.name || '').localeCompare(b.name || '');
       });
-      
+
       // Assign ranks starting from 1 for each level
       levelEntries.forEach((entry, index) => {
         rankedEntries.push({
@@ -3358,7 +3475,7 @@ export class ContentService {
         });
       });
     });
-    
+
     // Update allLeaderboardEntries with ranked entries
     allLeaderboardEntries = rankedEntries as BaseLeaderboardEntry[];
 
@@ -3382,10 +3499,12 @@ export class ContentService {
 
   async moveTopics(topicIds: string[], deckId: string, userId: string) {
     // await this.assertIndividualUser(userId);
-    
+
     // Validate inputs
     if (!topicIds || !Array.isArray(topicIds) || topicIds.length === 0) {
-      throw new BadRequestException('topicIds array is required and must not be empty');
+      throw new BadRequestException(
+        'topicIds array is required and must not be empty',
+      );
     }
 
     if (!deckId) {
@@ -3424,7 +3543,9 @@ export class ContentService {
 
     if (topics.length !== normalizedTopicIds.length) {
       const foundIds = topics.map((t) => this.normalizeId(t._id));
-      const missingIds = normalizedTopicIds.filter((id) => !foundIds.includes(id));
+      const missingIds = normalizedTopicIds.filter(
+        (id) => !foundIds.includes(id),
+      );
       throw new NotFoundException(
         `Some topics not found: ${missingIds.join(', ')}`,
       );
@@ -3445,8 +3566,8 @@ export class ContentService {
 
     // Remove topic IDs from old decks' contentIds
     const decksToUpdate = decksWithTopics
-      .filter(d => this.normalizeId(d._id) !== normalizedDeckId)
-      .map(oldDeck => {
+      .filter((d) => this.normalizeId(d._id) !== normalizedDeckId)
+      .map((oldDeck) => {
         const updatedContentIds = oldDeck.contentIds.filter(
           (id) => !normalizedTopicIds.includes(this.normalizeId(id) || ''),
         );
@@ -3455,7 +3576,7 @@ export class ContentService {
       });
 
     // Bulk update all decks at once
-    await Promise.all(decksToUpdate.map(deck => deck.save()));
+    await Promise.all(decksToUpdate.map((deck) => deck.save()));
 
     // Add topic IDs to destination deck's contentIds (avoid duplicates)
     const existingContentIds = (destinationDeck.contentIds || []).map((id) =>
@@ -3503,7 +3624,7 @@ export class ContentService {
     topicIds: string[];
   }> {
     // await this.assertIndividualUser(userId);
-    
+
     // Validate inputs
     if (!deckId) {
       throw new BadRequestException('deckId is required');
@@ -3512,7 +3633,9 @@ export class ContentService {
       throw new BadRequestException('userId is required');
     }
     if (!topicIds || !Array.isArray(topicIds) || topicIds.length === 0) {
-      throw new BadRequestException('topicIds array is required and must not be empty');
+      throw new BadRequestException(
+        'topicIds array is required and must not be empty',
+      );
     }
 
     const normalizedDeckId = this.normalizeId(deckId);
@@ -3578,7 +3701,8 @@ export class ContentService {
 
     return {
       deletedTopics: topicDeleteResult.deletedCount || 0,
-      deletedSubTopics: subTopicDeleteResult.deletedCount || subTopicsToDelete.length,
+      deletedSubTopics:
+        subTopicDeleteResult.deletedCount || subTopicsToDelete.length,
       deckId: normalizedDeckId,
       topicIds: normalizedTopicIds,
     };
@@ -3588,7 +3712,10 @@ export class ContentService {
    * Delete a deck along with all its topics and subtopics
    * Only the deck owner (userId) can delete the deck
    */
-  async deleteDeck(deckId: string, userId: string): Promise<{
+  async deleteDeck(
+    deckId: string,
+    userId: string,
+  ): Promise<{
     success: boolean;
     deletedDeck: string;
     deletedTopics: number;
@@ -3596,7 +3723,7 @@ export class ContentService {
     message: string;
   }> {
     // await this.assertIndividualUser(userId);
-    
+
     // Validate inputs
     if (!deckId) {
       throw new BadRequestException('deckId is required');
@@ -3607,7 +3734,7 @@ export class ContentService {
 
     const normalizedDeckId = this.normalizeId(deckId);
     const normalizedUserId = this.normalizeId(userId);
-    
+
     if (!normalizedDeckId) {
       throw new BadRequestException('Invalid deckId');
     }
@@ -3655,7 +3782,8 @@ export class ContentService {
       });
 
       deletedTopicsCount = topicDeleteResult.deletedCount || 0;
-      deletedSubTopicsCount = subTopicDeleteResult.deletedCount || subTopicsToDelete.length;
+      deletedSubTopicsCount =
+        subTopicDeleteResult.deletedCount || subTopicsToDelete.length;
     }
 
     // Finally, delete the deck
@@ -3732,7 +3860,10 @@ export class ContentService {
     // Apply pagination
     const total = topicsWithoutSubTopics.length;
     const totalPages = Math.ceil(total / limitNumber);
-    const paginatedTopics = topicsWithoutSubTopics.slice(skip, skip + limitNumber);
+    const paginatedTopics = topicsWithoutSubTopics.slice(
+      skip,
+      skip + limitNumber,
+    );
 
     return {
       ...deck,
@@ -3764,7 +3895,10 @@ export class ContentService {
     }
 
     // Get topic
-    const topic = await this.topicModel.findById(normalizedTopicId).lean().exec();
+    const topic = await this.topicModel
+      .findById(normalizedTopicId)
+      .lean()
+      .exec();
     if (!topic) {
       throw new NotFoundException('Topic not found');
     }
@@ -3776,7 +3910,7 @@ export class ContentService {
 
     if (subTopicIds.length === 0) {
       // Filter topic's userPercentages if userId is provided
-      let filteredTopicUserPercentages: Record<string, number> = {};
+      const filteredTopicUserPercentages: Record<string, number> = {};
       if (userId) {
         const normalizedUserId = this.normalizeId(userId);
         if (normalizedUserId && topic.userPercentages) {
@@ -3786,9 +3920,13 @@ export class ContentService {
             if (userPercentage !== undefined && userPercentage !== null) {
               filteredTopicUserPercentages[normalizedUserId] = userPercentage;
             }
-          } else if (topic.userPercentages && typeof topic.userPercentages === 'object' && !Array.isArray(topic.userPercentages)) {
+          } else if (
+            topic.userPercentages &&
+            typeof topic.userPercentages === 'object' &&
+            !Array.isArray(topic.userPercentages)
+          ) {
             // Handle plain object case (when using .lean(), Maps become objects)
-            const userPercentagesObj = topic.userPercentages as Record<string, number>;
+            const userPercentagesObj = topic.userPercentages;
             const userPercentage = userPercentagesObj[normalizedUserId];
             if (userPercentage !== undefined && userPercentage !== null) {
               filteredTopicUserPercentages[normalizedUserId] = userPercentage;
@@ -3800,7 +3938,9 @@ export class ContentService {
       return {
         ...topic,
         subTopics: [],
-        userPercentages: userId ? filteredTopicUserPercentages : topic.userPercentages,
+        userPercentages: userId
+          ? filteredTopicUserPercentages
+          : topic.userPercentages,
       };
     }
 
@@ -3816,17 +3956,22 @@ export class ContentService {
       const normalizedUserId = this.normalizeId(userId);
       filteredSubtopics = subtopics.map((subtopic) => {
         const filteredUserPercentages: Record<string, number> = {};
-        
+
         if (normalizedUserId && subtopic.userPercentages) {
           // Handle Map case (Mongoose document)
           if (subtopic.userPercentages instanceof Map) {
-            const userPercentage = subtopic.userPercentages.get(normalizedUserId);
+            const userPercentage =
+              subtopic.userPercentages.get(normalizedUserId);
             if (userPercentage !== undefined && userPercentage !== null) {
               filteredUserPercentages[normalizedUserId] = userPercentage;
             }
-          } else if (subtopic.userPercentages && typeof subtopic.userPercentages === 'object' && !Array.isArray(subtopic.userPercentages)) {
+          } else if (
+            subtopic.userPercentages &&
+            typeof subtopic.userPercentages === 'object' &&
+            !Array.isArray(subtopic.userPercentages)
+          ) {
             // Handle plain object case (when using .lean(), Maps become objects)
-            const userPercentagesObj = subtopic.userPercentages as Record<string, number>;
+            const userPercentagesObj = subtopic.userPercentages;
             const userPercentage = userPercentagesObj[normalizedUserId];
             if (userPercentage !== undefined && userPercentage !== null) {
               filteredUserPercentages[normalizedUserId] = userPercentage;
@@ -3842,7 +3987,8 @@ export class ContentService {
     }
 
     // Filter topic's userPercentages if userId is provided
-    let filteredTopicUserPercentages: Record<string, number> | undefined = undefined;
+    let filteredTopicUserPercentages: Record<string, number> | undefined =
+      undefined;
     if (userId) {
       const normalizedUserId = this.normalizeId(userId);
       filteredTopicUserPercentages = {};
@@ -3853,9 +3999,13 @@ export class ContentService {
           if (userPercentage !== undefined && userPercentage !== null) {
             filteredTopicUserPercentages[normalizedUserId] = userPercentage;
           }
-        } else if (topic.userPercentages && typeof topic.userPercentages === 'object' && !Array.isArray(topic.userPercentages)) {
+        } else if (
+          topic.userPercentages &&
+          typeof topic.userPercentages === 'object' &&
+          !Array.isArray(topic.userPercentages)
+        ) {
           // Handle plain object case (when using .lean(), Maps become objects)
-          const userPercentagesObj = topic.userPercentages as Record<string, number>;
+          const userPercentagesObj = topic.userPercentages;
           const userPercentage = userPercentagesObj[normalizedUserId];
           if (userPercentage !== undefined && userPercentage !== null) {
             filteredTopicUserPercentages[normalizedUserId] = userPercentage;
@@ -3867,7 +4017,9 @@ export class ContentService {
     return {
       ...topic,
       subTopics: filteredSubtopics,
-      userPercentages: userId ? filteredTopicUserPercentages : topic.userPercentages,
+      userPercentages: userId
+        ? filteredTopicUserPercentages
+        : topic.userPercentages,
     };
   }
 
@@ -3880,7 +4032,7 @@ export class ContentService {
     if (userId) {
       // await this.assertIndividualUser(userId);
     }
-    
+
     if (!subTopicId) {
       throw new BadRequestException('subTopicId is required');
     }
@@ -3903,7 +4055,7 @@ export class ContentService {
     // If userId is provided, filter the data to show only user-specific information
     if (userId) {
       const normalizedUserId = this.normalizeId(userId);
-      
+
       // Filter userPercentages - only show current user's percentage
       const filteredUserPercentages: Record<string, number> = {};
       if (subtopic.userPercentages && normalizedUserId) {
@@ -3913,9 +4065,13 @@ export class ContentService {
           if (userPercentage !== undefined && userPercentage !== null) {
             filteredUserPercentages[normalizedUserId] = userPercentage;
           }
-        } else if (subtopic.userPercentages && typeof subtopic.userPercentages === 'object' && !Array.isArray(subtopic.userPercentages)) {
+        } else if (
+          subtopic.userPercentages &&
+          typeof subtopic.userPercentages === 'object' &&
+          !Array.isArray(subtopic.userPercentages)
+        ) {
           // Handle plain object case (when using .lean(), Maps become objects)
-          const userPercentagesObj = subtopic.userPercentages as Record<string, number>;
+          const userPercentagesObj = subtopic.userPercentages;
           const userPercentage = userPercentagesObj[normalizedUserId];
           if (userPercentage !== undefined && userPercentage !== null) {
             filteredUserPercentages[normalizedUserId] = userPercentage;
@@ -3932,12 +4088,12 @@ export class ContentService {
       );
 
       // Filter moreDetailsRequests - only show requests made by current user
-      const filteredMoreDetailsRequests = (subtopic.moreDetailsRequests || []).filter(
-        (mdr) => {
-          const mdrUserId = mdr.userId ? this.normalizeId(mdr.userId) : null;
-          return mdrUserId === normalizedUserId;
-        },
-      );
+      const filteredMoreDetailsRequests = (
+        subtopic.moreDetailsRequests || []
+      ).filter((mdr) => {
+        const mdrUserId = mdr.userId ? this.normalizeId(mdr.userId) : null;
+        return mdrUserId === normalizedUserId;
+      });
 
       return {
         ...subtopic,
@@ -3959,7 +4115,10 @@ export class ContentService {
     if (!normalizedUserId) {
       return null;
     }
-    const result = await this.gameProgressModel.findOne({ userId: normalizedUserId }).lean().exec();
+    const result = await this.gameProgressModel
+      .findOne({ userId: normalizedUserId })
+      .lean()
+      .exec();
     return result as LeanGameProgress | null;
   }
 

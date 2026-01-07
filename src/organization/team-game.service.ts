@@ -4,11 +4,21 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, FilterQuery, isValidObjectId, Types, UpdateQuery, Document } from 'mongoose';
+import {
+  Model,
+  FilterQuery,
+  isValidObjectId,
+  Types,
+  UpdateQuery,
+  Document,
+} from 'mongoose';
 import { User, UserDocument } from '../users/entities/user.entity';
 import { TeamMember, TeamMemberDocument } from './entities/team-member.entity';
 import { Team, TeamDocument } from './entities/team.entity';
-import { Organization, OrganizationDocument } from './entities/orgenaztion.entity';
+import {
+  Organization,
+  OrganizationDocument,
+} from './entities/orgenaztion.entity';
 import { Deck, DeckDocument } from '../content/schemas/deck.schema';
 import { Game, GameDocument } from '../content/schemas/game.schema';
 import { Topic, TopicDocument } from '../content/schemas/topic.schema';
@@ -17,8 +27,8 @@ import { randomUUID } from 'crypto';
 import { Question } from '../content/interfaces/question.interface';
 import { DeviceAccessService } from '../content/device-access.service';
 import {
-    MemberProgress,
-    MemberProgressDocument,
+  MemberProgress,
+  MemberProgressDocument,
 } from './entities/member-progress.schema';
 import { DeckAIService } from '../content/deck-ai.service';
 import { ContentService } from '../content/content.service';
@@ -33,12 +43,61 @@ import {
 import { USER_TYPE } from 'src/common/enum';
 
 // Helper types for lean document results
-type LeanDeck = Omit<Deck, keyof Document> & { _id: Types.ObjectId; flashcardAccuracies?: Array<{ userId: string; accuracy: number; gamesPlayed: number }>; battleAccuracies?: Array<{ userId: string; accuracy: number; gamesPlayed: number }> };
-type LeanSubTopic = Omit<SubTopic, keyof Document> & { _id: Types.ObjectId; flashcardAccuracies?: Array<{ userId: string; accuracy: number; gamesPlayed: number }>; battleAccuracies?: Array<{ userId: string; accuracy: number; gamesPlayed: number }> };
-type LeanTopic = Omit<Topic, keyof Document> & { _id: Types.ObjectId; flashcardAccuracies?: Array<{ userId: string; accuracy: number; gamesPlayed: number }>; battleAccuracies?: Array<{ userId: string; accuracy: number; gamesPlayed: number }> };
-type LeanGame = Pick<GameDocument, 'accuracy' | 'playerAnswers' | 'type' | 'gameMode'>;
+type LeanDeck = Omit<Deck, keyof Document> & {
+  _id: Types.ObjectId;
+  flashcardAccuracies?: Array<{
+    userId: string;
+    accuracy: number;
+    gamesPlayed: number;
+  }>;
+  battleAccuracies?: Array<{
+    userId: string;
+    accuracy: number;
+    gamesPlayed: number;
+  }>;
+};
+type LeanSubTopic = Omit<SubTopic, keyof Document> & {
+  _id: Types.ObjectId;
+  flashcardAccuracies?: Array<{
+    userId: string;
+    accuracy: number;
+    gamesPlayed: number;
+  }>;
+  battleAccuracies?: Array<{
+    userId: string;
+    accuracy: number;
+    gamesPlayed: number;
+  }>;
+};
+type LeanTopic = Omit<Topic, keyof Document> & {
+  _id: Types.ObjectId;
+  flashcardAccuracies?: Array<{
+    userId: string;
+    accuracy: number;
+    gamesPlayed: number;
+  }>;
+  battleAccuracies?: Array<{
+    userId: string;
+    accuracy: number;
+    gamesPlayed: number;
+  }>;
+};
+type LeanGame = Pick<
+  GameDocument,
+  'accuracy' | 'playerAnswers' | 'type' | 'gameMode'
+>;
 type LeanTeam = Pick<TeamDocument, '_id' | 'teamName'>;
-type LeanUser = Pick<UserDocument, '_id' | 'name' | 'email' | 'profileImage' | 'isOnline' | 'lastSeen' | 'organization' | 'isActive'>;
+type LeanUser = Pick<
+  UserDocument,
+  | '_id'
+  | 'name'
+  | 'email'
+  | 'profileImage'
+  | 'isOnline'
+  | 'lastSeen'
+  | 'organization'
+  | 'isActive'
+>;
 type AccuracyEntry = { userId: string; accuracy: number; gamesPlayed: number };
 type TeamMemberWithUser = {
   _id: Types.ObjectId;
@@ -75,7 +134,8 @@ export class TeamGameService {
     @InjectModel(Deck.name) private readonly deckModel: Model<DeckDocument>,
     @InjectModel(Game.name) private readonly gameModel: Model<GameDocument>,
     @InjectModel(Topic.name) private readonly topicModel: Model<TopicDocument>,
-    @InjectModel(SubTopic.name) private readonly subTopicModel: Model<SubTopicDocument>,
+    @InjectModel(SubTopic.name)
+    private readonly subTopicModel: Model<SubTopicDocument>,
     @InjectModel(TeamGameScore.name)
     private readonly teamGameScoreModel: Model<TeamGameScoreDocument>,
     @InjectModel(TeamGameChat.name)
@@ -178,19 +238,22 @@ export class TeamGameService {
         .lean();
 
       const deckDocTyped = deckDoc as LeanDeck;
-      const accuracyArray = arrayField === 'flashcardAccuracies' 
-        ? deckDocTyped?.flashcardAccuracies 
-        : deckDocTyped?.battleAccuracies;
+      const accuracyArray =
+        arrayField === 'flashcardAccuracies'
+          ? deckDocTyped?.flashcardAccuracies
+          : deckDocTyped?.battleAccuracies;
       const existingEntry = accuracyArray?.find(
-        (entry: AccuracyEntry) => this.normalizeId(entry.userId) === normalizedUserId,
+        (entry: AccuracyEntry) =>
+          this.normalizeId(entry.userId) === normalizedUserId,
       );
 
       const prevGames = existingEntry?.gamesPlayed ?? 0;
       const prevAccuracy = existingEntry?.accuracy ?? 0;
       const newGamesPlayed = prevGames + 1;
       const newAverage =
-        Math.round(((prevAccuracy * prevGames + accuracy) / newGamesPlayed) * 100) /
-        100;
+        Math.round(
+          ((prevAccuracy * prevGames + accuracy) / newGamesPlayed) * 100,
+        ) / 100;
 
       if (existingEntry) {
         await this.deckModel.updateOne(
@@ -254,7 +317,11 @@ export class TeamGameService {
       const normalizedSubTopicId = this.normalizeId(subTopicId);
       const normalizedUserId = this.normalizeId(userId);
 
-      if (!normalizedSubTopicId || !normalizedUserId || Number.isNaN(accuracy)) {
+      if (
+        !normalizedSubTopicId ||
+        !normalizedUserId ||
+        Number.isNaN(accuracy)
+      ) {
         return;
       }
 
@@ -268,19 +335,22 @@ export class TeamGameService {
         .lean();
 
       const subTopicDocTyped = subTopicDoc as unknown as LeanSubTopic;
-      const accuracyArray = arrayField === 'flashcardAccuracies' 
-        ? subTopicDocTyped?.flashcardAccuracies 
-        : subTopicDocTyped?.battleAccuracies;
+      const accuracyArray =
+        arrayField === 'flashcardAccuracies'
+          ? subTopicDocTyped?.flashcardAccuracies
+          : subTopicDocTyped?.battleAccuracies;
       const existingEntry = accuracyArray?.find(
-        (entry: AccuracyEntry) => this.normalizeId(entry.userId) === normalizedUserId,
+        (entry: AccuracyEntry) =>
+          this.normalizeId(entry.userId) === normalizedUserId,
       );
 
       const prevGames = existingEntry?.gamesPlayed ?? 0;
       const prevAccuracy = existingEntry?.accuracy ?? 0;
       const newGamesPlayed = prevGames + 1;
       const newAverage =
-        Math.round(((prevAccuracy * prevGames + accuracy) / newGamesPlayed) * 100) /
-        100;
+        Math.round(
+          ((prevAccuracy * prevGames + accuracy) / newGamesPlayed) * 100,
+        ) / 100;
 
       if (existingEntry) {
         await this.subTopicModel.updateOne(
@@ -311,7 +381,13 @@ export class TeamGameService {
       }
 
       // After updating subtopic, store the subtopic accuracy entry in the parent topic
-      await this.updateTopicAccuracyFromSubTopic(normalizedSubTopicId, normalizedUserId, newAverage, newGamesPlayed, type);
+      await this.updateTopicAccuracyFromSubTopic(
+        normalizedSubTopicId,
+        normalizedUserId,
+        newAverage,
+        newGamesPlayed,
+        type,
+      );
     } catch (error) {
       throw error;
     }
@@ -369,63 +445,74 @@ export class TeamGameService {
         }
 
         // Get all subtopics for this topic
-        const subTopicIds = topic.subTopics.map((id) => this.normalizeId(id)).filter((id): id is string => !!id);
+        const subTopicIds = topic.subTopics
+          .map((id) => this.normalizeId(id))
+          .filter((id): id is string => !!id);
 
         // Fetch all accuracies for this user from all subtopics using aggregation
         const validObjectIds = subTopicIds
-          .filter(id => isValidObjectId(id))
-          .map(id => new Types.ObjectId(id));
-        
-        const accuracyResults = validObjectIds.length > 0 ? await this.subTopicModel.aggregate([
-          {
-            $match: {
-              _id: { $in: validObjectIds }
-            }
-          },
-          {
-            $unwind: {
-              path: '$flashcardAccuracies',
-              preserveNullAndEmptyArrays: false
-            }
-          },
-          {
-            $match: {
-              $expr: {
-                $eq: [
-                  { $toString: '$flashcardAccuracies.userId' },
-                  normalizedUserId
-                ]
-              }
-            }
-          },
-          {
-            $project: {
-              accuracy: {
-                $cond: {
-                  if: { $eq: [{ $type: '$flashcardAccuracies.accuracy' }, 'number'] },
-                  then: '$flashcardAccuracies.accuracy',
-                  else: null
-                }
-              }
-            }
-          },
-          {
-            $match: {
-              accuracy: { $ne: null }
-            }
-          },
-          {
-            $group: {
-              _id: null,
-              accuracies: { $push: '$accuracy' }
-            }
-          }
-        ]) : [];
+          .filter((id) => isValidObjectId(id))
+          .map((id) => new Types.ObjectId(id));
+
+        const accuracyResults =
+          validObjectIds.length > 0
+            ? await this.subTopicModel.aggregate([
+                {
+                  $match: {
+                    _id: { $in: validObjectIds },
+                  },
+                },
+                {
+                  $unwind: {
+                    path: '$flashcardAccuracies',
+                    preserveNullAndEmptyArrays: false,
+                  },
+                },
+                {
+                  $match: {
+                    $expr: {
+                      $eq: [
+                        { $toString: '$flashcardAccuracies.userId' },
+                        normalizedUserId,
+                      ],
+                    },
+                  },
+                },
+                {
+                  $project: {
+                    accuracy: {
+                      $cond: {
+                        if: {
+                          $eq: [
+                            { $type: '$flashcardAccuracies.accuracy' },
+                            'number',
+                          ],
+                        },
+                        then: '$flashcardAccuracies.accuracy',
+                        else: null,
+                      },
+                    },
+                  },
+                },
+                {
+                  $match: {
+                    accuracy: { $ne: null },
+                  },
+                },
+                {
+                  $group: {
+                    _id: null,
+                    accuracies: { $push: '$accuracy' },
+                  },
+                },
+              ])
+            : [];
 
         // Extract accuracies array from aggregation result
-        const accuracies: number[] = accuracyResults.length > 0 && accuracyResults[0].accuracies 
-          ? accuracyResults[0].accuracies 
-          : [];
+        const accuracies: number[] =
+          accuracyResults.length > 0 && accuracyResults[0].accuracies
+            ? accuracyResults[0].accuracies
+            : [];
 
         // Calculate average: (acc1 + acc2 + ... + accN) / N
         let topicAccuracy = 0;
@@ -438,7 +525,8 @@ export class TeamGameService {
         const topicDocTyped = topic as unknown as LeanTopic;
         const accuracyArray = topicDocTyped?.flashcardAccuracies;
         const existingEntry = accuracyArray?.find(
-          (entry: AccuracyEntry) => this.normalizeId(entry.userId) === normalizedUserId,
+          (entry: AccuracyEntry) =>
+            this.normalizeId(entry.userId) === normalizedUserId,
         );
 
         if (existingEntry) {
@@ -478,11 +566,13 @@ export class TeamGameService {
           .lean();
 
         const topicDocTyped = topicDoc as unknown as LeanTopic;
-        const accuracyArray = arrayField === 'flashcardAccuracies' 
-          ? topicDocTyped?.flashcardAccuracies 
-          : topicDocTyped?.battleAccuracies;
+        const accuracyArray =
+          arrayField === 'flashcardAccuracies'
+            ? topicDocTyped?.flashcardAccuracies
+            : topicDocTyped?.battleAccuracies;
         const existingEntry = accuracyArray?.find(
-          (entry: AccuracyEntry) => this.normalizeId(entry.userId) === normalizedUserId,
+          (entry: AccuracyEntry) =>
+            this.normalizeId(entry.userId) === normalizedUserId,
         );
 
         if (existingEntry) {
@@ -630,7 +720,7 @@ export class TeamGameService {
         .map((member): TeamMemberWithUser => {
           const user = member.user;
           return {
-            _id: user._id as Types.ObjectId,
+            _id: user._id,
             name: user.name || null,
             email: user.email,
             profileImage: user.profileImage,
@@ -660,7 +750,6 @@ export class TeamGameService {
       throw error;
     }
   }
-
 
   async searchTeamMembersName(
     name: string,
@@ -701,7 +790,9 @@ export class TeamGameService {
 
       // Filter to include members with users (both online and offline) that match the name
       type PopulatedTeamMember = TeamMemberDocument & { user: LeanUser };
-      const matchingTeamMembers = (teamMembers as unknown as PopulatedTeamMember[])
+      const matchingTeamMembers = (
+        teamMembers as unknown as PopulatedTeamMember[]
+      )
         .filter((member) => {
           // Check if member has a user and user is active
           if (
@@ -728,7 +819,7 @@ export class TeamGameService {
         .map((member): TeamMemberWithUser => {
           const user = member.user;
           return {
-            _id: user._id as Types.ObjectId,
+            _id: user._id,
             name: user.name || null,
             email: user.email,
             profileImage: user.profileImage,
@@ -814,9 +905,9 @@ export class TeamGameService {
             .lean()
             .exec();
 
-          const adminUserIds = orgAdmins.map((admin) =>
-            this.normalizeId(admin._id),
-          ).filter((id): id is string => id !== null);
+          const adminUserIds = orgAdmins
+            .map((admin) => this.normalizeId(admin._id))
+            .filter((id): id is string => id !== null);
 
           if (adminUserIds.length > 0) {
             // Filter decks created by organization's admin/superadmin
@@ -841,7 +932,7 @@ export class TeamGameService {
 
       if (count === 0) {
         throw new NotFoundException(
-          'No decks available from your organization\'s admin or superAdmin. Please ask an admin to create a deck.',
+          "No decks available from your organization's admin or superAdmin. Please ask an admin to create a deck.",
         );
       }
 
@@ -873,7 +964,7 @@ export class TeamGameService {
    * @returns Object with validation result and team grouping info
    */
 
-   async validateTeamBasedAcceptance(
+  async validateTeamBasedAcceptance(
     participants: string[],
     inviterId?: string,
   ): Promise<{
@@ -888,38 +979,45 @@ export class TeamGameService {
 
       // Get team memberships for all participants
       // Exclude inviter (admin) from validation - they can only view, not play
-      const normalizedInviterId = inviterId ? this.normalizeId(inviterId) : null;
+      const normalizedInviterId = inviterId
+        ? this.normalizeId(inviterId)
+        : null;
       const normalizedParticipants = participants
         .map((p) => this.normalizeId(p))
-        .filter((id): id is string => id !== null && id !== normalizedInviterId);
+        .filter(
+          (id): id is string => id !== null && id !== normalizedInviterId,
+        );
 
       // OPTIMIZED: Use Mongoose aggregation to group participants by team directly in database
       const validObjectIds = normalizedParticipants
-        .filter(id => isValidObjectId(id))
-        .map(id => new Types.ObjectId(id));
+        .filter((id) => isValidObjectId(id))
+        .map((id) => new Types.ObjectId(id));
 
       // Aggregate to group participants by team
-      const groupedByTeam = validObjectIds.length > 0 ? await this.teamMemberModel.aggregate([
-        {
-          $match: {
-            user: { $in: validObjectIds },
-            status: 'approved',
-          },
-        },
-        {
-          $group: {
-            _id: '$team',
-            participants: { $push: { $toString: '$user' } },
-          },
-        },
-        {
-          $project: {
-            teamId: { $toString: '$_id' },
-            participants: 1,
-            _id: 0,
-          },
-        },
-      ]) : [];
+      const groupedByTeam =
+        validObjectIds.length > 0
+          ? await this.teamMemberModel.aggregate([
+              {
+                $match: {
+                  user: { $in: validObjectIds },
+                  status: 'approved',
+                },
+              },
+              {
+                $group: {
+                  _id: '$team',
+                  participants: { $push: { $toString: '$user' } },
+                },
+              },
+              {
+                $project: {
+                  teamId: { $toString: '$_id' },
+                  participants: 1,
+                  _id: 0,
+                },
+              },
+            ])
+          : [];
 
       // Build teams Map from aggregation results
       groupedByTeam.forEach((group) => {
@@ -953,9 +1051,9 @@ export class TeamGameService {
       const teamDetailsMap = new Map<string, LeanTeam>();
       if (teamIds.length > 0) {
         const validTeamObjectIds = teamIds
-          .filter(id => isValidObjectId(id))
-          .map(id => new Types.ObjectId(id));
-        
+          .filter((id) => isValidObjectId(id))
+          .map((id) => new Types.ObjectId(id));
+
         if (validTeamObjectIds.length > 0) {
           const teamsData = await this.teamModel
             .find({ _id: { $in: validTeamObjectIds } })
@@ -1027,248 +1125,261 @@ export class TeamGameService {
     participants?: string[],
     gameMode?: 'Regular' | 'Knockout',
     member?: number,
-  ): Promise<{ gameId: string; deckId: string; topicId: string; subTopicId: string }> {
+  ): Promise<{
+    gameId: string;
+    deckId: string;
+    topicId: string;
+    subTopicId: string;
+  }> {
     try {
       if (!userId) {
         throw new BadRequestException('userId is required');
       }
 
-    // Validate topicType and deckId
-    if (topicType === 'selected') {
-      if (!deckId) {
-        throw new BadRequestException(
-          'deckId is required when topicType is "selected"',
-        );
-      }
-    } else if (topicType === 'random') {
-      // deckId is not required for random
-    } else {
-      // Default to random if not specified
-      topicType = 'random';
-    }
-
-    let deck: LeanDeck | null = null;
-
-    // Get deck based on topicType
-    if (topicType === 'selected' && deckId) {
-      const normalizedDeckId = this.normalizeId(deckId);
-      if (!normalizedDeckId) {
-        throw new BadRequestException('Invalid deckId');
-      }
-
-      deck = await this.deckModel.findById(normalizedDeckId).lean().exec();
-      if (!deck) {
-        throw new NotFoundException('Deck not found');
-      }
-
-      // Get user's organization to verify deck creator is admin/superAdmin
-      // No need to check isPublic or status - any deck created by admin/superAdmin is allowed
-      let organizationId: string | undefined = undefined;
-      try {
-        const user = await this.userModel.findById(userId).select('organization').lean().exec();
-        if (user?.organization) {
-          organizationId = this.normalizeId(user.organization) || undefined;
+      // Validate topicType and deckId
+      if (topicType === 'selected') {
+        if (!deckId) {
+          throw new BadRequestException(
+            'deckId is required when topicType is "selected"',
+          );
         }
-      } catch (error) {
-        // Failed to get user organization for deck validation
+      } else if (topicType === 'random') {
+        // deckId is not required for random
+      } else {
+        // Default to random if not specified
+        topicType = 'random';
       }
 
-      // Verify deck is created by organization's admin/superAdmin
-      if (organizationId) {
-        const normalizedOrgId = this.normalizeId(organizationId);
-        const normalizedDeckUserId = this.normalizeId(deck.userId);
+      let deck: LeanDeck | null = null;
 
-        if (normalizedOrgId && normalizedDeckUserId) {
-          // Allow if the deck creator is a superAdmin (global) regardless of org match
-          const deckCreator = await this.userModel
-            .findById(normalizedDeckUserId)
-            .select('userType organization')
+      // Get deck based on topicType
+      if (topicType === 'selected' && deckId) {
+        const normalizedDeckId = this.normalizeId(deckId);
+        if (!normalizedDeckId) {
+          throw new BadRequestException('Invalid deckId');
+        }
+
+        deck = await this.deckModel.findById(normalizedDeckId).lean().exec();
+        if (!deck) {
+          throw new NotFoundException('Deck not found');
+        }
+
+        // Get user's organization to verify deck creator is admin/superAdmin
+        // No need to check isPublic or status - any deck created by admin/superAdmin is allowed
+        let organizationId: string | undefined = undefined;
+        try {
+          const user = await this.userModel
+            .findById(userId)
+            .select('organization')
             .lean()
             .exec();
+          if (user?.organization) {
+            organizationId = this.normalizeId(user.organization) || undefined;
+          }
+        } catch (error) {
+          // Failed to get user organization for deck validation
+        }
 
-          if (deckCreator?.userType !== USER_TYPE[1]) {
-            // Deck must belong to an admin/superAdmin of the same organization
-            const orgAdmins = await this.userModel
-              .find({
-                organization: normalizedOrgId,
-                userType: { $in: [USER_TYPE[2], USER_TYPE[1]] },
-              })
-              .select('_id')
+        // Verify deck is created by organization's admin/superAdmin
+        if (organizationId) {
+          const normalizedOrgId = this.normalizeId(organizationId);
+          const normalizedDeckUserId = this.normalizeId(deck.userId);
+
+          if (normalizedOrgId && normalizedDeckUserId) {
+            // Allow if the deck creator is a superAdmin (global) regardless of org match
+            const deckCreator = await this.userModel
+              .findById(normalizedDeckUserId)
+              .select('userType organization')
               .lean()
               .exec();
 
-            const adminUserIds = orgAdmins
-              .map((admin) => this.normalizeId(admin._id))
-              .filter((id): id is string => id !== null);
-            // Check if deck creator is one of the organization's admins/superAdmins
-            if (!adminUserIds.includes(normalizedDeckUserId)) {
-              throw new BadRequestException(
-                'Only decks created by organization admin or superAdmin can be used.',
-              );
+            if (deckCreator?.userType !== USER_TYPE[1]) {
+              // Deck must belong to an admin/superAdmin of the same organization
+              const orgAdmins = await this.userModel
+                .find({
+                  organization: normalizedOrgId,
+                  userType: { $in: [USER_TYPE[2], USER_TYPE[1]] },
+                })
+                .select('_id')
+                .lean()
+                .exec();
+
+              const adminUserIds = orgAdmins
+                .map((admin) => this.normalizeId(admin._id))
+                .filter((id): id is string => id !== null);
+              // Check if deck creator is one of the organization's admins/superAdmins
+              if (!adminUserIds.includes(normalizedDeckUserId)) {
+                throw new BadRequestException(
+                  'Only decks created by organization admin or superAdmin can be used.',
+                );
+              }
             }
+          } else {
+            throw new BadRequestException(
+              'Unable to validate deck ownership. Please ensure you are part of an organization.',
+            );
           }
         } else {
-          throw new BadRequestException(
-            'Unable to validate deck ownership. Please ensure you are part of an organization.',
-          );
+          // If user has no organization, only allow if deck belongs to user
+          const normalizedUserId = this.normalizeId(userId);
+          const normalizedDeckUserId = this.normalizeId(deck.userId);
+
+          if (normalizedUserId !== normalizedDeckUserId) {
+            throw new BadRequestException(
+              'Only decks created by organization admin or superAdmin can be used.',
+            );
+          }
         }
       } else {
-        // If user has no organization, only allow if deck belongs to user
-        const normalizedUserId = this.normalizeId(userId);
-        const normalizedDeckUserId = this.normalizeId(deck.userId);
-        
-        if (normalizedUserId !== normalizedDeckUserId) {
+        // Get random deck - filter by organization's admin/superadmin
+        let organizationId: string | undefined = undefined;
+
+        // Get user's organization - required for team games
+        try {
+          const user = await this.userModel
+            .findById(userId)
+            .select('organization')
+            .lean()
+            .exec();
+          if (user?.organization) {
+            organizationId = this.normalizeId(user.organization) || undefined;
+          } else {
+            throw new BadRequestException(
+              'You must be part of an organization to create team games. Please join an organization first.',
+            );
+          }
+        } catch (error) {
+          // If it's already a BadRequestException, rethrow it
+          if (error instanceof BadRequestException) {
+            throw error;
+          }
+          // If user lookup fails, throw error
           throw new BadRequestException(
-            'Only decks created by organization admin or superAdmin can be used.',
+            'Unable to verify organization membership. Please ensure you are part of an organization.',
           );
         }
+
+        deck = await this.getRandomDeck(organizationId);
       }
-    } else {
-      // Get random deck - filter by organization's admin/superadmin
-      let organizationId: string | undefined = undefined;
-      
-      // Get user's organization - required for team games
-      try {
-        const user = await this.userModel.findById(userId).select('organization').lean().exec();
-        if (user?.organization) {
-          organizationId = this.normalizeId(user.organization) || undefined;
-        } else {
-          throw new BadRequestException(
-            'You must be part of an organization to create team games. Please join an organization first.',
-          );
-        }
-      } catch (error) {
-        // If it's already a BadRequestException, rethrow it
-        if (error instanceof BadRequestException) {
-          throw error;
-        }
-        // If user lookup fails, throw error
-        throw new BadRequestException(
-          'Unable to verify organization membership. Please ensure you are part of an organization.',
+
+      if (!deck) {
+        throw new NotFoundException('Failed to get deck');
+      }
+
+      // Get topics from deck
+      const topicIds = (deck.contentIds || []).filter((id) => id);
+      if (topicIds.length === 0) {
+        throw new BadRequestException('Deck has no topics');
+      }
+
+      // Get all topics
+      const topics = await this.topicModel
+        .find({ _id: { $in: topicIds } })
+        .lean()
+        .exec();
+
+      if (topics.length === 0) {
+        throw new BadRequestException('No topics found in deck');
+      }
+
+      // For random selection: first pick a random topic, then pick a random subtopic from that topic
+      let selectedSubTopicId: string | null = null;
+      let selectedTopicId: string | null = null;
+
+      if (topicType === 'random') {
+        // Filter topics that have subtopics
+        const topicsWithSubTopics = topics.filter(
+          (topic) =>
+            topic.subTopics &&
+            Array.isArray(topic.subTopics) &&
+            topic.subTopics.length > 0,
         );
-      }
-      
-      deck = await this.getRandomDeck(organizationId);
-    }
 
-    if (!deck) {
-      throw new NotFoundException('Failed to get deck');
-    }
+        if (topicsWithSubTopics.length === 0) {
+          throw new BadRequestException('Deck has no topics with subtopics');
+        }
 
-    // Get topics from deck
-    const topicIds = (deck.contentIds || []).filter((id) => id);
-    if (topicIds.length === 0) {
-      throw new BadRequestException('Deck has no topics');
-    }
+        // Pick a random topic from topics that have subtopics
+        const randomTopicIndex = Math.floor(
+          Math.random() * topicsWithSubTopics.length,
+        );
+        const selectedTopic = topicsWithSubTopics[randomTopicIndex];
+        selectedTopicId = this.normalizeId(selectedTopic._id);
 
-    // Get all topics
-    const topics = await this.topicModel
-      .find({ _id: { $in: topicIds } })
-      .lean()
-      .exec();
+        // Pick a random subtopic from the selected topic
+        const randomSubTopicIndex = Math.floor(
+          Math.random() * selectedTopic.subTopics.length,
+        );
+        selectedSubTopicId = this.normalizeId(
+          selectedTopic.subTopics[randomSubTopicIndex],
+        );
+      } else {
+        // For selected deck, get all subtopics from all topics and pick one randomly
+        const allSubTopicIds: string[] = [];
+        for (const topic of topics) {
+          if (topic.subTopics && Array.isArray(topic.subTopics)) {
+            allSubTopicIds.push(...topic.subTopics);
+          }
+        }
 
-    if (topics.length === 0) {
-      throw new BadRequestException('No topics found in deck');
-    }
+        if (allSubTopicIds.length === 0) {
+          throw new BadRequestException('Deck has no subtopics');
+        }
 
-    // For random selection: first pick a random topic, then pick a random subtopic from that topic
-    let selectedSubTopicId: string | null = null;
-    let selectedTopicId: string | null = null;
+        // Select a random subtopic
+        const randomIndex = Math.floor(Math.random() * allSubTopicIds.length);
+        selectedSubTopicId = this.normalizeId(allSubTopicIds[randomIndex]);
 
-    if (topicType === 'random') {
-      // Filter topics that have subtopics
-      const topicsWithSubTopics = topics.filter(
-        (topic) =>
-          topic.subTopics &&
-          Array.isArray(topic.subTopics) &&
-          topic.subTopics.length > 0,
-      );
-
-      if (topicsWithSubTopics.length === 0) {
-        throw new BadRequestException('Deck has no topics with subtopics');
-      }
-
-      // Pick a random topic from topics that have subtopics
-      const randomTopicIndex = Math.floor(
-        Math.random() * topicsWithSubTopics.length,
-      );
-      const selectedTopic = topicsWithSubTopics[randomTopicIndex];
-      selectedTopicId = this.normalizeId(selectedTopic._id);
-
-      // Pick a random subtopic from the selected topic
-      const randomSubTopicIndex = Math.floor(
-        Math.random() * selectedTopic.subTopics.length,
-      );
-      selectedSubTopicId = this.normalizeId(
-        selectedTopic.subTopics[randomSubTopicIndex],
-      );
-    } else {
-      // For selected deck, get all subtopics from all topics and pick one randomly
-      const allSubTopicIds: string[] = [];
-      for (const topic of topics) {
-        if (topic.subTopics && Array.isArray(topic.subTopics)) {
-          allSubTopicIds.push(...topic.subTopics);
+        // Find which topic this subtopic belongs to
+        for (const topic of topics) {
+          if (
+            topic.subTopics &&
+            Array.isArray(topic.subTopics) &&
+            topic.subTopics.some(
+              (stId) => this.normalizeId(stId) === selectedSubTopicId,
+            )
+          ) {
+            selectedTopicId = this.normalizeId(topic._id);
+            break;
+          }
         }
       }
 
-      if (allSubTopicIds.length === 0) {
-        throw new BadRequestException('Deck has no subtopics');
+      if (!selectedSubTopicId) {
+        throw new BadRequestException('Failed to select subtopic');
       }
 
-      // Select a random subtopic
-      const randomIndex = Math.floor(Math.random() * allSubTopicIds.length);
-      selectedSubTopicId = this.normalizeId(allSubTopicIds[randomIndex]);
-
-      // Find which topic this subtopic belongs to
-      for (const topic of topics) {
-        if (
-          topic.subTopics &&
-          Array.isArray(topic.subTopics) &&
-          topic.subTopics.some(
-            (stId) => this.normalizeId(stId) === selectedSubTopicId,
-          )
-        ) {
-          selectedTopicId = this.normalizeId(topic._id);
-          break;
-        }
+      // Verify subtopic exists
+      const subTopic = await this.subTopicModel.findById(selectedSubTopicId);
+      if (!subTopic) {
+        throw new NotFoundException('Selected subtopic not found');
       }
-    }
 
-    if (!selectedSubTopicId) {
-      throw new BadRequestException('Failed to select subtopic');
-    }
+      // Create game
+      const gameId = roomId || randomUUID();
+      const normalizedDeckId = this.normalizeId(deck._id);
+      const gamePlayers = participants || [userId];
 
-    // Verify subtopic exists
-    const subTopic = await this.subTopicModel.findById(selectedSubTopicId);
-    if (!subTopic) {
-      throw new NotFoundException('Selected subtopic not found');
-    }
-
-    // Create game
-    const gameId = roomId || randomUUID();
-    const normalizedDeckId = this.normalizeId(deck._id);
-    const gamePlayers = participants || [userId];
-
-    await this.gameModel.create({
-      gameId,
-      type: 'multiplayer',
-      gameMode: 'team',
-      players: gamePlayers,
-      subTopicId: selectedSubTopicId,
-      difficulty: 'medium', // Default difficulty, can be made configurable
-      deckSelectionMethod: topicType,
-      selectedDeckId: normalizedDeckId || undefined,
-      questions: [], // Questions will be generated when game starts
-      scores: {},
-      isCompleted: false,
-      gameStarted: false,
-      acceptedPlayers: gamePlayers,
-      metadata: {
-        roomId: roomId || gameId,
-        gameMode: gameMode || undefined,
-        member: member || undefined,
-      },
-    });
+      await this.gameModel.create({
+        gameId,
+        type: 'multiplayer',
+        gameMode: 'team',
+        players: gamePlayers,
+        subTopicId: selectedSubTopicId,
+        difficulty: 'medium', // Default difficulty, can be made configurable
+        deckSelectionMethod: topicType,
+        selectedDeckId: normalizedDeckId || undefined,
+        questions: [], // Questions will be generated when game starts
+        scores: {},
+        isCompleted: false,
+        gameStarted: false,
+        acceptedPlayers: gamePlayers,
+        metadata: {
+          roomId: roomId || gameId,
+          gameMode: gameMode || undefined,
+          member: member || undefined,
+        },
+      });
 
       return {
         gameId,
@@ -1330,7 +1441,10 @@ export class TeamGameService {
         throw new BadRequestException('userId is required');
       }
 
-      const game = await this.gameModel.findOne({ gameId: normalizedGameId }).lean().exec();
+      const game = await this.gameModel
+        .findOne({ gameId: normalizedGameId })
+        .lean()
+        .exec();
       if (!game) {
         throw new NotFoundException('Game not found');
       }
@@ -1432,13 +1546,16 @@ export class TeamGameService {
         // Non-blocking: failed to append chat message to game
       }
 
-      const createdObj = created.toObject() as TeamGameChatDocument & { createdAt?: Date };
-      const createdAt = createdObj.createdAt instanceof Date
-        ? createdObj.createdAt
-        : new Date();
+      const createdObj = created.toObject() as TeamGameChatDocument & {
+        createdAt?: Date;
+      };
+      const createdAt =
+        createdObj.createdAt instanceof Date
+          ? createdObj.createdAt
+          : new Date();
 
       return {
-        _id: createdObj._id as Types.ObjectId,
+        _id: createdObj._id,
         gameId: normalizedGameId,
         teamId: normalizedTeamId,
         userId: normalizedUserId,
@@ -1518,7 +1635,10 @@ export class TeamGameService {
       const battleAccuracies: number[] = [];
 
       completedGames.forEach((game) => {
-        const accuracy = this.getUserAccuracyFromGame(game as unknown as LeanGame, normalizedUserId);
+        const accuracy = this.getUserAccuracyFromGame(
+          game as unknown as LeanGame,
+          normalizedUserId,
+        );
         if (accuracy === null) {
           return;
         }
@@ -1578,7 +1698,7 @@ export class TeamGameService {
       const pointsToAdd = accuracy >= 80 ? 10 : 0;
 
       // Calculate running average response time if responseTime is provided
-      let updateData: UpdateQuery<TeamGameScoreDocument> = {
+      const updateData: UpdateQuery<TeamGameScoreDocument> = {
         $inc: { points: pointsToAdd },
         $set: {
           accuracy,
@@ -1602,7 +1722,8 @@ export class TeamGameService {
           oldGamesPlayed === 0
             ? responseTime
             : Math.round(
-                ((oldAverage * oldGamesPlayed + responseTime) / newGamesPlayed) *
+                ((oldAverage * oldGamesPlayed + responseTime) /
+                  newGamesPlayed) *
                   100,
               ) / 100;
 
@@ -1619,6 +1740,4 @@ export class TeamGameService {
       throw error;
     }
   }
-
 }
-

@@ -24,7 +24,6 @@ import {
 import { Deck, DeckSchema } from 'src/content/schemas/deck.schema';
 import { ContentModule } from 'src/content/content.module';
 
-
 @Module({
   imports: [
     MongooseModule.forFeature([

@@ -46,7 +46,8 @@ export class UsersController {
   @Get('profile')
   @ApiOperation({
     summary: 'Get authenticated user profile',
-    description: 'Retrieves the profile information of the currently authenticated user.',
+    description:
+      'Retrieves the profile information of the currently authenticated user.',
   })
   @ApiResponse({
     status: 200,
@@ -61,7 +62,8 @@ export class UsersController {
   @UseInterceptors(FileInterceptor('profileImage', multerProfileImageOptions))
   @ApiOperation({
     summary: 'Update authenticated user profile',
-    description: 'Updates the profile information of the currently authenticated user. Optionally uploads a profile image.',
+    description:
+      'Updates the profile information of the currently authenticated user. Optionally uploads a profile image.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiResponse({
@@ -84,7 +86,8 @@ export class UsersController {
   @Post('plan/buy')
   @ApiOperation({
     summary: 'Purchase a subscription plan',
-    description: 'Allows the authenticated user to purchase a subscription plan using card details.',
+    description:
+      'Allows the authenticated user to purchase a subscription plan using card details.',
   })
   @ApiBody({ type: BuyPlanDto })
   @ApiResponse({
@@ -99,7 +102,8 @@ export class UsersController {
   @Post('lives/purchase')
   @ApiOperation({
     summary: 'Purchase lives',
-    description: 'Allows the authenticated user to purchase additional lives using a subscription plan.',
+    description:
+      'Allows the authenticated user to purchase additional lives using a subscription plan.',
   })
   @ApiBody({ type: PurchaseLiveDto })
   @ApiResponse({
@@ -114,7 +118,8 @@ export class UsersController {
   @Post('avatars/purchase')
   @ApiOperation({
     summary: 'Purchase an avatar',
-    description: 'Allows the authenticated user to purchase an avatar using coins.',
+    description:
+      'Allows the authenticated user to purchase an avatar using coins.',
   })
   @ApiBody({ type: PurchaseAvatarDto })
   @ApiResponse({
@@ -132,7 +137,8 @@ export class UsersController {
   @Post('coins/purchase')
   @ApiOperation({
     summary: 'Purchase coins',
-    description: 'Allows the authenticated user to purchase coins using a subscription plan.',
+    description:
+      'Allows the authenticated user to purchase coins using a subscription plan.',
   })
   @ApiBody({ type: PurchaseCoinDto })
   @ApiResponse({
@@ -147,7 +153,8 @@ export class UsersController {
   @Get('plan/me')
   @ApiOperation({
     summary: 'Get authenticated user subscription plan',
-    description: 'Retrieves the current subscription plan details for the authenticated user.',
+    description:
+      'Retrieves the current subscription plan details for the authenticated user.',
   })
   @ApiResponse({
     status: 200,
@@ -161,7 +168,8 @@ export class UsersController {
   @Delete('account')
   @ApiOperation({
     summary: 'Delete authenticated user account',
-    description: 'Permanently deletes the authenticated user account and all associated data.',
+    description:
+      'Permanently deletes the authenticated user account and all associated data.',
   })
   @ApiResponse({
     status: 200,
@@ -175,7 +183,8 @@ export class UsersController {
   @Post('logout')
   @ApiOperation({
     summary: 'Logout user',
-    description: 'Logs out the authenticated user by invalidating their session.',
+    description:
+      'Logs out the authenticated user by invalidating their session.',
   })
   @ApiResponse({
     status: 200,
@@ -189,7 +198,8 @@ export class UsersController {
   @Post('change-password')
   @ApiOperation({
     summary: 'Change user password',
-    description: 'Allows the authenticated user to change their password by providing the old password and new password.',
+    description:
+      'Allows the authenticated user to change their password by providing the old password and new password.',
   })
   @ApiBody({ type: ChangePasswordDto })
   @ApiResponse({
@@ -200,9 +210,11 @@ export class UsersController {
     status: 400,
     description: 'Invalid old password or bad request',
   })
-  async changePassword(@Req() req, @Body() changePasswordDto: ChangePasswordDto) {
+  async changePassword(
+    @Req() req,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
     const userId = req.user.id;
     return await this.usersService.changePassword(userId, changePasswordDto);
   }
-
 }

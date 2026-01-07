@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema ,Types} from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { USER_ROLE } from 'src/common/enum';
 
 @Schema({ timestamps: true })

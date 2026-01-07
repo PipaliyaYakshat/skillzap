@@ -19,4 +19,3 @@ export class BuyPlanDto {
   @MaxLength(20)
   cardNumber: string;
 }
-

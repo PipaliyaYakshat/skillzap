@@ -20,7 +20,10 @@ import {
   GameProgressSchema,
 } from 'src/content/schemas/game-progress.schema';
 import { Content, ContentSchema } from 'src/content/schemas/content.schema';
-import { Gamebattl, GamebattlSchema } from 'src/content/schemas/btal.game.schema';
+import {
+  Gamebattl,
+  GamebattlSchema,
+} from 'src/content/schemas/btal.game.schema';
 import { UserGame, UserGameSchema } from 'src/users/entities/user-game.entity';
 import {
   TeamGame,

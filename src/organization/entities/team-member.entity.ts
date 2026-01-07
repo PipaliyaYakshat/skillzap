@@ -11,7 +11,11 @@ export class TeamMember extends Document {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: false })
   user: MongooseSchema.Types.ObjectId;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Organization', required: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Organization',
+    required: true,
+  })
   organization: MongooseSchema.Types.ObjectId;
 
   @Prop({ required: false })
@@ -39,4 +43,4 @@ export class TeamMember extends Document {
   gameAccuracy: number;
 }
 
-export const TeamMemberSchema = SchemaFactory.createForClass(TeamMember); 
+export const TeamMemberSchema = SchemaFactory.createForClass(TeamMember);

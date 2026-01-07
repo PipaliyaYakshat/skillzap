@@ -10,4 +10,3 @@ export class CreateOrganizationDto {
   @IsNotEmpty({ message: 'Organization name is required' })
   organizationName: string;
 }
-

@@ -1,9 +1,25 @@
 import {
-  Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, BadRequestException, Req,
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+  UseGuards,
+  BadRequestException,
+  Req,
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import {
-  ApiBearerAuth, ApiTags, ApiQuery, ApiOperation, ApiResponse, ApiBody, ApiParam,
+  ApiBearerAuth,
+  ApiTags,
+  ApiQuery,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+  ApiParam,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/lib/jwt-auth.guard';
 import { Roles } from 'src/auth/lib/roles.decorator';
@@ -25,13 +41,14 @@ import { UpdateUserSubscriptionExpiryDto } from './dto/update-user-subscription-
 @ApiTags('Admin Controller')
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) { }
+  constructor(private readonly adminService: AdminService) {}
 
   // Public Admin Authentication Endpoints (No Auth Required)
   @Post('login')
   @ApiOperation({
     summary: 'Admin login',
-    description: 'Authenticates an admin user with email and password. Returns JWT access token and admin information.',
+    description:
+      'Authenticates an admin user with email and password. Returns JWT access token and admin information.',
   })
   @ApiBody({ type: AdminLoginDto })
   @ApiResponse({
@@ -53,7 +70,8 @@ export class AdminController {
   @Post('forgot-password')
   @ApiOperation({
     summary: 'Request admin password reset',
-    description: 'Initiates the password reset process for admin by sending an OTP to the admin\'s email address. Admin must verify the OTP before resetting the password.',
+    description:
+      "Initiates the password reset process for admin by sending an OTP to the admin's email address. Admin must verify the OTP before resetting the password.",
   })
   @ApiBody({ type: AdminForgotPasswordDto })
   @ApiResponse({
@@ -64,14 +82,17 @@ export class AdminController {
     status: 404,
     description: 'Admin not found with the provided email',
   })
-  async adminForgotPassword(@Body() adminForgotPasswordDto: AdminForgotPasswordDto) {
+  async adminForgotPassword(
+    @Body() adminForgotPasswordDto: AdminForgotPasswordDto,
+  ) {
     return this.adminService.adminForgotPassword(adminForgotPasswordDto);
   }
 
   @Post('resend-otp')
   @ApiOperation({
     summary: 'Resend OTP for admin',
-    description: 'Resends the OTP (One-Time Password) to the admin\'s email address. Useful when the original OTP expires or was not received.',
+    description:
+      "Resends the OTP (One-Time Password) to the admin's email address. Useful when the original OTP expires or was not received.",
   })
   @ApiBody({ type: AdminResendOtpDto })
   @ApiResponse({
@@ -84,7 +105,8 @@ export class AdminController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Bad request - no active password reset request or invalid input',
+    description:
+      'Bad request - no active password reset request or invalid input',
   })
   async adminResendOtp(@Body() adminResendOtpDto: AdminResendOtpDto) {
     return this.adminService.adminResendOtp(adminResendOtpDto);
@@ -93,7 +115,8 @@ export class AdminController {
   @Post('verify-otp')
   @ApiOperation({
     summary: 'Verify OTP for admin',
-    description: 'Verifies the OTP sent to the admin\'s email. Used for password reset process.',
+    description:
+      "Verifies the OTP sent to the admin's email. Used for password reset process.",
   })
   @ApiBody({ type: AdminVerifyOtpDto })
   @ApiResponse({
@@ -115,7 +138,8 @@ export class AdminController {
   @Post('reset-password')
   @ApiOperation({
     summary: 'Reset admin password',
-    description: 'Resets the admin\'s password after OTP verification. Requires the admin to have verified the OTP sent to their email. Password and confirmPassword must match.',
+    description:
+      "Resets the admin's password after OTP verification. Requires the admin to have verified the OTP sent to their email. Password and confirmPassword must match.",
   })
   @ApiBody({ type: AdminResetPasswordDto })
   @ApiResponse({
@@ -124,13 +148,16 @@ export class AdminController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Bad request - passwords do not match, OTP not verified, or invalid input',
+    description:
+      'Bad request - passwords do not match, OTP not verified, or invalid input',
   })
   @ApiResponse({
     status: 404,
     description: 'Admin not found with the provided email',
   })
-  async adminResetPassword(@Body() adminResetPasswordDto: AdminResetPasswordDto) {
+  async adminResetPassword(
+    @Body() adminResetPasswordDto: AdminResetPasswordDto,
+  ) {
     return this.adminService.adminResetPassword(adminResetPasswordDto);
   }
 
@@ -141,7 +168,8 @@ export class AdminController {
   @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Get all users',
-    description: 'Admin only. Retrieves a paginated list of all users in the system.',
+    description:
+      'Admin only. Retrieves a paginated list of all users in the system.',
   })
   @ApiQuery({
     name: 'page',
@@ -159,7 +187,8 @@ export class AdminController {
     name: 'search',
     required: false,
     type: String,
-    description: 'Optional search string to match user name or email (partial, case-insensitive).',
+    description:
+      'Optional search string to match user name or email (partial, case-insensitive).',
   })
   @ApiQuery({
     name: 'userType',
@@ -171,19 +200,31 @@ export class AdminController {
     name: 'subscriptionType',
     required: false,
     type: String,
-    description: 'Optional subscriptionType filter (exact match) to return users who purchased plans of this type.',
+    description:
+      'Optional subscriptionType filter (exact match) to return users who purchased plans of this type.',
   })
   @ApiQuery({
     name: 'teamPlan',
     required: false,
     type: String,
-    description: "Optional teamPlan filter (e.g. 'enterprise') to return enterprise team users.",
+    description:
+      "Optional teamPlan filter (e.g. 'enterprise') to return enterprise team users.",
   })
   @ApiResponse({
     status: 200,
     description: 'List of users retrieved successfully',
   })
-  async findAll(@Query() query: { page?: number; limit?: number; search?: string; userType?: string; subscriptionType?: string; teamPlan?: string }) {
+  async findAll(
+    @Query()
+    query: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      userType?: string;
+      subscriptionType?: string;
+      teamPlan?: string;
+    },
+  ) {
     return await this.adminService.findAll(query);
   }
 
@@ -193,7 +234,8 @@ export class AdminController {
   @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Get users who purchased plans',
-    description: 'Admin only. Retrieves paginated users that have purchased subscription plans along with plan status.',
+    description:
+      'Admin only. Retrieves paginated users that have purchased subscription plans along with plan status.',
   })
   @ApiQuery({
     name: 'page',
@@ -211,13 +253,21 @@ export class AdminController {
     name: 'subscriptionType',
     required: false,
     type: String,
-    description: 'Optional subscriptionType filter (exact match, e.g. month, year, 14day, lives, coins) to return users who purchased plans of this type.',
+    description:
+      'Optional subscriptionType filter (exact match, e.g. month, year, 14day, lives, coins) to return users who purchased plans of this type.',
   })
   @ApiResponse({
     status: 200,
     description: 'Users with purchases retrieved successfully',
   })
-  async getUsersWithPurchases(@Query() query: { page?: number; limit?: number; subscriptionType?: string }) {
+  async getUsersWithPurchases(
+    @Query()
+    query: {
+      page?: number;
+      limit?: number;
+      subscriptionType?: string;
+    },
+  ) {
     return await this.adminService.getUsersWithPurchases(query);
   }
 
@@ -227,7 +277,8 @@ export class AdminController {
   @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Update enterprise user status',
-    description: 'Admin only. Updates the status of enterprise user registrations (approve/reject).',
+    description:
+      'Admin only. Updates the status of enterprise user registrations (approve/reject).',
   })
   @ApiBody({ type: UpdateStatusEnterpriseDto })
   @ApiResponse({
@@ -248,7 +299,8 @@ export class AdminController {
   @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Get all enterprise pending registrations',
-    description: 'Admin only. Retrieves a paginated list of all enterprise user registrations that are pending approval.',
+    description:
+      'Admin only. Retrieves a paginated list of all enterprise user registrations that are pending approval.',
   })
   @ApiQuery({
     name: 'page',
@@ -278,7 +330,8 @@ export class AdminController {
   @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Get all public access requests',
-    description: 'Admin only. Returns all decks where isPublic=true and status=pending. Only accessible to users with admin role.',
+    description:
+      'Admin only. Returns all decks where isPublic=true and status=pending. Only accessible to users with admin role.',
   })
   @ApiResponse({
     status: 200,
@@ -294,7 +347,8 @@ export class AdminController {
   @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Approve or reject public access request for a deck',
-    description: 'Admin only. Approves or rejects a deck public access request. If status=approve, sets status=approve and isPublic=true. If status=reject, sets status=reject and isPublic=false.',
+    description:
+      'Admin only. Approves or rejects a deck public access request. If status=approve, sets status=approve and isPublic=true. If status=reject, sets status=reject and isPublic=false.',
   })
   @ApiParam({
     name: 'deckId',
@@ -337,7 +391,8 @@ export class AdminController {
   @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Toggle user block status',
-    description: 'Admin only. Toggles the block status of a user. When isBlocked=true, user cannot access anything.',
+    description:
+      'Admin only. Toggles the block status of a user. When isBlocked=true, user cannot access anything.',
   })
   @ApiBody({ type: ToggleUserStatusDto })
   @ApiResponse({
@@ -371,7 +426,8 @@ export class AdminController {
   @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Get all content file data',
-    description: 'Admin only. Retrieves a paginated list of all content file data with optional status filter.',
+    description:
+      'Admin only. Retrieves a paginated list of all content file data with optional status filter.',
   })
   @ApiQuery({
     name: 'page',
@@ -397,7 +453,12 @@ export class AdminController {
     description: 'Content file data retrieved successfully',
   })
   async getContentFileData(
-    @Query() query: { page?: number; limit?: number; status?: 'approved' | 'pending' },
+    @Query()
+    query: {
+      page?: number;
+      limit?: number;
+      status?: 'approved' | 'pending';
+    },
   ) {
     return await this.adminService.getContentFileData(query);
   }
@@ -408,7 +469,8 @@ export class AdminController {
   @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Get all public approved decks',
-    description: 'Admin only. Retrieves a paginated list of decks where isPublic=true and status=approve with optional search by deck name.',
+    description:
+      'Admin only. Retrieves a paginated list of decks where isPublic=true and status=approve with optional search by deck name.',
   })
   @ApiQuery({
     name: 'page',
@@ -426,7 +488,8 @@ export class AdminController {
     name: 'search',
     required: false,
     type: String,
-    description: 'Optional search string to match deck name (partial, case-insensitive).',
+    description:
+      'Optional search string to match deck name (partial, case-insensitive).',
   })
   @ApiResponse({
     status: 200,
@@ -444,7 +507,8 @@ export class AdminController {
   @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Change admin password',
-    description: 'Allows the authenticated admin to change their password by providing the old password and new password.',
+    description:
+      'Allows the authenticated admin to change their password by providing the old password and new password.',
   })
   @ApiBody({ type: AdminChangePasswordDto })
   @ApiResponse({
@@ -455,9 +519,15 @@ export class AdminController {
     status: 400,
     description: 'Invalid old password or bad request',
   })
-  async changePassword(@Req() req, @Body() adminChangePasswordDto: AdminChangePasswordDto) {
+  async changePassword(
+    @Req() req,
+    @Body() adminChangePasswordDto: AdminChangePasswordDto,
+  ) {
     const adminId = req.user.id;
-    return await this.adminService.changePassword(adminId, adminChangePasswordDto);
+    return await this.adminService.changePassword(
+      adminId,
+      adminChangePasswordDto,
+    );
   }
 
   @Delete('users/:userId')
@@ -466,7 +536,8 @@ export class AdminController {
   @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Delete user',
-    description: 'Admin only. Deletes a user by userId along with all associated data including decks, topics, subtopics, games, game progress, user games, battle games, team games, and content.',
+    description:
+      'Admin only. Deletes a user by userId along with all associated data including decks, topics, subtopics, games, game progress, user games, battle games, team games, and content.',
   })
   @ApiParam({
     name: 'userId',
@@ -499,7 +570,8 @@ export class AdminController {
   @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Delete deck',
-    description: 'Admin only. Deletes a deck by deckId along with all its topics and subtopics.',
+    description:
+      'Admin only. Deletes a deck by deckId along with all its topics and subtopics.',
   })
   @ApiParam({
     name: 'deckId',
@@ -508,7 +580,8 @@ export class AdminController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Deck and all related content (topics and subtopics) deleted successfully',
+    description:
+      'Deck and all related content (topics and subtopics) deleted successfully',
   })
   @ApiResponse({
     status: 404,
@@ -532,7 +605,8 @@ export class AdminController {
   @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Update user subscription expiry date',
-    description: 'Admin only. Updates the subscription expiry date for a user by userId.',
+    description:
+      'Admin only. Updates the subscription expiry date for a user by userId.',
   })
   @ApiBody({ type: UpdateUserSubscriptionExpiryDto })
   @ApiResponse({
@@ -547,8 +621,12 @@ export class AdminController {
     status: 400,
     description: 'Invalid user ID or expiry date format',
   })
-  async updateSubscriptionExpiry(@Body() updateUserSubscriptionExpiryDto: UpdateUserSubscriptionExpiryDto) {
-    return await this.adminService.updateUserSubscriptionExpiry(updateUserSubscriptionExpiryDto);
+  async updateSubscriptionExpiry(
+    @Body() updateUserSubscriptionExpiryDto: UpdateUserSubscriptionExpiryDto,
+  ) {
+    return await this.adminService.updateUserSubscriptionExpiry(
+      updateUserSubscriptionExpiryDto,
+    );
   }
 
   @Get('deck/:deckId')
@@ -557,7 +635,8 @@ export class AdminController {
   @Roles(USER_ROLE[0])
   @ApiOperation({
     summary: 'Get deck by ID with all details',
-    description: 'Admin only. Retrieves a deck by deckId with all its topics and subtopics populated.',
+    description:
+      'Admin only. Retrieves a deck by deckId with all its topics and subtopics populated.',
   })
   @ApiParam({
     name: 'deckId',
