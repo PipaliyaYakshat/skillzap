@@ -137,7 +137,6 @@ TEXT:
       return cleaned || 'English';
     } catch (err) {
       // On any error, fall back to English
-      console.error('Language detection failed:', err);
       return 'English';
     }
   }
@@ -218,7 +217,6 @@ CATEGORY: "${category}"
     try {
       data = JSON.parse(content);
     } catch (error) {
-      console.error('❌ Invalid JSON received:', content);
       throw new InternalServerErrorException(
         'AI returned invalid JSON. Please try again.',
       );
@@ -298,89 +296,6 @@ CATEGORY: "${category}"
     };
   }
 
-  // =====================================================================
-  // 🟩 Generate MCQ Questions — language-aware
-  // =====================================================================
-//   async generateMCQQuestions(
-//     topicTitle: string,
-//     topicDescription: string,
-//     difficulty?: 'easy' | 'medium' | 'hard',
-//   ): Promise<Question[]> {
-//     const sourceForLang = `${topicTitle}\n\n${topicDescription}`.slice(0, 3000);
-//     const detectedLanguage = await this.detectLanguage(sourceForLang);
-
-//     const prompt = `
-// Generate EXACTLY 5 MCQ questions.
-// IMPORTANT: Generate all content ONLY in ${detectedLanguage}. Do not use any other language.
-
-// For each question, also provide a hint that guides the user toward the correct answer without directly revealing it. The hint should be helpful but not give away the answer completely.
-
-// Format:
-// {
-//   "questions": [
-//     {
-//       "question": "",
-//       "options": ["", "", "", ""],
-//       "correctAnswer": "",
-//       "hint": ""
-//     }
-//   ]
-// }
-
-// TOPIC: ${topicTitle}
-// DESCRIPTION: ${topicDescription}
-// DIFFICULTY: ${difficulty}
-// `;
-
-//     const aiResponse = await this.openai.chat.completions.create({
-//       model: this.modelName,
-//       messages: [
-//         { role: 'system', content: 'Return ONLY JSON. No explanation.' },
-//         { role: 'user', content: prompt },
-//       ],
-//       max_tokens: 3000,
-//     });
-
-//     const content = this.extractJson(aiResponse.choices[0]?.message?.content);
-
-//     let payload: QuestionsPayload;
-//     try {
-//       payload = JSON.parse(content);
-//     } catch (error) {
-//       console.error('❌ Invalid MCQ JSON:', content);
-//       throw new InternalServerErrorException('AI returned invalid JSON');
-//     }
-
-//     const questions = Array.isArray(payload.questions) ? payload.questions : [];
-
-//     const fixed: Question[] = questions
-//       .filter(
-//         (q) =>
-//           q?.question &&
-//           Array.isArray(q?.options) &&
-//           q.options.length === 4 &&
-//           q.options.every((opt) => typeof opt === 'string'),
-//       )
-//       .map((q) => ({
-//         question: q.question,
-//         options: q.options,
-//         correctAnswer: q.correctAnswer || q.options[0],
-//         hint: q.hint || '',
-//       }));
-
-//     // Ensure exactly 5 questions
-//     while (fixed.length < 5) {
-//       fixed.push({
-//         question: `Placeholder question ${fixed.length + 1}`,
-//         options: ['Option 1', 'Option 2', 'Option 3', 'Option 4'],
-//         correctAnswer: 'Option 1',
-//         hint: 'Think about the main concept discussed in this topic.',
-//       });
-//     }
-
-//     return fixed.slice(0, 5);
-//   }
-
 async generateMCQQuestions(
   topicTitle: string,
   topicDescription: string,
@@ -430,7 +345,6 @@ DIFFICULTY: ${difficulty}
   try {
     payload = JSON.parse(content);
   } catch (error) {
-    console.error('❌ Invalid MCQ JSON:', content);
     throw new InternalServerErrorException('AI returned invalid JSON');
   }
 
@@ -576,7 +490,6 @@ DIFFICULTY: ${difficulty}
 
       return answer;
     } catch (error) {
-      console.error('Error generating answer:', error);
       throw new InternalServerErrorException(
         'Failed to generate answer. Please try again.',
       );
@@ -644,7 +557,6 @@ DIFFICULTY: ${difficulty}
         contentType,
       });
     } catch (error) {
-      console.error('Failed to extract text from file:', normalized, error);
       throw new BadRequestException(
         `Failed to extract text from uploaded file. Please ensure the file contains readable text content.`,
       );
@@ -732,7 +644,6 @@ topic: ${description}
       try {
         data = JSON.parse(content);
       } catch (error) {
-        console.error('❌ Invalid JSON received from moreDetails:', content);
         throw new InternalServerErrorException(
           'AI returned invalid JSON. Please try again.',
         );
@@ -746,7 +657,6 @@ topic: ${description}
         },
       };
     } catch (error) {
-      console.error('Error generating more details:', error);
       throw new InternalServerErrorException(
         'Failed to generate more details. Please try again.',
       );

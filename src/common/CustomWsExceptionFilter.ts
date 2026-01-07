@@ -15,9 +15,6 @@ export class CustomWsExceptionFilter implements WsExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
     const client = host.switchToWs().getClient();
 
-    // Log the exception for debugging
-    console.error('WebSocket Exception:', exception);
-
     // Safely extract exception properties
     const exceptionObj = exception as ExceptionLike;
     const response = exceptionObj?.response;

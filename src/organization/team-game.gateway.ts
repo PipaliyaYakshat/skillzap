@@ -256,17 +256,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
   // -------------------------------------------------------------
 
   async handleConnection(@ConnectedSocket() client: Socket) {
-      console.log('[handleConnection] Client connecting:', {
-      socketId: client.id,
-      timestamp: new Date().toISOString(),
-    });
     try {
       // Extract token from Authorization header
       const authHeader = client.handshake.headers.authorization;
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        console.log('[handleConnection] Error: Authorization token required:', {
-          socketId: client.id,
-        });
         client.emit('error_response', { message: 'Authorization token required' });
         client.disconnect();
         return;
@@ -276,18 +269,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       // Verify and decode token
       const decoded: JwtPayload = this.jwtService.verify(token);
-      console.log('[handleConnection] Token verified:', {
-        socketId: client.id,
-        hasDecoded: !!decoded,
-      });
 
       // Extract userId from token (token contains { id, role })
       const userId = decoded.id || decoded.userId;
       if (!userId) {
-        console.log('[handleConnection] Error: userId not found in token:', {
-          socketId: client.id,
-          decoded,
-        });
         client.emit('error_response', { message: 'Invalid token: userId not found' });
         client.disconnect();
         return;
@@ -296,19 +281,11 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Check if user is blocked
       const user = await this.userModel.findById(userId).exec();
       if (!user) {
-        console.log('[handleConnection] Error: User not found:', {
-          socketId: client.id,
-          userId,
-        });
         client.emit('error_response', { message: 'User not found' });
         client.disconnect();
         return;
       }
       if (user.isBlocked === true) {
-        console.log('[handleConnection] Error: User account is blocked:', {
-          socketId: client.id,
-          userId,
-        });
         client.emit('error_response', { message: 'Your account is blocked' });
         client.disconnect();
         return;
@@ -330,11 +307,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Check if user was in a room before disconnect and allow them to rejoin
       const existingRoom = this.contentService.getRoomByUserId(userId);
       if (existingRoom) {
-        console.log('[handleConnection] User was in a room before reconnect:', {
-          userId,
-          roomId: existingRoom.roomId,
-          participants: existingRoom.participants,
-        });
         // User can manually rejoin via joinRoom event if needed
         // Don't auto-join here to avoid race conditions
       }
@@ -355,18 +327,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         });
       }
 
-      console.log('[handleConnection] Connection successful:', {
-        userId,
-        socketId: client.id,
-        timestamp: new Date().toISOString(),
-      });
       client.emit('authenticated', { success: true, userId });
     } catch (error) {
-      console.error('[handleConnection] Error occurred:', {
-        socketId: client.id,
-        error: error.message,
-        stack: error.stack,
-      });
       
       // Handle specific JWT verification errors
       if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
@@ -382,11 +344,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
   async handleDisconnect(@ConnectedSocket() client: Socket) {
     const userId = client.data.userId;
     const now = new Date();
-    console.log('[handleDisconnect] Client disconnecting:', {
-      userId,
-      socketId: client.id,
-      timestamp: new Date().toISOString(),
-    });
 
     try {
       if (userId) {
@@ -403,7 +360,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         }
 
         this.userSockets.delete(userId);
-        console.log('[handleDisconnect] User socket removed:', { userId });
 
         // Clear pending invites (these should be cleared on disconnect)
         this.contentService.clearPendingInvites(userId);
@@ -411,11 +367,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         // Check if user is in a room and remove them on disconnect
         const existingRoom = this.contentService.getRoomByUserId(userId);
         if (existingRoom) {
-          console.log('[handleDisconnect] User was in a room, removing from room:', {
-            userId,
-            roomId: existingRoom.roomId,
-            participants: existingRoom.participants,
-          });
 
           // Check if there's an active team game for this room
           const teamGameState = this.teamGames.get(existingRoom.roomId);
@@ -424,11 +375,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           // Check if disconnecting user is the inviter (admin) - first participant who created the game
           const normalizedUserId = this.normalizeId(userId);
           const isInviter = normalizedUserId && existingRoom.participants[0] === normalizedUserId;
-          console.log('[handleDisconnect] Inviter check:', {
-            userId: normalizedUserId,
-            isInviter,
-            firstParticipant: existingRoom.participants[0],
-          });
 
           if (teamGameState) {
             // If inviter (admin) disconnects, always end the game
@@ -530,11 +476,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           } else {
             await this.contentService.leaveUser(userId);
           }
-          console.log('[handleDisconnect] User removed from room:', {
-            userId,
-            roomId: existingRoom.roomId,
-            shouldContinueGame,
-          });
 
           // Notify only the disconnecting user (not other participants)
           const userDisconnectedPayload = {
@@ -556,11 +497,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         // if the user has an active single-player game, gracefully end it
         const game = this.activeGames.get(userId);
         if (game) {
-          console.log('[handleDisconnect] Ending active single-player game:', {
-            userId,
-            gameId: game.gameId,
-            score: game.score,
-          });
           // send final summary to socket (if connected) and remove game
           game.socket.emit('GAME_ABORTED', {
             message: 'User disconnected',
@@ -569,17 +505,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
           this.activeGames.delete(userId);
         }
       } else {
-        console.log('[handleDisconnect] No userId found for socket:', {
-          socketId: client.id,
-        });
       }
     } catch (error) {
-      console.error('[handleDisconnect] Error occurred:', {
-        userId,
-        socketId: client.id,
-        error: error.message,
-        stack: error.stack,
-      });
     }
   }
 
@@ -594,15 +521,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     @MessageBody() data?: { teamId?: string; organizationId?: string },
   ) {
     const userId = client.data.userId;
-    console.log('[getTeamMembers] Event received:', {
-      userId,
-      data,
-      socketId: client.id,
-      timestamp: new Date().toISOString(),
-    });
 
     if (!userId) {
-      console.log('[getTeamMembers] Error: Unauthorized - no userId');
       return client.emit('errorMessage', { message: 'Unauthorized' });
     }
 
@@ -614,12 +534,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       client.emit('getTeamMembers', { success: true, result });
       return result;
     } catch (error) {
-      console.error('[getTeamMembers] Error occurred:', {
-        userId,
-        error: error.message,
-        stack: error.stack,
-        data,
-      });
       return client.emit('errorMessage', {
         message: error.message || 'Failed to get team members',
       });
@@ -637,30 +551,20 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     @MessageBody() body: { subTopicId: string; difficulty?: string },
   ) {
     const userId = client.data.userId as string;
-    console.log('[teamMemberCreateGame] Event received:', {
-      userId,
-      body,
-      socketId: client.id,
-      timestamp: new Date().toISOString(),
-    });
 
     if (!userId) {
-      console.log('[teamMemberCreateGame] Error: Unauthorized - no userId');
       return client.emit('errorMessage', { message: 'Unauthorized' });
     }
 
     // Check if user is blocked
     const { isBlocked } = await this.checkUserIsBlocked(userId);
     if (isBlocked) {
-      console.log('[teamMemberCreateGame] Error: User account is blocked:', { userId });
       return client.emit('errorMessage', { message: 'Your account is blocked' });
     }
 
     // Check if user is online
     const isOnline = await this.checkUserIsOnline(userId);
-    console.log('[teamMemberCreateGame] User online status:', { userId, isOnline });
     if (!isOnline) {
-      console.log('[teamMemberCreateGame] Error: User is not online');
       return client.emit('errorMessage', {
         message: 'You must be online to play games. Please set your status to online.',
       });
@@ -669,13 +573,11 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     const user = await this.usersService.findById(userId);
 
     if (!user) {
-      console.log('[teamMemberCreateGame] Error: User not found:', { userId });
       return client.emit('errorMessage', { message: 'User not found' });
     }
 
     // Prevent duplicate game
     if (this.activeGames.has(userId)) {
-      console.log('[teamMemberCreateGame] Error: Game already in progress:', { userId });
       return client.emit('errorMessage', {
         message: 'Game already in progress',
       });
@@ -687,15 +589,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     };
 
     if (!subTopicId) {
-      console.log('[teamMemberCreateGame] Error: subTopicId is required');
       return client.emit('errorMessage', { message: 'subTopicId is required' });
     }
 
-    console.log('[teamMemberCreateGame] Creating single-player game:', {
-      userId,
-      subTopicId,
-      difficulty,
-    });
 
     try {
       const {
@@ -742,14 +638,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       };
       this.activeGames.set(userId, gameState);
 
-      console.log('[teamMemberCreateGame] Game created successfully:', {
-        gameId: gameState.gameId,
-        userId,
-        totalQuestions: questions.length,
-        lives: gameState.lives,
-        topicId,
-        subTopicId: normalizedSubTopicId,
-      });
 
       client.emit('gameStart', {
         gameId: gameState.gameId,
@@ -765,14 +653,7 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         coins: userCoins,
         questions,
       });
-      console.log('[teamMemberCreateGame] Game start event emitted');
     } catch (err) {
-      console.error('[teamMemberCreateGame] Error occurred:', {
-        userId,
-        error: err.message,
-        stack: err.stack,
-        body,
-      });
       client.emit('errorMessage', { message: 'Failed to start game' });
     }
   }
@@ -792,21 +673,13 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     },
   ) {
     const userId = client.data.userId;
-    console.log('[searchTeamMembersName] Event received:', {
-      userId,
-      data,
-      socketId: client.id,
-      timestamp: new Date().toISOString(),
-    });
 
     if (!userId) {
-      console.log('[searchTeamMembersName] Error: Unauthorized - no userId');
       return client.emit('errorMessage', { message: 'Unauthorized' });
     }
 
     const searchTerm = data?.name?.trim();
     if (!searchTerm) {
-      console.log('[searchTeamMembersName] Error: name is required for search');
       return client.emit('errorMessage', {
         message: 'name is required for search',
       });
@@ -821,12 +694,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       );
       client.emit('searchTeamMembersName', { success: true, users });
     } catch (error) {
-      console.error('[searchTeamMembersName] Error occurred:', {
-        userId,
-        error: error.message,
-        stack: error.stack,
-        data,
-      });
       client.emit('errorMessage', {
         message: error.message || 'Failed to search team members',
       });
@@ -843,21 +710,13 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     @MessageBody() data: { deckName: string; limit?: number },
   ) {
     const userId = client.data.userId;
-    console.log('[searchDeckName] Event received:', {
-      userId,
-      data,
-      socketId: client.id,
-      timestamp: new Date().toISOString(),
-    });
 
     if (!userId) {
-      console.log('[searchDeckName] Error: Unauthorized - no userId');
       return client.emit('errorMessage', { message: 'Unauthorized' });
     }
 
     const term = data?.deckName?.trim();
     if (!term) {
-      console.log('[searchDeckName] Error: deckName is required');
       return client.emit('errorMessage', {
         message: 'deckName is required',
       });
@@ -870,12 +729,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       );
       client.emit('searchDeckName', { success: true, decks });
     } catch (error) {
-      console.error('[searchDeckName] Error occurred:', {
-        userId,
-        error: error.message,
-        stack: error.stack,
-        data,
-      });
       client.emit('errorMessage', {
         message: error?.message || 'Failed to search decks',
       });
@@ -896,21 +749,13 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
   ) {
     const userId = client.data.userId;
     try {
-      console.log('[teamGameSendMessage] Event received:', {
-        userId,
-        data,
-        socketId: client.id,
-        timestamp: new Date().toISOString(),
-      });
 
       if (!userId) {
-        console.log('[teamGameSendMessage] Error: Unauthorized - no userId');
         return client.emit('errorMessage', { message: 'Unauthorized' });
       }
 
       const trimmedMessage = data?.message?.trim();
       if (!data?.gameId || !data?.teamId || !trimmedMessage) {
-        console.log('[teamGameSendMessage] Error: gameId, teamId and message are required');
         return client.emit('errorMessage', {
           message: 'gameId, teamId and message are required',
         });
@@ -943,7 +788,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       const normalizedInviterId = this.normalizeId(participants[0]);
       
       if (normalizedUserId === normalizedInviterId) {
-        console.log('[teamGameSendMessage] Error: Host cannot send messages');
         return client.emit('errorMessage', {
           message: 'Host can only view the game, not send messages',
         });
@@ -1056,12 +900,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Acknowledge sender
       client.emit('teamGameMessageSent', { success: true, message: payload });
     } catch (error) {
-      console.error('[teamGameSendMessage] Error occurred:', {
-        userId,
-        error: error.message,
-        stack: error.stack,
-        data,
-      });
       client.emit('errorMessage', {
         message: error?.message || 'Failed to send message',
       });
@@ -1081,28 +919,19 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
   ) {
     const inviterId = client.data.userId;
     try {
-      console.log('[inviteTeamUser] Event received:', {
-        inviterId,
-        data,
-        socketId: client.id,
-        timestamp: new Date().toISOString(),
-      });
 
       if (!inviterId) {
-        console.log('[inviteTeamUser] Error: Unauthorized - no inviterId');
         return client.emit('errorMessage', { message: 'Unauthorized' });
       }
 
       // Check if user is blocked
       const { isBlocked } = await this.checkUserIsBlocked(inviterId);
       if (isBlocked) {
-        console.log('[inviteTeamUser] Error: User account is blocked:', { inviterId });
         return client.emit('errorMessage', { message: 'Your account is blocked' });
       }
 
       const { teamId, mode } = data;
       if (!teamId || !Array.isArray(teamId) || teamId.length === 0) {
-        console.log('[inviteTeamUser] Error: teamId array is required and must not be empty');
         return client.emit('errorMessage', {
           message: 'teamId array is required and must not be empty',
         });
@@ -1111,7 +940,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Validate and normalize mode
       const validMode = mode && (mode === 'Regular' || mode === 'Knockout') ? mode : undefined;
       if (mode && !validMode) {
-        console.log('[inviteTeamUser] Warning: Invalid mode provided, ignoring:', { mode });
       }
       // Check if user has superAdmin or admin userType
       const inviter = await this.userModel.findById(inviterId).exec();
@@ -1141,12 +969,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       const existingRoomId = existingRoom?.roomId || undefined;
       const existingParticipants = existingRoom?.participants || [];
       
-      console.log('[inviteTeamUser] Room check:', {
-        hasExistingRoom: !!existingRoom,
-        existingRoomId,
-        existingParticipantsCount: existingParticipants.length,
-        existingParticipants,
-      });
 
       // Collect all team members from all teams - OPTIMIZED: Batch query instead of loop
       const allTeamMembersMap = new Map<string, TeamMemberLean>(); // Use Map to track unique members by ID
@@ -1217,12 +1039,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         ? allOnlineUserIds.filter((userId) => !existingParticipants.includes(userId))
         : allOnlineUserIds;
 
-      console.log('[inviteTeamUser] Invite filtering:', {
-        totalOnlineMembers: allOnlineUserIds.length,
-        alreadyInRoom: existingParticipants.length,
-        newUsersToInvite: newUserIdsToInvite.length,
-        newUserIds: newUserIdsToInvite,
-      });
 
       if (newUserIdsToInvite.length === 0) {
         return client.emit('errorMessage', {
@@ -1325,12 +1141,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         totalParticipants: existingRoom ? existingRoom.participants.length + newUserIdsToInvite.length : newUserIdsToInvite.length + 1, // +1 for inviter
       });
     } catch (error) {
-      console.error('[inviteTeamUser] Error occurred:', {
-        inviterId,
-        error: error.message,
-        stack: error.stack,
-        data,
-      });
       client.emit('errorMessage', {
         message: error?.message || 'Failed to send team invites',
       });
@@ -1349,15 +1159,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
   ) {
     const acceptorId = client.data.userId;
     try {
-      console.log('[acceptTeamInvite] Event received:', {
-        acceptorId,
-        data,
-        socketId: client.id,
-        timestamp: new Date().toISOString(),
-      });
 
       if (!acceptorId) {
-        console.log('[acceptTeamInvite] Error: Unauthorized - no acceptorId');
         return client.emit('errorMessage', { message: 'Unauthorized' });
       }
 
@@ -1509,14 +1312,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
             teamName: teamInfo?.teamName || undefined,
           });
 
-          console.log('[acceptTeamInvite] Participant details fetched:', {
-            userId: normalizedId,
-            name: userName,
-            hasProfileImage: !!userProfileImage,
-            isHost,
-            teamId: participantTeamId,
-            teamName: teamInfo?.teamName,
-          });
         } else {
           // Get team information even if user not found
           const participantTeamId = userTeamMap.get(normalizedId);
@@ -1544,11 +1339,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         acceptorName: acceptorName, // Add acceptor's name so inviter can see who accepted
         acceptorProfileImage: acceptorProfileImage, // Add acceptor's profile image so inviter can see who accepted
       };
-      console.log('[acceptTeamInvite] Emitting teamInviteAccepted to room:', {
-        roomId: room.roomId,
-        payload: inviteAcceptedPayload,
-        participants,
-      });
       // Emit to room, not globally - ensures only users in the room receive it
       this.server.to(room.roomId).emit('teamInviteAccepted', inviteAcceptedPayload);
 
@@ -1570,17 +1360,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
             acceptorName: acceptorName,
             acceptorProfileImage: acceptorProfileImage,
           };
-          console.log('[acceptTeamInvite] Emitting inviteTeamMemberAccepted to admin:', {
-            inviterId: normalizedInviterId,
-            acceptorId: normalizedAcceptorId,
-            payload: inviteTeamMemberAcceptedPayload,
-          });
           inviterSocket.emit('inviteTeamMemberAccepted', inviteTeamMemberAcceptedPayload);
         } else {
-          console.warn('[acceptTeamInvite] Inviter socket not found:', {
-            inviterId: normalizedInviterId,
-            availableSockets: Array.from(this.userSockets.keys()),
-          });
         }
       }
 
@@ -1670,22 +1451,9 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       if (topicName) {
         roomDetailsPayload.topicName = topicName;
       }
-      console.log('[acceptTeamInvite] Emitting roomDetails to room:', {
-        roomId: room.roomId,
-        payload: roomDetailsPayload,
-        participantCount: participantDetails.length,
-        teamMemberCounts,
-      });
       this.server.to(room.roomId).emit('roomDetails', roomDetailsPayload);
 
-      console.log('[acceptTeamInvite] Team invite accepted process completed successfully');
     } catch (error) {
-      console.error('[acceptTeamInvite] Error occurred:', {
-        acceptorId,
-        error: error.message,
-        stack: error.stack,
-        data,
-      });
       client.emit('errorMessage', {
         message: error?.message || 'Failed to accept team invite',
       });
@@ -1704,15 +1472,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
   ) {
     const userId = client.data.userId;
     try {
-      console.log('[cancelTeamInvite] Event received:', {
-        userId,
-        data,
-        socketId: client.id,
-        timestamp: new Date().toISOString(),
-      });
 
       if (!userId) {
-        console.log('[cancelTeamInvite] Error: Unauthorized - no userId');
         return client.emit('errorMessage', { message: 'Unauthorized' });
       }
       const result = await this.contentService.cancelInvite(userId, data);
@@ -1958,12 +1719,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         }
       }
     } catch (error) {
-      console.error('[cancelTeamInvite] Error occurred:', {
-        userId,
-        error: error.message,
-        stack: error.stack,
-        data,
-      });
       client.emit('errorMessage', {
         message: error?.message || 'Failed to cancel team invite',
       });
@@ -1982,15 +1737,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
   ) {
     try {
       const requesterId = client.data.userId;
-      console.log('[teamUserLeft] Event received:', {
-        requesterId,
-        data,
-        socketId: client.id,
-        timestamp: new Date().toISOString(),
-      });
 
       if (!requesterId) {
-        console.log('[teamUserLeft] Error: Unauthorized - no requesterId');
         return client.emit('errorMessage', { message: 'Unauthorized' });
       }
 
@@ -1999,12 +1747,10 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         this.normalizeId(data?.userId) || this.normalizeId(requesterId);
 
       if (!normalizedGameId) {
-        console.log('[teamUserLeft] Error: gameId is required');
         return client.emit('errorMessage', { message: 'gameId is required' });
       }
 
       if (!normalizedUserId) {
-        console.log('[teamUserLeft] Error: Invalid user');
         return client.emit('errorMessage', { message: 'Invalid user' });
       }
 
@@ -2085,10 +1831,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         }, 500);
       }
     } catch (error) {
-      console.error('[teamUserLeft] Error occurred:', {
-        error: error.message,
-        stack: error.stack,
-      });
       client.emit('errorMessage', {
         message: error?.message || 'Failed to handle team user left',
       });
@@ -2118,15 +1860,8 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
   ) {
     const userId = client.data.userId as string;
     try {
-      console.log('[teamCreateGame] Event received:', {
-        userId,
-        body,
-        socketId: client.id,
-        timestamp: new Date().toISOString(),
-      });
 
       if (!userId) {
-        console.log('[teamCreateGame] Error: Unauthorized - no userId');
         return client.emit('errorMessage', { message: 'Unauthorized' });
       }
 
@@ -2134,7 +1869,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       // Validate topicType and deckId
       if (topicType === 'selected' && !deckId) {
-        console.log('[teamCreateGame] Error: deckId is required when topicType is "selected"');
         return client.emit('errorMessage', {
           message: 'deckId is required when topicType is "selected"',
         });
@@ -2518,12 +2252,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Send first question to all players
       this.sendNextTeamQuestion(teamGameState);
     } catch (error) {
-      console.error('[teamCreateGame] Error occurred:', {
-        userId,
-        error: error.message,
-        stack: error.stack,
-        body,
-      });
       client.emit('errorMessage', {
         message: error?.message || 'Failed to create and start game',
       });
@@ -2572,10 +2300,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       // Timer removed - no auto-submit
     } catch (error) {
-      console.error('[sendNextTeamQuestion] Error occurred:', {
-        error: error.message,
-        stack: error.stack,
-      });
     }
   }
 
@@ -2591,49 +2315,27 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
   ) {
     const userId = client.data.userId;
     try {
-      console.log('[teamSubmitAnswer] Event received:', {
-        userId,
-        body,
-        socketId: client.id,
-        timestamp: new Date().toISOString(),
-      });
 
       if (!userId) {
-        console.log('[teamSubmitAnswer] Error: Unauthorized - no userId');
         return client.emit('errorMessage', { message: 'Unauthorized' });
       }
 
       // Check if user is online
       const isOnline = await this.checkUserIsOnline(userId);
-      console.log('[teamSubmitAnswer] User online status:', { userId, isOnline });
       if (!isOnline) {
-        console.log('[teamSubmitAnswer] Error: User is not online');
         return client.emit('errorMessage', {
           message: 'You must be online to submit answers. Please set your status to online.',
         });
       }
 
       const { answer, index, gameId, responstime } = body;
-    console.log('[teamSubmitAnswer] Processing answer:', {
-      userId,
-      index,
-      hasAnswer: !!answer,
-      gameId,
-      responstime,
-    });
 
     // Check if it's a team game
     if (gameId) {
-      console.log('[teamSubmitAnswer] Checking for team game:', { gameId });
       const room = this.contentService.getRoomByRoomId(gameId);
       if (room) {
         const teamGameState = this.teamGames.get(room.roomId);
         if (teamGameState) {
-          console.log('[teamSubmitAnswer] Handling team game answer:', {
-            userId,
-            gameId,
-            roomId: room.roomId,
-          });
           return this.handleTeamAnswer(
             client,
             teamGameState,
@@ -2647,21 +2349,14 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
 
     // Single player game
-    console.log('[teamSubmitAnswer] Handling single-player answer:', { userId });
     const gameState = this.activeGames.get(userId);
     if (!gameState) {
-      console.log('[teamSubmitAnswer] Error: No active game found:', { userId });
       return client.emit('errorMessage', { message: 'No active game' });
     }
 
     const currentIndex = gameState.currentIndex;
 
     if (Number(index) !== Number(currentIndex)) {
-      console.log('[teamSubmitAnswer] Error: Invalid question index:', {
-        userId,
-        providedIndex: index,
-        currentIndex,
-      });
       return client.emit('errorMessage', {
         message: 'Invalid question index',
       });
@@ -2674,13 +2369,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       currentQ.correctAnswer.trim().toLowerCase() ===
       answer.trim().toLowerCase();
     gameState.isCorrect = isCorrect;
-    console.log('[teamSubmitAnswer] Answer evaluated:', {
-      userId,
-      index: currentIndex,
-      isCorrect,
-      userAnswer: answer,
-      correctAnswer: currentQ.correctAnswer,
-    });
 
     gameState.answers.push({
       index: currentIndex,
@@ -2699,11 +2387,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
     
     if (isCorrect) {
       gameState.score++;
-      console.log('[teamSubmitAnswer] Correct answer, updating score:', {
-        userId,
-        newScore: gameState.score,
-        currentIndex,
-      });
 
       client.emit('answerResult', {
         correct: true,
@@ -2714,28 +2397,14 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       gameState.currentIndex++;
       if (gameState.currentIndex >= gameState.questions.length) {
-        console.log('[teamSubmitAnswer] All questions completed, ending game:', {
-          userId,
-          finalScore: gameState.score,
-        });
         return this.endGame(gameState);
       }
       this.sendNextQuestion(gameState);
     } else {
       // WRONG ANSWER
-      console.log('[teamSubmitAnswer] Wrong answer, handling:', {
-        userId,
-        currentIndex,
-      });
       await this.handleWrongAnswer(gameState, answer, client);
     }
     } catch (error) {
-      console.error('[teamSubmitAnswer] Error occurred:', {
-        userId,
-        error: error.message,
-        stack: error.stack,
-        body,
-      });
       client.emit('errorMessage', {
         message: error?.message || 'Failed to submit answer',
       });
@@ -3009,11 +2678,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         }, 1000);
       }
     } catch (error) {
-      console.error('[handleTeamAnswer] Error occurred:', {
-        userId,
-        error: error.message,
-        stack: error.stack,
-      });
       client.emit('errorMessage', {
         message: error?.message || 'Failed to process team answer',
       });
@@ -3209,10 +2873,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
         }
       }, 1000);
     } catch (error) {
-      console.error('[handleTeamQuestionTimeout] Error occurred:', {
-        error: error.message,
-        stack: error.stack,
-      });
     }
   }
 
@@ -3246,10 +2906,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       // Timer removed - no auto-submit
     } catch (error) {
-      console.error('[sendNextQuestion] Error occurred:', {
-        error: error.message,
-        stack: error.stack,
-      });
     }
   }
 
@@ -3282,7 +2938,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       const updatedUser = await this.usersService.decrementLife(userId, 1);
 
       if (!updatedUser) {
-        console.warn('User not found while decrementing life');
         return;
       }
 
@@ -3308,10 +2963,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       gameState.currentIndex++;
       setTimeout(() => this.sendNextQuestion(gameState), 700);
     } catch (error) {
-      console.error('[handleWrongAnswer] Error occurred:', {
-        error: error.message,
-        stack: error.stack,
-      });
     }
   }
 
@@ -3461,10 +3112,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       this.activeGames.delete(gameState.userId);
     } catch (error) {
-      console.error('[endGame] Error occurred:', {
-        error: error.message,
-        stack: error.stack,
-      });
     }
   }
 
@@ -4119,10 +3766,6 @@ export class TeamGameGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Clean up
       this.teamGames.delete(gameState.roomId);
     } catch (error) {
-      console.error('[endTeamGame] Error occurred:', {
-        error: error.message,
-        stack: error.stack,
-      });
     }
   }
 }

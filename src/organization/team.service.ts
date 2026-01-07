@@ -774,10 +774,7 @@ export class TeamService {
         subject,
         html: htmlContent,
       });
-
-      // console.log(`✅ Email sent to ${to}, Message ID: ${info.messageId}`);
     } catch (error) {
-      console.error(`❌ Failed to send email to ${to}:`, error.message || error);
       throw new Error('Failed to send email');
     }
   }
@@ -951,7 +948,6 @@ export class TeamService {
       await this.teamModel.findByIdAndUpdate(teamId, { memberCount: actualCount });
       return actualCount;
     } catch (error) {
-      console.error('Error syncing team member count:', error);
       return 0;
     }
   }
@@ -991,7 +987,6 @@ export class TeamService {
         }
       });
     } catch (error) {
-      console.error('Error fetching team members:', error);
       return [];
     }
   }
@@ -1573,7 +1568,6 @@ export class TeamService {
           html
         );
       } catch (err) {
-        console.error('Email sending failed:', err.message);
         return {
           email: memberEmail,
           message: 'Failed to send invitation email',
@@ -3300,7 +3294,6 @@ export class TeamService {
         allEntries,
       };
     } catch (error) {
-      console.error('Error calculating topic accuracy:', error);
       return {
         average: 0,
         flashcard: null,
@@ -3548,7 +3541,7 @@ export class TeamService {
                       }
                     ]);
                   } catch (err) {
-                    console.error('Error calculating points for members:', err);
+                    // Error calculating points for members
                   }
                 }
 
@@ -3589,7 +3582,6 @@ export class TeamService {
               }
             }
           } catch (err) {
-            console.error('Error calculating accuracy and rank:', err);
             userAccuracy = 0;
             userRank = null;
           }
@@ -3827,7 +3819,6 @@ export class TeamService {
                   ]);
                 } catch (err) {
                   // If aggregation fails, allPoints remains empty
-                  console.error('Error calculating points for members:', err);
                 }
               }
 
@@ -3871,7 +3862,6 @@ export class TeamService {
           }
         } catch (err) {
           // If calculation fails, use default values
-          console.error('Error calculating accuracy and rank:', err);
           userAccuracy = 0;
           userRank = null;
         }
@@ -3964,7 +3954,7 @@ export class TeamService {
             }
           ]);
         } catch (err) {
-          console.error('Error calculating points for members:', err);
+          // Error calculating points for members
         }
       }
 
@@ -4260,7 +4250,7 @@ export class TeamService {
             }
           ]);
         } catch (err) {
-          console.error('Error calculating points for members:', err);
+          // Error calculating points for members
         }
       }
 

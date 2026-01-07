@@ -115,7 +115,6 @@ export class TeamGameService {
 
       return this.normalizeId(deck?._id);
     } catch (error) {
-      console.error('Error in findDeckIdBySubTopicId:', error);
       throw error;
     }
   }
@@ -140,7 +139,6 @@ export class TeamGameService {
 
       return this.normalizeId(deck?._id);
     } catch (error) {
-      console.error('Error in findDeckIdByTopicId:', error);
       throw error;
     }
   }
@@ -222,7 +220,6 @@ export class TeamGameService {
         );
       }
     } catch (error) {
-      console.error('Error in upsertDeckAccuracy:', error);
       throw error;
     }
   }
@@ -239,7 +236,6 @@ export class TeamGameService {
     try {
       return await this.upsertDeckAccuracy(deckId, userId, accuracy, type);
     } catch (error) {
-      console.error('Error in recordDeckAccuracy:', error);
       throw error;
     }
   }
@@ -317,7 +313,6 @@ export class TeamGameService {
       // After updating subtopic, store the subtopic accuracy entry in the parent topic
       await this.updateTopicAccuracyFromSubTopic(normalizedSubTopicId, normalizedUserId, newAverage, newGamesPlayed, type);
     } catch (error) {
-      console.error('Error in recordSubTopicAccuracy:', error);
       throw error;
     }
   }
@@ -327,167 +322,6 @@ export class TeamGameService {
    * For flashcard: aggregates all subtopic accuracies (acc1 + acc2 + ... + accN) / N
    * For battle: stores without subtopicId (rolling average per user)
    */
-
-  
-  // private async updateTopicAccuracyFromSubTopic(
-  //   subTopicId: string,
-  //   userId: string,
-  //   accuracy: number,
-  //   gamesPlayed: number,
-  //   type: 'flashcard' | 'battle',
-  // ): Promise<void> {
-  //   try {
-  //     const normalizedSubTopicId = this.normalizeId(subTopicId);
-  //     const normalizedUserId = this.normalizeId(userId);
-
-  //     if (!normalizedSubTopicId || !normalizedUserId) {
-  //       return;
-  //     }
-
-  //     // Get the subtopic to find its topicId
-  //     const subTopic = await this.subTopicModel
-  //       .findById(normalizedSubTopicId)
-  //       .select('topicId')
-  //       .lean();
-
-  //     if (!subTopic || !subTopic.topicId) {
-  //       return;
-  //     }
-
-  //     const topicId = this.normalizeId(subTopic.topicId);
-  //     if (!topicId) {
-  //       return;
-  //     }
-
-  //     const arrayField =
-  //       type === 'flashcard' ? 'flashcardAccuracies' : 'battleAccuracies';
-
-  //     if (type === 'flashcard') {
-  //       // Flashcard: Aggregate all subtopic accuracies (acc1 + acc2 + ... + accN) / N
-  //       // OPTIMIZED: Fetch topic with both subTopics and accuracy array in single query
-  //       const topic = await this.topicModel
-  //         .findById(topicId)
-  //         .select(`subTopics ${arrayField}`)
-  //         .lean();
-
-  //       if (!topic || !topic.subTopics || topic.subTopics.length === 0) {
-  //         return;
-  //       }
-
-  //       // Get all subtopics for this topic
-  //       const subTopicIds = topic.subTopics.map((id) => this.normalizeId(id)).filter((id): id is string => !!id);
-
-  //       // Fetch all subtopics and collect their accuracies for this user
-  //       const subTopics = await this.subTopicModel
-  //         .find({ _id: { $in: subTopicIds } })
-  //         .select('flashcardAccuracies')
-  //         .lean();
-
-  //       // Collect all accuracies for this user from all subtopics
-  //       const accuracies: number[] = [];
-  //       subTopics.forEach((subTopic) => {
-  //         const subTopicTyped = subTopic as unknown as LeanSubTopic;
-  //         const entry = subTopicTyped.flashcardAccuracies?.find(
-  //           (entry: AccuracyEntry) => this.normalizeId(entry.userId) === normalizedUserId,
-  //         );
-  //         if (entry && typeof entry.accuracy === 'number') {
-  //           accuracies.push(entry.accuracy);
-  //         }
-  //       });
-
-  //       // Calculate average: (acc1 + acc2 + ... + accN) / N
-  //       let topicAccuracy = 0;
-  //       if (accuracies.length > 0) {
-  //         const sum = accuracies.reduce((a, b) => a + b, 0);
-  //         topicAccuracy = Math.round((sum / accuracies.length) * 100) / 100;
-  //       }
-
-  //       // OPTIMIZED: Use topic fetched above to check existing entry (no additional query needed)
-  //       const topicDocTyped = topic as unknown as LeanTopic;
-  //       const accuracyArray = topicDocTyped?.flashcardAccuracies;
-  //       const existingEntry = accuracyArray?.find(
-  //         (entry: AccuracyEntry) => this.normalizeId(entry.userId) === normalizedUserId,
-  //       );
-
-  //       if (existingEntry) {
-  //         // Update existing entry with aggregated average
-  //         await this.topicModel.updateOne(
-  //           {
-  //             _id: topicId,
-  //             [`${arrayField}.userId`]: normalizedUserId,
-  //           },
-  //           {
-  //             $set: {
-  //               [`${arrayField}.$.accuracy`]: topicAccuracy,
-  //               [`${arrayField}.$.gamesPlayed`]: accuracies.length,
-  //             },
-  //           },
-  //         );
-  //       } else {
-  //         // Create new entry with aggregated average
-  //         await this.topicModel.updateOne(
-  //           { _id: topicId },
-  //           {
-  //             $push: {
-  //               [arrayField]: {
-  //                 userId: normalizedUserId,
-  //                 accuracy: topicAccuracy,
-  //                 gamesPlayed: accuracies.length,
-  //               },
-  //             },
-  //           },
-  //         );
-  //       }
-  //     } else {
-  //       // Battle: Store without subtopicId (rolling average per user)
-  //       const topicDoc = await this.topicModel
-  //         .findById(topicId)
-  //         .select(arrayField)
-  //         .lean();
-
-  //       const topicDocTyped = topicDoc as unknown as LeanTopic;
-  //       const accuracyArray = arrayField === 'flashcardAccuracies' 
-  //         ? topicDocTyped?.flashcardAccuracies 
-  //         : topicDocTyped?.battleAccuracies;
-  //       const existingEntry = accuracyArray?.find(
-  //         (entry: AccuracyEntry) => this.normalizeId(entry.userId) === normalizedUserId,
-  //       );
-
-  //       if (existingEntry) {
-  //         // Update existing entry (rolling average)
-  //         await this.topicModel.updateOne(
-  //           {
-  //             _id: topicId,
-  //             [`${arrayField}.userId`]: normalizedUserId,
-  //           },
-  //           {
-  //             $set: {
-  //               [`${arrayField}.$.accuracy`]: accuracy,
-  //               [`${arrayField}.$.gamesPlayed`]: gamesPlayed,
-  //             },
-  //           },
-  //         );
-  //       } else {
-  //         // Create new entry without subtopicId
-  //         await this.topicModel.updateOne(
-  //           { _id: topicId },
-  //           {
-  //             $push: {
-  //               [arrayField]: {
-  //                 userId: normalizedUserId,
-  //                 accuracy,
-  //                 gamesPlayed,
-  //               },
-  //             },
-  //           },
-  //         );
-  //       }
-  //     }
-  //   } catch (error) {
-  //     // Non-blocking: log error but don't interrupt game completion
-  //     console.error('Failed to update topic accuracy from subtopic', error);
-  //   }
-  // }
 
   private async updateTopicAccuracyFromSubTopic(
     subTopicId: string,
@@ -682,8 +516,7 @@ export class TeamGameService {
         }
       }
     } catch (error) {
-      // Non-blocking: log error but don't interrupt game completion
-      console.error('Failed to update topic accuracy from subtopic', error);
+      // Non-blocking: don't interrupt game completion
     }
   }
 
@@ -747,7 +580,6 @@ export class TeamGameService {
 
       return updated as LeanUser | null;
     } catch (error) {
-      console.error('Error in updateTeamMemberOnlineStatus:', error);
       throw error;
     }
   }
@@ -825,7 +657,6 @@ export class TeamGameService {
         return bTime - aTime;
       });
     } catch (error) {
-      console.error('Error in getTeamMembers:', error);
       throw error;
     }
   }
@@ -920,7 +751,6 @@ export class TeamGameService {
         return (a.name || '').localeCompare(b.name || '');
       });
     } catch (error) {
-      console.error('Error in searchTeamMembersName:', error);
       throw error;
     }
   }
@@ -957,7 +787,6 @@ export class TeamGameService {
         .lean()
         .exec();
     } catch (error) {
-      console.error('Error in searchDeckName:', error);
       throw error;
     }
   }
@@ -1032,7 +861,6 @@ export class TeamGameService {
 
       return randomDeck;
     } catch (error) {
-      console.error('Error in getRandomDeck:', error);
       throw error;
     }
   }
@@ -1044,128 +872,6 @@ export class TeamGameService {
    * @param inviterId Optional inviter/admin ID to exclude from team validation
    * @returns Object with validation result and team grouping info
    */
-
-
-  // async validateTeamBasedAcceptance(
-  //   participants: string[],
-  //   inviterId?: string,
-  // ): Promise<{
-  //   isValid: boolean;
-  //   errorMessage?: string;
-  //   teams: Map<string, string[]>; // teamId -> participantIds
-  //   teamAcceptanceCounts: Map<string, number>; // teamId -> accepted count
-  // }> {
-  //   try {
-  //     const teams = new Map<string, string[]>();
-  //     const teamAcceptanceCounts = new Map<string, number>();
-
-  //     // Get team memberships for all participants
-  //     // Exclude inviter (admin) from validation - they can only view, not play
-  //     const normalizedInviterId = inviterId ? this.normalizeId(inviterId) : null;
-  //     const normalizedParticipants = participants
-  //       .map((p) => this.normalizeId(p))
-  //       .filter((id): id is string => id !== null && id !== normalizedInviterId);
-
-  //     // Find team memberships for all participants
-  //     const teamMembers = await this.teamMemberModel
-  //       .find({
-  //         user: { $in: normalizedParticipants },
-  //         status: 'approved', // Only approved team members
-  //       })
-  //       .lean()
-  //       .exec();
-
-  //     // Get team details separately
-  //     const teamIds = teamMembers
-  //       .map((tm) => this.normalizeId(tm.team))
-  //       .filter((id): id is string => id !== null);
-      
-  //     const teamDetailsMap = new Map<string, LeanTeam>();
-  //     if (teamIds.length > 0) {
-  //       const teamsData = await this.teamModel
-  //         .find({ _id: { $in: teamIds } })
-  //         .select('_id teamName')
-  //         .lean()
-  //         .exec();
-  //       teamsData.forEach((team) => {
-  //         const teamId = this.normalizeId(team._id);
-  //         if (teamId) {
-  //           teamDetailsMap.set(teamId, team as unknown as LeanTeam);
-  //         }
-  //       });
-  //     }
-
-  //     // Group participants by team
-  //     for (const participantId of normalizedParticipants) {
-  //       const teamMember = teamMembers.find(
-  //         (tm) => this.normalizeId(tm.user) === participantId,
-  //       );
-
-  //       if (teamMember) {
-  //         const teamId = this.normalizeId(teamMember.team);
-  //         if (teamId) {
-  //           if (!teams.has(teamId)) {
-  //             teams.set(teamId, []);
-  //           }
-  //           teams.get(teamId)!.push(participantId);
-  //         }
-  //       } else {
-  //         // Participant is not in any team - create a "no-team" group
-  //         const noTeamId = 'no-team';
-  //         if (!teams.has(noTeamId)) {
-  //           teams.set(noTeamId, []);
-  //         }
-  //         teams.get(noTeamId)!.push(participantId);
-  //       }
-  //     }
-
-  //     // Count accepted players per team (all participants are considered accepted since they're in the room)
-  //     for (const [teamId, teamParticipants] of teams.entries()) {
-  //       teamAcceptanceCounts.set(teamId, teamParticipants.length);
-  //     }
-
-  //     // Validate number of teams (must be 2 or 3)
-  //     const teamCount = teams.size;
-  //     if (teamCount !== 2 && teamCount !== 3) {
-  //       return {
-  //         isValid: false,
-  //         errorMessage: `Game requires exactly 2 or 3 teams. Found ${teamCount} teams.`,
-  //         teams,
-  //         teamAcceptanceCounts,
-  //       };
-  //     }
-
-  //     // Validate all teams have equal accepted players
-  //     const acceptanceCounts = Array.from(teamAcceptanceCounts.values());
-  //     const firstCount = acceptanceCounts[0];
-  //     const allEqual = acceptanceCounts.every((count) => count === firstCount);
-
-  //     if (!allEqual) {
-  //       const teamCountsStr = Array.from(teamAcceptanceCounts.entries())
-  //         .map(([teamId, count]) => {
-  //           const teamDetails = teamDetailsMap.get(teamId);
-  //           const teamName = teamDetails?.teamName || teamId;
-  //           return `${teamName}: ${count}`;
-  //         })
-  //         .join(', ');
-  //       return {
-  //         isValid: false,
-  //         errorMessage: `All teams must have equal number of accepted players. Current counts: ${teamCountsStr}`,
-  //         teams,
-  //         teamAcceptanceCounts,
-  //       };
-  //     }
-
-  //     return {
-  //       isValid: true,
-  //       teams,
-  //       teamAcceptanceCounts,
-  //     };
-  //   } catch (error) {
-  //     console.error('Error in validateTeamBasedAcceptance:', error);
-  //     throw error;
-  //   }
-  // }
 
    async validateTeamBasedAcceptance(
     participants: string[],
@@ -1309,7 +1015,6 @@ export class TeamGameService {
         teamAcceptanceCounts,
       };
     } catch (error) {
-      console.error('Error in validateTeamBasedAcceptance:', error);
       throw error;
     }
   }
@@ -1365,7 +1070,7 @@ export class TeamGameService {
           organizationId = this.normalizeId(user.organization) || undefined;
         }
       } catch (error) {
-        console.warn('Failed to get user organization for deck validation:', error);
+        // Failed to get user organization for deck validation
       }
 
       // Verify deck is created by organization's admin/superAdmin
@@ -1572,7 +1277,6 @@ export class TeamGameService {
         subTopicId: selectedSubTopicId,
       };
     } catch (error) {
-      console.error('Error in createTeamGame:', error);
       throw error;
     }
   }
@@ -1606,7 +1310,6 @@ export class TeamGameService {
         difficulty,
       );
     } catch (error) {
-      console.error('Error in teamMemberCreateGame:', error);
       throw error;
     }
   }
@@ -1653,7 +1356,6 @@ export class TeamGameService {
         removedUserId: normalizedUserId,
       };
     } catch (error) {
-      console.error('Error in removePlayerFromGame:', error);
       throw error;
     }
   }
@@ -1727,11 +1429,7 @@ export class TeamGameService {
           },
         );
       } catch (error) {
-        // Non-blocking: log for observability
-        console.warn('Failed to append chat message to game', {
-          gameId: normalizedGameId,
-          error,
-        });
+        // Non-blocking: failed to append chat message to game
       }
 
       const createdObj = created.toObject() as TeamGameChatDocument & { createdAt?: Date };
@@ -1749,7 +1447,6 @@ export class TeamGameService {
         createdAt,
       };
     } catch (error) {
-      console.error('Error in addTeamGameChatMessage:', error);
       throw error;
     }
   }
@@ -1783,7 +1480,6 @@ export class TeamGameService {
 
       return updatedTeam;
     } catch (error) {
-      console.error('Error in incrementTeamPoints:', error);
       throw error;
     }
   }
@@ -1856,7 +1552,6 @@ export class TeamGameService {
         { upsert: false },
       );
     } catch (error) {
-      console.error('Error in refreshMemberAccuracies:', error);
       throw error;
     }
   }
@@ -1921,7 +1616,6 @@ export class TeamGameService {
         { upsert: true },
       );
     } catch (error) {
-      console.error('Error in recordBattleAccuracyAndPoints:', error);
       throw error;
     }
   }

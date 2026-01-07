@@ -45,7 +45,6 @@ export class FileTextExtractionService {
           ? await this.extractFromPdf(filePath)
           : await this.extractWithTextract(filePath);
     } catch (error) {
-      console.error('❌ Failed to extract text from file:', filePath, error);
       throw new InternalServerErrorException(
         'Unable to read text from uploaded file',
       );
