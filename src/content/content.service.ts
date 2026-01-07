@@ -9,7 +9,7 @@ import { CreateContentDto } from './dto/create-content.dto';
 import { UpdateContentDto } from './dto/update-content.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Game } from './schemas/game.schema';
-import { FilterQuery, Model, Types } from 'mongoose';
+import { Document, FilterQuery, Model, Types } from 'mongoose';
 import { SubTopic, SubTopicDocument } from './schemas/subtopic.schema';
 import { Topic, TopicDocument } from './schemas/topic.schema';
 import { DeckAIService } from './deck-ai.service';
@@ -45,6 +45,7 @@ type LeanTopic = Omit<Topic, keyof Document | 'userPercentages'> & { _id: Types.
 type LeanSubTopic = Omit<SubTopic, keyof Document | 'userPercentages'> & { _id: Types.ObjectId; userPercentages?: Record<string, number> };
 type LeanDeck = Omit<Deck, keyof Document> & { _id: Types.ObjectId };
 type LeanGameProgress = Omit<GameProgress, keyof Document> & { _id: Types.ObjectId };
+type LeanTopicProgress = Omit<TopicProgress, keyof Document> & { _id: Types.ObjectId };
 
 type ContentFilters = {
   userId?: string;
@@ -1434,17 +1435,17 @@ export class ContentService {
     .exec();
 
   // 6️⃣ Create lookup maps
-  const topicsMap = new Map<string, any>(
+  const topicsMap = new Map<string, LeanTopic>(
     allTopics.map(topic => [
       this.normalizeId(topic._id) as string,
-      topic,
+      topic as unknown as LeanTopic,
     ]),
   );
 
-  const progressMap = new Map<string, any>(
+  const progressMap = new Map<string, LeanTopicProgress>(
     allTopicProgressRecords.map(progress => [
       this.normalizeId(progress.topicId) as string,
-      progress,
+      progress as unknown as LeanTopicProgress,
     ]),
   );
 
@@ -1463,7 +1464,7 @@ export class ContentService {
     // 8️⃣ Get topics from map
     const topics = topicIds
       .map(id => topicsMap.get(id))
-      .filter(Boolean);
+      .filter((topic): topic is LeanTopic => topic !== undefined);
 
     // 9️⃣ Collect all subtopic IDs using flatMap (no loop needed)
     const allSubTopicIds: string[] = topics
@@ -1481,7 +1482,7 @@ export class ContentService {
     const completedSubTopicIdsSet = new Set<string>(
       topicIds
         .map(id => progressMap.get(id))
-        .filter(Boolean)
+        .filter((progress): progress is LeanTopicProgress => progress !== undefined)
         .flatMap(progress => (progress.completedSubTopicIds || []))
         .map(id => this.normalizeId(id))
         .filter((id): id is string => !!id)
@@ -1669,6 +1670,28 @@ export class ContentService {
       }
     });
 
+    // Fetch topic progress records if userId is provided (for percentage calculation)
+    let progressMap = new Map<string, LeanTopicProgress>();
+    if (userId) {
+      const normalizedUserId = this.normalizeId(userId);
+      if (normalizedUserId && allTopicIds.length > 0) {
+        const allTopicProgressRecords = await this.topicProgressModel
+          .find({
+            userId: normalizedUserId,
+            topicId: { $in: allTopicIds },
+          })
+          .lean()
+          .exec();
+
+        progressMap = new Map<string, LeanTopicProgress>(
+          allTopicProgressRecords.map((progress) => [
+            this.normalizeId(progress.topicId) as string,
+            progress as unknown as LeanTopicProgress,
+          ]),
+        );
+      }
+    }
+
     // Populate decks with user name and full topic/subtopic data
     const populatedDecks = decks.map((deck) => {
       const deckUserId = this.normalizeId(deck.userId);
@@ -1699,6 +1722,57 @@ export class ContentService {
         })
         .filter((topic): topic is LeanTopic & { subTopics: LeanSubTopic[] } => topic !== null);
 
+      // Calculate deckPercentage if userId is provided
+      let deckPercentage: number | null = null;
+      if (userId) {
+        const normalizedUserId = this.normalizeId(userId);
+        if (normalizedUserId) {
+          const topicIds = (deck.contentIds || [])
+            .map((id) => this.normalizeId(id))
+            .filter((id): id is string => !!id);
+
+          if (topicIds.length > 0) {
+            // Get topics from map
+            const deckTopics = topicIds
+              .map((id) => topicMap.get(id))
+              .filter((topic): topic is LeanTopic => topic !== undefined);
+
+            // Collect all subtopic IDs from deck topics
+            const allSubTopicIds: string[] = deckTopics
+              .flatMap((topic) => topic.subTopics || [])
+              .map((id) => this.normalizeId(id))
+              .filter((id): id is string => !!id);
+
+            const totalSubTopics = allSubTopicIds.length;
+
+            if (totalSubTopics > 0) {
+              // Collect completed subtopics from progress records
+              const completedSubTopicIdsSet = new Set<string>(
+                topicIds
+                  .map((id) => progressMap.get(id))
+                  .filter((progress): progress is LeanTopicProgress => progress !== undefined)
+                  .flatMap((progress) => progress.completedSubTopicIds || [])
+                  .map((id) => this.normalizeId(id))
+                  .filter((id): id is string => !!id),
+              );
+
+              // Count completed subtopics only from deck
+              const completedInDeck = Array.from(completedSubTopicIdsSet).filter(
+                (id) => allSubTopicIds.includes(id),
+              );
+
+              deckPercentage = Math.round(
+                (completedInDeck.length / totalSubTopics) * 100,
+              );
+            } else {
+              deckPercentage = 0;
+            }
+          } else {
+            deckPercentage = 0;
+          }
+        }
+      }
+
       return {
         ...deck,
         userName: user?.name || null,
@@ -1706,6 +1780,7 @@ export class ContentService {
         userAvatar: user?.avatarId || null,
         userPurchasedAvatarId: user?.purchasedAvatars || null,
         topics: populatedTopics,
+        deckPercentage,
       };
     });
 
@@ -1728,7 +1803,7 @@ export class ContentService {
     inviterId: string,
     data: InviteUserPayload,
   ) {
-    // await this.assertIndividualUser(inviterId);
+    await this.assertIndividualUser(inviterId);
     
     const normalizedInviterId = this.normalizeId(inviterId);
 
@@ -1912,7 +1987,7 @@ export class ContentService {
     acceptorId: string,
     data: AcceptInvitePayload,
   ) {
-    // await this.assertIndividualUser(acceptorId);
+    await this.assertIndividualUser(acceptorId);
     
     const normalizedAcceptorId = this.normalizeId(acceptorId);
     
@@ -2250,7 +2325,7 @@ export class ContentService {
   }
 
   async removeUserFromRoom(requesterId: string, targetUserId: string) {
-    // await this.assertIndividualUser(requesterId);
+    await this.assertIndividualUser(requesterId);
     
     const normalizedRequesterId = this.normalizeId(requesterId);
     const normalizedTargetUserId = this.normalizeId(targetUserId);
