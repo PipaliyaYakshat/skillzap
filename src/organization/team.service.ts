@@ -42,7 +42,7 @@ import {
 } from '../content/schemas/topic-progress.schema';
 import { Game, GameDocument } from '../content/schemas/game.schema';
 import { TeamMemberDocument } from './entities/team-member.entity';
-import { USER_ROLE, USER_TYPE, STATUS_UPDATE } from 'src/common/enum';
+import { USER_ROLE, USER_TYPE, STATUS_UPDATE, GAME_TYPE_VALUES, GAME_MODE_VALUES } from 'src/common/enum';
 
 // Type interfaces for proper typing (using type aliases to avoid conflicts)
 type UserWithTeamPlan = UserDocument & {
@@ -196,7 +196,7 @@ type GameProgressLean = {
 type MemberResult = {
   email: string;
   message: string;
-  status: 'approved' | 'pending' | 'failed' | 'skipped';
+  status: typeof STATUS_UPDATE[3] | typeof STATUS_UPDATE[0] | 'failed' | 'skipped';
   user?: {
     id: string | Types.ObjectId;
     email?: string;
@@ -726,19 +726,19 @@ export class TeamService {
       // Treat explicit teamPlan=enterprise as enterprise access even if no active subscription dates are present.
       const planName = subscriptionPlan?.name?.toLowerCase();
       const isEnterprisePlan =
-        planName === 'enterprise' ||
-        userTeamPlan === 'enterprise' ||
-        (hasActivePlan && planName === 'enterprise') ||
-        (hasActivePlan && userTeamPlan === 'enterprise');
+        planName === USER_TYPE[4] ||
+        userTeamPlan === USER_TYPE[4] ||
+        (hasActivePlan && planName === USER_TYPE[4]) ||
+        (hasActivePlan && userTeamPlan === USER_TYPE[4]);
       const enforceAdminLimit = !isEnterprisePlan;
 
       // If an active plan exists and is not Team/Enterprise and userTeamPlan is not enterprise, block
-      const allowedPlanNames = ['team', 'enterprise'];
+      const allowedPlanNames = ['team', USER_TYPE[4]];
       if (
         subscriptionPlan &&
         hasActivePlan &&
         !allowedPlanNames.includes(planName || '') &&
-        userTeamPlan !== 'enterprise'
+        userTeamPlan !== USER_TYPE[4]
       ) {
         throw new ForbiddenException(
           'Only Team or Enterprise plans can invite admins.',
@@ -1228,7 +1228,7 @@ export class TeamService {
         ? String(ownerWithTeamPlan.teamPlan).toLowerCase()
         : null;
       const isEnterprisePlan =
-        planName === 'enterprise' || userTeamPlan === 'enterprise';
+        planName === USER_TYPE[4] || userTeamPlan === USER_TYPE[4];
 
       if (!allowedPlans.includes(subscriptionPlan.name)) {
         throw new ForbiddenException(
@@ -1899,7 +1899,7 @@ export class TeamService {
 
         const planName = subscriptionPlan?.name?.toLowerCase() || '';
         allowUnlimitedMembers =
-          planName === 'enterprise' || userTeamPlan === 'enterprise';
+          planName === USER_TYPE[4] || userTeamPlan === USER_TYPE[4];
       } catch (err) {
         allowUnlimitedMembers = false;
       }
@@ -2400,7 +2400,7 @@ export class TeamService {
 
         const planName = subscriptionPlan?.name?.toLowerCase() || '';
         allowUnlimitedMembers =
-          planName === 'enterprise' || userTeamPlan === 'enterprise';
+          planName === USER_TYPE[4] || userTeamPlan === USER_TYPE[4];
       } catch (err) {
         // If there's any error checking subscription, default to limited members
         allowUnlimitedMembers = false;
@@ -3551,7 +3551,7 @@ export class TeamService {
       // Query flashcard games (type='single' for single player flashcard games)
       const flashcardGames = await this.gameModel
         .find({
-          type: 'single',
+          type: GAME_TYPE_VALUES[0],
           subTopicId: { $in: subtopicIds },
           players: normalizedUserId,
           isCompleted: true,
@@ -3563,8 +3563,8 @@ export class TeamService {
       // Query battle games (type='multiplayer' with gameMode for battle games)
       const battleGames = await this.gameModel
         .find({
-          type: 'multiplayer',
-          gameMode: { $in: ['duel', 'brawl', 'team'] },
+          type: GAME_TYPE_VALUES[1],
+          gameMode: { $in: [GAME_MODE_VALUES[0], GAME_MODE_VALUES[1], GAME_MODE_VALUES[2]] },
           subTopicId: { $in: subtopicIds },
           players: normalizedUserId,
           isCompleted: true,

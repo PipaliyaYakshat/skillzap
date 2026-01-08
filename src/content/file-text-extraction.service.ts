@@ -6,6 +6,7 @@ import {
 import { promises as fsPromises } from 'fs';
 import { extname } from 'path';
 import textract from 'textract';
+import { CONTENT_TYPE_VALUES } from 'src/common/enum';
 
 type ExtractTextOptions = {
   filePath: string;
@@ -41,7 +42,7 @@ export class FileTextExtractionService {
     let rawText = '';
     try {
       rawText =
-        typeHint === 'pdf'
+        typeHint === CONTENT_TYPE_VALUES[0]
           ? await this.extractFromPdf(filePath)
           : await this.extractWithTextract(filePath);
     } catch (error) {

@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { STATUS_UPDATE, ContentType, ProcessingStatus } from 'src/common/enum';
+import { STATUS_UPDATE, ContentType, ProcessingStatus, PROCESSING_STATUS_ARRAY } from 'src/common/enum';
 
 export type ContentDocument = Content & Document;
 
@@ -48,7 +48,7 @@ export class Content {
 
   @Prop({
     enum: Object.values(ProcessingStatus),
-    default: ProcessingStatus.PENDING,
+    default: PROCESSING_STATUS_ARRAY[0],
   })
   processingStatus: string;
 

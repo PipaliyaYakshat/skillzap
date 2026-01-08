@@ -15,7 +15,7 @@ import { Question } from './interfaces/question.interface';
 import { FileTextExtractionService } from './file-text-extraction.service';
 import { promises as fsPromises } from 'fs';
 import { extname, isAbsolute } from 'path';
-import { STATUS_UPDATE } from 'src/common/enum';
+import { STATUS_UPDATE, DIFFICULTY_VALUES } from 'src/common/enum';
 
 type GeneratedSubTopic = {
   title?: string;
@@ -300,7 +300,7 @@ CATEGORY: "${category}"
   async generateMCQQuestions(
     topicTitle: string,
     topicDescription: string,
-    difficulty?: 'easy' | 'medium' | 'hard',
+    difficulty?: typeof DIFFICULTY_VALUES[0] | typeof DIFFICULTY_VALUES[1] | typeof DIFFICULTY_VALUES[2],
   ): Promise<Question[]> {
     const sourceForLang = `${topicTitle}\n\n${topicDescription}`.slice(0, 3000);
     const detectedLanguage = await this.detectLanguage(sourceForLang);

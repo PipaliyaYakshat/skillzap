@@ -40,7 +40,7 @@ import {
   TeamGameChat,
   TeamGameChatDocument,
 } from './entities/teamgame-chat.entity';
-import { USER_TYPE, STATUS_UPDATE } from 'src/common/enum';
+import { USER_TYPE, STATUS_UPDATE, GAME_TYPE_VALUES, GAME_MODE_VALUES, DIFFICULTY_VALUES } from 'src/common/enum';
 
 // Helper types for lean document results
 type LeanDeck = Omit<Deck, keyof Document> & {
@@ -1362,11 +1362,11 @@ export class TeamGameService {
 
       await this.gameModel.create({
         gameId,
-        type: 'multiplayer',
-        gameMode: 'team',
+        type: GAME_TYPE_VALUES[1],
+        gameMode: GAME_MODE_VALUES[2],
         players: gamePlayers,
         subTopicId: selectedSubTopicId,
-        difficulty: 'medium', // Default difficulty, can be made configurable
+        difficulty: DIFFICULTY_VALUES[1], // Default difficulty, can be made configurable
         deckSelectionMethod: topicType,
         selectedDeckId: normalizedDeckId || undefined,
         questions: [], // Questions will be generated when game starts
@@ -1398,7 +1398,7 @@ export class TeamGameService {
   async teamMemberCreateGame(
     userId: string,
     subTopicId: string,
-    difficulty: 'easy' | 'medium' | 'hard',
+    difficulty: typeof DIFFICULTY_VALUES[0] | typeof DIFFICULTY_VALUES[1] | typeof DIFFICULTY_VALUES[2],
   ): Promise<{
     gameId: string;
     questions: Question[];
@@ -1643,9 +1643,9 @@ export class TeamGameService {
           return;
         }
 
-        if (game.type === 'single') {
+        if (game.type === GAME_TYPE_VALUES[0]) {
           flashcardAccuracies.push(accuracy);
-        } else if (game.gameMode === 'team') {
+        } else if (game.gameMode === GAME_MODE_VALUES[2]) {
           battleAccuracies.push(accuracy);
         }
       });

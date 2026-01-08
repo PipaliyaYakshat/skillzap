@@ -16,9 +16,9 @@ import { UseFilters } from '@nestjs/common';
 import { CustomWsExceptionFilter } from 'src/common/CustomWsExceptionFilter';
 import { randomUUID } from 'crypto';
 import { Types } from 'mongoose';
-import { USER_TYPE } from 'src/common/enum';
+import { USER_TYPE, DIFFICULTY_VALUES, GAME_MODE_VALUES } from 'src/common/enum';
 
-type Difficulty = 'easy' | 'medium' | 'hard';
+type Difficulty = typeof DIFFICULTY_VALUES[0] | typeof DIFFICULTY_VALUES[1] | typeof DIFFICULTY_VALUES[2];
 
 type Question = {
   question: string;
@@ -128,12 +128,12 @@ interface GameLean {
   metadata?: GameMetadata | unknown;
   eliminatedPlayers?: Array<Types.ObjectId | string>;
   round?: number;
-  gameMode?: 'team' | 'duel' | 'brawl' | 'DUEL' | 'BRAWL';
+  gameMode?: typeof GAME_MODE_VALUES[2] | typeof GAME_MODE_VALUES[0] | typeof GAME_MODE_VALUES[1] | 'DUEL' | 'BRAWL';
   deckSelectionMethod?: 'random' | 'selected';
   selectedDeckId?: string;
   players?: Array<string | Types.ObjectId>;
   subTopicId?: string;
-  difficulty?: 'easy' | 'medium' | 'hard';
+  difficulty?: typeof DIFFICULTY_VALUES[0] | typeof DIFFICULTY_VALUES[1] | typeof DIFFICULTY_VALUES[2];
   gameStarted?: boolean;
   startTime?: Date;
   currentQuestion?: number;
@@ -394,7 +394,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 .exec();
 
               if (game) {
-                const isBrawlMode = game.gameMode === 'brawl';
+                const isBrawlMode = game.gameMode === GAME_MODE_VALUES[1];
                 const remainingPlayers = multiplayerState.players.filter(
                   (p) => this.normalizeId(p) !== normalizedUserId,
                 );
@@ -560,7 +560,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
     }
 
-    const { subTopicId, difficulty = 'easy' } = body as {
+    const { subTopicId, difficulty = DIFFICULTY_VALUES[0] } = body as {
       subTopicId: string;
       difficulty?: Difficulty;
     };
@@ -836,7 +836,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const questions = await aiService.generateMCQQuestions(
         subTopic.title,
         subTopic.description,
-        game.difficulty || 'medium',
+        game.difficulty || DIFFICULTY_VALUES[1],
       );
 
       if (!Array.isArray(questions) || questions.length === 0) {
@@ -1309,7 +1309,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const questions = await aiService.generateMCQQuestions(
         newSubTopic.title,
         newSubTopic.description,
-        newGame.difficulty || 'medium',
+        newGame.difficulty || DIFFICULTY_VALUES[1],
       );
 
       if (!Array.isArray(questions) || questions.length === 0) {
@@ -1632,7 +1632,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const questions = await aiService.generateMCQQuestions(
         mpSubTopic.title,
         mpSubTopic.description,
-        game.difficulty || 'medium',
+        game.difficulty || DIFFICULTY_VALUES[1],
       );
 
       if (!Array.isArray(questions) || questions.length === 0) {
@@ -3130,7 +3130,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             const questions = await aiService.generateMCQQuestions(
               subTopic.title,
               subTopic.description,
-              game.difficulty || 'medium',
+              game.difficulty || DIFFICULTY_VALUES[1],
             );
 
             if (!Array.isArray(questions) || questions.length === 0) {

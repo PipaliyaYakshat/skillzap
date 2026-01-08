@@ -374,7 +374,7 @@ export class AdminService {
           password: hashedPassword,
           role: USER_ROLE[1],
           userType: USER_TYPE[1],
-          teamPlan: 'enterprise',
+          teamPlan: USER_TYPE[4],
           isActive: true,
           isRegister: true,
         };
@@ -499,7 +499,7 @@ export class AdminService {
     return decks;
   }
 
-  async approvePublicRequest(deckId: string, status: 'approve' | 'reject') {
+  async approvePublicRequest(deckId: string, status: typeof STATUS_UPDATE[1] | typeof STATUS_UPDATE[2]) {
     if (!deckId) {
       throw new BadRequestException('Deck ID is required');
     }
@@ -598,7 +598,7 @@ export class AdminService {
     query: {
       page?: number;
       limit?: number;
-      status?: 'approved' | 'pending';
+      status?: typeof STATUS_UPDATE[3] | typeof STATUS_UPDATE[0];
     } = {},
   ) {
     try {

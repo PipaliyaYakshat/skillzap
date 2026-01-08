@@ -28,7 +28,7 @@ import { DeviceAccessService } from './device-access.service';
 import { Question } from './interfaces/question.interface';
 import { getUploadBasePath } from '../common/multer.service';
 import { extname } from 'path';
-import { USER_TYPE, STATUS_UPDATE, ProcessingStatus, ContentType } from 'src/common/enum';
+import { USER_TYPE, STATUS_UPDATE, ProcessingStatus, ContentType, GAME_TYPE_VALUES, GAME_MODE_VALUES, DIFFICULTY_VALUES, PROCESSING_STATUS_ARRAY, CONTENT_TYPE_VALUES } from 'src/common/enum';
 import { Deck, DeckDocument } from './schemas/deck.schema';
 import { User, UserDocument } from '../users/entities/user.entity';
 import { UpdateQuery } from 'mongoose';
@@ -547,7 +547,7 @@ export class ContentService {
   async singlePlayCreateGame(
     userId: string,
     subTopicId: string,
-    difficulty: 'easy' | 'medium' | 'hard',
+    difficulty: typeof DIFFICULTY_VALUES[0] | typeof DIFFICULTY_VALUES[1] | typeof DIFFICULTY_VALUES[2],
   ): Promise<{
     gameId: string;
     questions: Question[];
@@ -603,7 +603,7 @@ export class ContentService {
     // Save Game
     await this.gameModel.create({
       gameId,
-      type: 'single',
+      type: GAME_TYPE_VALUES[0],
       players: [],
       difficulty,
       subTopicId: normalizedSubTopicId,
@@ -637,7 +637,7 @@ export class ContentService {
 
     const content = await this.contentModel.create({
       ...createContentDto,
-      processingStatus: createContentDto.processingStatus ?? ProcessingStatus.PENDING,
+      processingStatus: createContentDto.processingStatus ?? PROCESSING_STATUS_ARRAY[0],
       isProcessed: createContentDto.isProcessed ?? false,
       isProcessing: createContentDto.isProcessing ?? false,
     });
@@ -687,7 +687,7 @@ export class ContentService {
       contentName: file.originalname,
       filePath: file.path,
       fileUrl,
-      processingStatus: ProcessingStatus.PENDING,
+      processingStatus: PROCESSING_STATUS_ARRAY[0],
       isProcessed: false,
       isProcessing: false,
     });
@@ -2765,11 +2765,11 @@ export class ContentService {
 
     await this.gameModel.create({
       gameId,
-      type: 'multiplayer',
-      gameMode: mode.toLowerCase() as 'duel' | 'brawl',
+      type: GAME_TYPE_VALUES[1],
+      gameMode: mode.toLowerCase() as typeof GAME_MODE_VALUES[0] | typeof GAME_MODE_VALUES[1],
       players: gamePlayers,
       subTopicId: selectedSubTopicId,
-      difficulty: 'medium', // Default difficulty, can be made configurable
+      difficulty: DIFFICULTY_VALUES[1], // Default difficulty, can be made configurable
       deckSelectionMethod: topicType,
       selectedDeckId: normalizedDeckId || undefined,
       questions: [], // Questions will be generated when game starts

@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
+import { DIFFICULTY_VALUES } from 'src/common/enum';
 
 export type SubTopicDocument = SubTopic & Document;
 
@@ -24,7 +25,7 @@ export class SubTopic {
   questions: Array<{
     question: string;
     answer: string;
-    difficulty: 'easy' | 'medium' | 'hard';
+    difficulty: typeof DIFFICULTY_VALUES[0] | typeof DIFFICULTY_VALUES[1] | typeof DIFFICULTY_VALUES[2];
   }>;
 
   @Prop({

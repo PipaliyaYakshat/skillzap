@@ -39,7 +39,7 @@ import { multerFileOptions } from '../common/multer.service';
 import { JwtAuthGuard } from '../auth/lib/jwt-auth.guard';
 import { Roles } from '../auth/lib/roles.decorator';
 import { RolesGuard } from '../auth/lib/roles.guard';
-import { STATUS_UPDATE } from 'src/common/enum';
+import { STATUS_UPDATE, DIFFICULTY_VALUES } from 'src/common/enum';
 
 // Type for authenticated user object
 type AuthUser = {
@@ -183,9 +183,9 @@ export class ContentController {
   @ApiQuery({
     name: 'difficulty',
     required: false,
-    enum: ['easy', 'medium', 'hard'],
+    enum: [DIFFICULTY_VALUES[0], DIFFICULTY_VALUES[1], DIFFICULTY_VALUES[2]],
     description: 'Difficulty level for MCQ questions',
-    example: 'medium',
+    example: DIFFICULTY_VALUES[1],
   })
   @ApiResponse({
     status: 201,
@@ -223,7 +223,7 @@ export class ContentController {
   })
   async singelPlayCreateGame(
     @Param('id') subTopicId: string,
-    @Query('difficulty') difficulty: 'easy' | 'medium' | 'hard' = 'easy',
+    @Query('difficulty') difficulty: typeof DIFFICULTY_VALUES[0] | typeof DIFFICULTY_VALUES[1] | typeof DIFFICULTY_VALUES[2] = DIFFICULTY_VALUES[0],
     @Body('userId') userId?: string,
   ) {
     if (!userId) {

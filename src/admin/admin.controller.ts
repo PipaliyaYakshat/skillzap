@@ -374,7 +374,7 @@ export class AdminController {
   })
   async approvePublicRequest(
     @Param('deckId') deckId: string,
-    @Body('status') status: 'approve' | 'reject',
+    @Body('status') status: typeof STATUS_UPDATE[1] | typeof STATUS_UPDATE[2],
   ) {
     if (!deckId) {
       throw new BadRequestException('deckId is required');
@@ -445,7 +445,7 @@ export class AdminController {
     name: 'status',
     required: false,
     type: String,
-    enum: ['approved', 'pending'],
+    enum: [STATUS_UPDATE[3], STATUS_UPDATE[0]],
     description: 'Optional status filter (approved or pending)',
   })
   @ApiResponse({
@@ -457,7 +457,7 @@ export class AdminController {
     query: {
       page?: number;
       limit?: number;
-      status?: 'approved' | 'pending';
+      status?: typeof STATUS_UPDATE[3] | typeof STATUS_UPDATE[0];
     },
   ) {
     return await this.adminService.getContentFileData(query);

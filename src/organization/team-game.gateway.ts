@@ -28,7 +28,7 @@ import {
   TeamGameScoreDocument,
 } from './entities/team-game.entity';
 import { Types } from 'mongoose';
-import { USER_TYPE, STATUS_UPDATE } from 'src/common/enum';
+import { USER_TYPE, STATUS_UPDATE, DIFFICULTY_VALUES, GAME_MODE_VALUES } from 'src/common/enum';
 
 // Type interfaces for proper typing
 interface JwtPayload {
@@ -143,7 +143,7 @@ type AnswerRecord = {
 };
 
 const QUESTION_TIME_SECONDS = 10;
-type Difficulty = 'easy' | 'medium' | 'hard';
+type Difficulty = typeof DIFFICULTY_VALUES[0] | typeof DIFFICULTY_VALUES[1] | typeof DIFFICULTY_VALUES[2];
 
 type GameState = {
   gameId: string;
@@ -403,7 +403,7 @@ export class TeamGameGateway
                 .lean()
                 .exec();
 
-              if (game && game.gameMode === 'team' && normalizedUserId) {
+              if (game && game.gameMode === GAME_MODE_VALUES[2] && normalizedUserId) {
                 const remainingPlayers = teamGameState.players.filter(
                   (p) => this.normalizeId(p) !== normalizedUserId,
                 );
@@ -614,7 +614,7 @@ export class TeamGameGateway
       });
     }
 
-    const { subTopicId, difficulty = 'easy' } = body as {
+    const { subTopicId, difficulty = DIFFICULTY_VALUES[0] } = body as {
       subTopicId: string;
       difficulty?: Difficulty;
     };
@@ -2155,7 +2155,7 @@ export class TeamGameGateway
         questions = await aiService.generateMCQQuestions(
           combinedTitle,
           combinedDescription,
-          game.difficulty || 'medium',
+          game.difficulty || DIFFICULTY_VALUES[1],
         );
 
         // Use first subtopic ID for game state (for compatibility)
@@ -2187,7 +2187,7 @@ export class TeamGameGateway
         questions = await aiService.generateMCQQuestions(
           subTopic.title,
           subTopic.description,
-          game.difficulty || 'medium',
+          game.difficulty || DIFFICULTY_VALUES[1],
         );
 
         // Calculate topicId, subTopicIndex and totalSubTopics

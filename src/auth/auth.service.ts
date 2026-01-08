@@ -113,8 +113,8 @@ export class AuthService {
           inviter.teamPlan
         ) {
           const normalized = String(inviter.teamPlan).toLowerCase();
-          if (normalized === 'enterprise') {
-            inviterTeamPlan = 'enterprise';
+          if (normalized === USER_TYPE[4]) {
+            inviterTeamPlan = USER_TYPE[4];
           }
         }
       }
