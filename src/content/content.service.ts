@@ -28,7 +28,7 @@ import { DeviceAccessService } from './device-access.service';
 import { Question } from './interfaces/question.interface';
 import { getUploadBasePath } from '../common/multer.service';
 import { extname } from 'path';
-import { USER_TYPE } from 'src/common/enum';
+import { USER_TYPE, STATUS_UPDATE, ProcessingStatus, ContentType } from 'src/common/enum';
 import { Deck, DeckDocument } from './schemas/deck.schema';
 import { User, UserDocument } from '../users/entities/user.entity';
 import { UpdateQuery } from 'mongoose';
@@ -637,7 +637,7 @@ export class ContentService {
 
     const content = await this.contentModel.create({
       ...createContentDto,
-      processingStatus: createContentDto.processingStatus ?? 'pending',
+      processingStatus: createContentDto.processingStatus ?? ProcessingStatus.PENDING,
       isProcessed: createContentDto.isProcessed ?? false,
       isProcessing: createContentDto.isProcessing ?? false,
     });
@@ -687,7 +687,7 @@ export class ContentService {
       contentName: file.originalname,
       filePath: file.path,
       fileUrl,
-      processingStatus: 'pending',
+      processingStatus: ProcessingStatus.PENDING,
       isProcessed: false,
       isProcessing: false,
     });
@@ -707,18 +707,18 @@ export class ContentService {
     return null;
   }
 
-  private inferContentType(file: Express.Multer.File): string {
+  private inferContentType(file: Express.Multer.File): ContentType {
     const mime = file.mimetype?.toLowerCase() ?? '';
     const extension = extname(file.originalname).toLowerCase();
 
     if (mime.startsWith('image/')) {
-      return 'image';
+      return ContentType.IMAGE;
     }
     if (mime.startsWith('audio/')) {
-      return 'audio';
+      return ContentType.AUDIO;
     }
     if (mime === 'application/pdf' || extension === '.pdf') {
-      return 'pdf';
+      return ContentType.PDF;
     }
     if (
       mime === 'application/vnd.ms-powerpoint' ||
@@ -727,10 +727,10 @@ export class ContentService {
       extension === '.ppt' ||
       extension === '.pptx'
     ) {
-      return 'ppt';
+      return ContentType.PPT;
     }
     if (extension === '.txt' || mime === 'text/plain') {
-      return 'note';
+      return ContentType.NOTE;
     }
 
     throw new BadRequestException('Unsupported file type');
@@ -1386,14 +1386,14 @@ export class ContentService {
     }
 
     // Check if deck is already approved/published
-    if (deck.status === 'approve') {
+    if (deck.status === STATUS_UPDATE[1]) {
       throw new BadRequestException('Your deck is already published');
     }
 
     // Update status to pending and isPublic to true
     const updated = await this.deckModel.findByIdAndUpdate(
       deckId,
-      { $set: { status: 'pending', isPublic: true } },
+      { $set: { status: STATUS_UPDATE[0], isPublic: true } },
       { new: true, lean: true },
     );
 
@@ -1582,10 +1582,10 @@ export class ContentService {
       const normalizedUserId = this.normalizeId(userId);
       query.userId = normalizedUserId;
       query.isPublic = false;
-      query.status = 'pending';
+      query.status = STATUS_UPDATE[0];
     } else if (filter === 'public') {
       query.isPublic = true;
-      query.status = 'approve';
+      query.status = STATUS_UPDATE[1];
     } else {
       throw new BadRequestException(
         'Filter must be either "private" or "public"',
@@ -2557,7 +2557,7 @@ export class ContentService {
   async getRandomDeck() {
     const query: FilterQuery<DeckDocument> = {
       isPublic: true,
-      status: 'approve',
+      status: STATUS_UPDATE[1],
     };
 
     // Get count of matching decks
@@ -2647,12 +2647,12 @@ export class ContentService {
       const normalizedDeckUserId = this.normalizeId(deck.userId);
       if (
         !deck.isPublic ||
-        deck.status !== 'approve' ||
+        deck.status !== STATUS_UPDATE[1] ||
         normalizedDeckUserId !== normalizedUserId
       ) {
         // Allow if deck belongs to user, otherwise check if public and approved
         if (normalizedDeckUserId !== normalizedUserId) {
-          if (!deck.isPublic || deck.status !== 'approve') {
+          if (!deck.isPublic || deck.status !== STATUS_UPDATE[1]) {
             throw new BadRequestException(
               'Deck is not available. It must be public and approved, or belong to you.',
             );

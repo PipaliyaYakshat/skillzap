@@ -1,5 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { Document } from 'mongoose';
+import {
+  GameBattleMode,
+  GameBattleType,
+  GameBattleStatus,
+} from 'src/common/enum';
 
 export type GamebattleDocument = Gamebattl & Document;
 
@@ -8,17 +13,17 @@ export class Gamebattl {
   @Prop({})
   hostUserId: string;
 
-  @Prop({ enum: ['DUEL', 'BRAWL'], required: true })
-  mode: 'DUEL' | 'BRAWL';
+  @Prop({ enum: Object.values(GameBattleMode), required: true })
+  mode: GameBattleMode;
 
-  @Prop({ enum: ['REGULAR', 'KNOCKOUT'], default: 'REGULAR' })
-  brawlType?: 'REGULAR' | 'KNOCKOUT';
+  @Prop({ enum: Object.values(GameBattleType), default: GameBattleType.REGULAR })
+  brawlType?: GameBattleType;
 
   @Prop({
-    enum: ['WAITING', 'STARTED', 'COMPLETED', 'CANCELED'],
-    default: 'WAITING',
+    enum: Object.values(GameBattleStatus),
+    default: GameBattleStatus.WAITING,
   })
-  status: 'WAITING' | 'STARTED' | 'COMPLETED' | 'CANCELED';
+  status: GameBattleStatus;
 
   @Prop({ type: Number, default: 3, min: 3, max: 10 })
   maxPlayers?: number;

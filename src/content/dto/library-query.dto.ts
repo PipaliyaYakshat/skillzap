@@ -1,9 +1,5 @@
 import { IsOptional, IsString, IsEnum, IsNumberString } from 'class-validator';
-
-export enum LibraryFilter {
-  PRIVATE = 'private',
-  PUBLIC = 'public',
-}
+import { LibraryFilter } from 'src/common/enum';
 
 export class LibraryQueryDto {
   @IsOptional()

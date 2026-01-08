@@ -6,11 +6,7 @@ import {
   IsOptional,
   IsMongoId,
 } from 'class-validator';
-
-export enum EnterpriseStatus {
-  APPROVE = 'approve',
-  REJECT = 'reject',
-}
+import { STATUS_UPDATE, EnterpriseStatus } from 'src/common/enum';
 
 export class UpdateStatusEnterpriseDto {
   @ApiProperty({
@@ -23,7 +19,7 @@ export class UpdateStatusEnterpriseDto {
   registrationId: string;
 
   @ApiProperty({
-    example: 'approve',
+    example: STATUS_UPDATE[1],
     enum: EnterpriseStatus,
     description: 'Status to update: approve or reject',
   })

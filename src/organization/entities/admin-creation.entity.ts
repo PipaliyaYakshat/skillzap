@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
+import { STATUS_UPDATE } from 'src/common/enum';
 
 @Schema()
 export class AdminCreation extends Document {
@@ -22,7 +23,7 @@ export class AdminCreation extends Document {
   @Prop({ required: false })
   name?: string;
 
-  @Prop({ default: 'pending' })
+  @Prop({ default: STATUS_UPDATE[0] })
   status: string;
 
   @Prop({ default: Date.now })

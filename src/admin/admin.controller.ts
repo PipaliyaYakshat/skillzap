@@ -24,7 +24,7 @@ import {
 import { JwtAuthGuard } from 'src/auth/lib/jwt-auth.guard';
 import { Roles } from 'src/auth/lib/roles.decorator';
 import { RolesGuard } from 'src/auth/lib/roles.guard';
-import { USER_ROLE } from 'src/common/enum';
+import { USER_ROLE, STATUS_UPDATE } from 'src/common/enum';
 import { UpdateStatusEnterpriseDto } from '../users/dto/update-status-enterprise.dto';
 import { ToggleUserStatusDto } from './dto/toggle-user-status.dto';
 import { UpdateUserTypeDto } from './dto/update-user-type.dto';
@@ -362,7 +362,7 @@ export class AdminController {
       properties: {
         status: {
           type: 'string',
-          enum: ['approve', 'reject'],
+          enum: [STATUS_UPDATE[1], STATUS_UPDATE[2]],
           description: 'Status to set: approve or reject',
         },
       },

@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
+import { STATUS_UPDATE } from 'src/common/enum';
 
 export type TeamMemberDocument = TeamMember & Document;
 
@@ -24,7 +25,7 @@ export class TeamMember extends Document {
   @Prop({ default: false })
   isAdmin: boolean;
 
-  @Prop({ default: 'pending' })
+  @Prop({ default: STATUS_UPDATE[0] })
   status: string;
 
   @Prop({ default: Date.now })

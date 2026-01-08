@@ -1,5 +1,12 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
+import {
+  GameType,
+  GameMode,
+  Difficulty,
+  BrawlGameType,
+  DeckSelectionMethod,
+} from 'src/common/enum';
 
 export type GameDocument = Game & Document;
 
@@ -8,11 +15,11 @@ export class Game {
   @Prop({ required: true, unique: true })
   gameId: string;
 
-  @Prop({ required: true, enum: ['single', 'multiplayer'] })
-  type: 'single' | 'multiplayer';
+  @Prop({ required: true, enum: Object.values(GameType) })
+  type: GameType;
 
-  @Prop({ required: false, enum: ['duel', 'brawl', 'team'] })
-  gameMode: 'duel' | 'brawl' | 'team';
+  @Prop({ required: false, enum: Object.values(GameMode) })
+  gameMode: GameMode;
 
   @Prop({ required: true, type: [String] })
   players: string[];
@@ -38,8 +45,8 @@ export class Game {
   @Prop({ default: 30 })
   questionTimeLimit: number;
 
-  @Prop({ required: true, enum: ['easy', 'medium', 'hard'] })
-  difficulty: 'easy' | 'medium' | 'hard';
+  @Prop({ required: true, enum: Object.values(Difficulty) })
+  difficulty: Difficulty;
 
   @Prop({ type: [Object] })
   questions: Array<{
@@ -51,11 +58,11 @@ export class Game {
   @Prop({ type: [String], default: [] })
   acceptedPlayers: string[];
 
-  @Prop({ enum: ['regular', 'knockout'] })
-  brawlGameType: 'regular' | 'knockout';
+  @Prop({ enum: Object.values(BrawlGameType) })
+  brawlGameType: BrawlGameType;
 
-  @Prop({ enum: ['random', 'selected'] })
-  deckSelectionMethod: 'random' | 'selected';
+  @Prop({ enum: Object.values(DeckSelectionMethod) })
+  deckSelectionMethod: DeckSelectionMethod;
 
   @Prop()
   selectedDeckId: string;

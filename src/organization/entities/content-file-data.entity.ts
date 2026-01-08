@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
+import { STATUS_UPDATE } from 'src/common/enum';
 
 @Schema({ timestamps: true })
 export class ContentFileData extends Document {
@@ -27,7 +28,7 @@ export class ContentFileData extends Document {
   // @Prop({ required: true })
   // userId: string;
 
-  @Prop({ required: false, default: 'pending' })
+  @Prop({ required: false, default: STATUS_UPDATE[0] })
   status: string;
 
   @Prop({ type: String, required: true })

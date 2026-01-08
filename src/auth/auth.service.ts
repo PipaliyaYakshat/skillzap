@@ -30,7 +30,7 @@ import {
   TempRegistrationDocument,
 } from './schemas/temp-registration.schema';
 import { generateJwtToken, OTP_FUNCTION, OTPGNARETE } from '../common/utils';
-import { USER_TYPE } from 'src/common/enum';
+import { USER_TYPE, STATUS_UPDATE } from 'src/common/enum';
 
 @Injectable()
 export class AuthService {
@@ -92,13 +92,13 @@ export class AuthService {
       // Check for pending admin invitation
       const pendingAdmin = await this.adminCreationModel.findOne({
         email: createUserDto.email,
-        status: 'pending',
+        status: STATUS_UPDATE[0],
       });
 
       // Check for pending team member invitation
       const pendingTeamMember = await this.teamMemberModel.findOne({
         email: createUserDto.email,
-        status: 'pending',
+        status: STATUS_UPDATE[0],
       });
 
       // Determine inviter's teamPlan for admin or team member invitations (used to inherit enterprise plan)
@@ -374,14 +374,14 @@ export class AuthService {
 
       // Update pending invitation status if exists
       if (pendingAdmin) {
-        pendingAdmin.status = 'approved';
+        pendingAdmin.status = STATUS_UPDATE[3];
         pendingAdmin.createdAdmin =
           newUser._id as unknown as MongooseSchema.Types.ObjectId;
         await pendingAdmin.save();
       }
 
       if (pendingTeamMember) {
-        pendingTeamMember.status = 'approved';
+        pendingTeamMember.status = STATUS_UPDATE[3];
         pendingTeamMember.user =
           newUser._id as unknown as MongooseSchema.Types.ObjectId;
         await pendingTeamMember.save();
@@ -677,14 +677,14 @@ export class AuthService {
 
         // Update pending invitation status if exists
         if (pendingAdmin) {
-          pendingAdmin.status = 'approved';
+          pendingAdmin.status = STATUS_UPDATE[3];
           pendingAdmin.createdAdmin =
             newUser._id as unknown as MongooseSchema.Types.ObjectId;
           await pendingAdmin.save();
         }
 
         if (pendingTeamMember) {
-          pendingTeamMember.status = 'approved';
+          pendingTeamMember.status = STATUS_UPDATE[3];
           pendingTeamMember.user =
             newUser._id as unknown as MongooseSchema.Types.ObjectId;
           await pendingTeamMember.save();
@@ -827,7 +827,7 @@ export class AuthService {
         country: createEnterpriseUserDto.country,
         aboutUs: createEnterpriseUserDto.aboutUs,
         countryCode: createEnterpriseUserDto.countryCode || null,
-        status: 'pending',
+        status: STATUS_UPDATE[0],
       });
 
       // Send email to pipaliyayakshat@gmail.com with registration details

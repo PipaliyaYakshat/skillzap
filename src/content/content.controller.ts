@@ -32,12 +32,14 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { ListContentQueryDto } from './dto/list-content-query.dto';
-import { LibraryQueryDto, LibraryFilter } from './dto/library-query.dto';
+import { LibraryQueryDto } from './dto/library-query.dto';
+import { LibraryFilter } from 'src/common/enum';
 import { FlexibleAuthGuard } from './gured/flexible-auth.guard';
 import { multerFileOptions } from '../common/multer.service';
 import { JwtAuthGuard } from '../auth/lib/jwt-auth.guard';
 import { Roles } from '../auth/lib/roles.decorator';
 import { RolesGuard } from '../auth/lib/roles.guard';
+import { STATUS_UPDATE } from 'src/common/enum';
 
 // Type for authenticated user object
 type AuthUser = {
@@ -746,7 +748,7 @@ export class ContentController {
             name: 'Sample Deck',
             description: 'Sample description',
             isPublic: true,
-            status: 'approve',
+            status: STATUS_UPDATE[1],
             userId: '67501b23842d45d1c3d9f91b',
             createdAt: '2024-01-01T00:00:00.000Z',
           },
@@ -825,7 +827,7 @@ export class ContentController {
         userId: '67501b23842d45d1c3d9f91b',
         contentIds: ['67501b23842d45d1c3d9f91c'],
         isPublic: true,
-        status: 'approve',
+        status: STATUS_UPDATE[1],
         category: 'Science',
         topics: [
           {

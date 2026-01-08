@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { STATUS_UPDATE } from 'src/common/enum';
 
 export type DeckDocument = Deck & Document;
 
@@ -26,7 +27,7 @@ export class Deck {
   @Prop({ default: false })
   isPublic: boolean;
 
-  @Prop({ default: 'pending' })
+  @Prop({ default: STATUS_UPDATE[0] })
   status: string;
 
   @Prop({ default: '', required: false })

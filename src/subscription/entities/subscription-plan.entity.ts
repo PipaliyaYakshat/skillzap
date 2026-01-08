@@ -1,13 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-
-export enum SubscriptionType {
-  MONTH = 'month',
-  YEAR = 'year',
-  FOURTEEN_DAY = '14day',
-  LIVES = 'lives',
-  COINS = 'coins',
-}
+import { SubscriptionType } from 'src/common/enum';
 
 @Schema({ timestamps: true })
 export class SubscriptionPlan {

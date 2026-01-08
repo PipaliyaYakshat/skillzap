@@ -6,7 +6,7 @@ import {
   IsEnum,
   IsPositive,
 } from 'class-validator';
-import { SubscriptionType } from '../entities/subscription-plan.entity';
+import { SubscriptionType } from 'src/common/enum';
 
 export class CreateSubscriptionPlanDto {
   @ApiProperty({

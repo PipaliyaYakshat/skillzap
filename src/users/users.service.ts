@@ -16,8 +16,8 @@ import * as bcrypt from 'bcrypt';
 import {
   SubscriptionPlan,
   SubscriptionPlanDocument,
-  SubscriptionType,
 } from 'src/subscription/entities/subscription-plan.entity';
+import { SubscriptionType } from 'src/common/enum';
 import {
   GameProgress,
   GameProgressDocument,

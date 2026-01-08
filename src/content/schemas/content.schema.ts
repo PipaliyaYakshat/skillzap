@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
+import { STATUS_UPDATE, ContentType, ProcessingStatus } from 'src/common/enum';
 
 export type ContentDocument = Content & Document;
 
@@ -13,16 +14,7 @@ export class Content {
 
   @Prop({
     required: true,
-    enum: [
-      'pdf',
-      'ppt',
-      'audio',
-      'image',
-      'youtube',
-      'note',
-      'powerpoint',
-      'manual',
-    ],
+    enum: Object.values(ContentType),
   })
   contentType: string;
 
@@ -37,7 +29,7 @@ export class Content {
 
   @Prop({
     required: function (this: Content) {
-      return this.contentType === 'manual' || this.contentType === 'note';
+      return this.contentType === ContentType.MANUAL || this.contentType === ContentType.NOTE;
     },
   })
   title: string;
@@ -55,8 +47,8 @@ export class Content {
   isProcessing: boolean;
 
   @Prop({
-    enum: ['pending', 'processing', 'completed', 'failed', 'cancelled'],
-    default: 'pending',
+    enum: Object.values(ProcessingStatus),
+    default: ProcessingStatus.PENDING,
   })
   processingStatus: string;
 

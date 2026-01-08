@@ -11,8 +11,8 @@ import { Model, isValidObjectId, Types } from 'mongoose';
 import {
   SubscriptionPlan,
   SubscriptionPlanDocument,
-  SubscriptionType,
 } from 'src/subscription/entities/subscription-plan.entity';
+import { SubscriptionType } from 'src/common/enum';
 import { ContentFileData } from 'src/organization/entities/content-file-data.entity';
 import { Deck, DeckDocument } from 'src/content/schemas/deck.schema';
 import { Topic, TopicDocument } from 'src/content/schemas/topic.schema';
@@ -39,6 +39,7 @@ import {
   TeamGameDocument,
 } from 'src/organization/entities/team-game.entity';
 import { UpdateStatusEnterpriseDto } from '../users/dto/update-status-enterprise.dto';
+import { EnterpriseStatus } from 'src/common/enum';
 import { MailService } from 'src/common/mail.service';
 import * as bcrypt from 'bcrypt';
 import { convertToPublicUrl } from 'src/common/multer.service';
@@ -54,7 +55,7 @@ import { AdminVerifyOtpDto } from './dto/admin-verify-otp.dto';
 import { AdminResetPasswordDto } from './dto/admin-reset-password.dto';
 import { AdminChangePasswordDto } from './dto/admin-change-password.dto';
 import { OTPGNARETE, generateJwtToken, OTP_FUNCTION } from 'src/common/utils';
-import { USER_ROLE, USER_TYPE } from 'src/common/enum';
+import { USER_ROLE, USER_TYPE, STATUS_UPDATE } from 'src/common/enum';
 
 @Injectable()
 export class AdminService {
@@ -323,7 +324,7 @@ export class AdminService {
       }
 
       // If status is reject, just update the status
-      if (status === 'reject') {
+      if (status === STATUS_UPDATE[2]) {
         registration.status = 'rejected';
         await registration.save();
 
@@ -334,7 +335,7 @@ export class AdminService {
       }
 
       // If status is approve, create user and send email
-      if (status === 'approve') {
+      if (status === EnterpriseStatus.APPROVE) {
         // Check if user already exists with this email
         const existingUser = await this.userModel.findOne({
           email: registration.email,
@@ -409,7 +410,7 @@ export class AdminService {
         const newUser = await this.userModel.create(userData);
 
         // Update registration status
-        registration.status = 'approved';
+        registration.status = STATUS_UPDATE[3];
         await registration.save();
 
         // Send email with credentials
@@ -452,7 +453,7 @@ export class AdminService {
       const skip = (page - 1) * limit;
 
       // Filter by pending status
-      const filterQuery = { status: 'pending' };
+      const filterQuery = { status: STATUS_UPDATE[0] };
 
       const total = await this.contentFileDataModel
         .countDocuments(filterQuery)
@@ -490,7 +491,7 @@ export class AdminService {
 
   async getPublicRequests() {
     const decks = await this.deckModel
-      .find({ isPublic: true, status: 'pending' })
+      .find({ isPublic: true, status: STATUS_UPDATE[0] })
       .sort({ createdAt: -1 })
       .lean()
       .exec();
@@ -505,7 +506,7 @@ export class AdminService {
     if (!status) {
       throw new BadRequestException('Status is required');
     }
-    if (status !== 'approve' && status !== 'reject') {
+    if (status !== STATUS_UPDATE[1] && status !== STATUS_UPDATE[2]) {
       throw new BadRequestException(
         'Status must be either "approve" or "reject"',
       );
@@ -518,9 +519,9 @@ export class AdminService {
 
     // Update based on status
     const updateData: Record<string, unknown> = { status };
-    if (status === 'approve') {
+    if (status === STATUS_UPDATE[1]) {
       updateData.isPublic = true;
-    } else if (status === 'reject') {
+    } else if (status === STATUS_UPDATE[2]) {
       updateData.isPublic = false;
     }
 
@@ -610,7 +611,7 @@ export class AdminService {
       // Filter by status if provided
       if (
         query.status &&
-        (query.status === 'approved' || query.status === 'pending')
+        (query.status === STATUS_UPDATE[3] || query.status === STATUS_UPDATE[0])
       ) {
         filterQuery.status = query.status;
       }
@@ -659,7 +660,7 @@ export class AdminService {
 
       const filterQuery: Record<string, unknown> = {
         isPublic: true,
-        status: 'approve',
+        status: STATUS_UPDATE[1],
       };
 
       // Search by deck name (case-insensitive, partial)

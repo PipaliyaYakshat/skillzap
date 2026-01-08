@@ -28,7 +28,7 @@ import {
   TeamGameScoreDocument,
 } from './entities/team-game.entity';
 import { Types } from 'mongoose';
-import { USER_TYPE } from 'src/common/enum';
+import { USER_TYPE, STATUS_UPDATE } from 'src/common/enum';
 
 // Type interfaces for proper typing
 interface JwtPayload {
@@ -836,7 +836,7 @@ export class TeamGameGateway
         .find({
           user: normalizedUserId,
           team: data.teamId,
-          status: 'approved',
+          status: STATUS_UPDATE[3],
         })
         .lean()
         .exec();
@@ -908,7 +908,7 @@ export class TeamGameGateway
         const allTeamMembers = await this.teamMemberModel
           .find({
             team: data.teamId,
-            status: 'approved',
+            status: STATUS_UPDATE[3],
           })
           .lean()
           .exec();
@@ -1027,7 +1027,7 @@ export class TeamGameGateway
         const allTeamMembers = await this.teamMemberModel
           .find({
             team: { $in: validTeamIds },
-            status: 'approved',
+            status: STATUS_UPDATE[3],
           })
           .populate(
             'user',
@@ -1295,7 +1295,7 @@ export class TeamGameGateway
       const teamMembers = await this.teamMemberModel
         .find({
           user: { $in: normalizedParticipants },
-          status: 'approved', // Only approved team members
+          status: STATUS_UPDATE[3], // Only approved team members
         })
         .lean()
         .exec();
@@ -1631,7 +1631,7 @@ export class TeamGameGateway
           const teamMembers = await this.teamMemberModel
             .find({
               user: { $in: normalizedParticipants },
-              status: 'approved',
+              status: STATUS_UPDATE[3],
             })
             .lean()
             .exec();

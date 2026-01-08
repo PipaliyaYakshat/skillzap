@@ -40,7 +40,7 @@ import {
   TeamGameChat,
   TeamGameChatDocument,
 } from './entities/teamgame-chat.entity';
-import { USER_TYPE } from 'src/common/enum';
+import { USER_TYPE, STATUS_UPDATE } from 'src/common/enum';
 
 // Helper types for lean document results
 type LeanDeck = Omit<Deck, keyof Document> & {
@@ -680,7 +680,7 @@ export class TeamGameService {
   ): Promise<TeamMemberWithUser[]> {
     try {
       const query: FilterQuery<TeamMemberDocument> = {
-        status: 'approved', // Only approved team members
+        status: STATUS_UPDATE[3], // Only approved team members
       };
 
       if (teamId) {
@@ -764,7 +764,7 @@ export class TeamGameService {
       }
 
       const query: FilterQuery<TeamMemberDocument> = {
-        status: 'approved', // Only approved team members
+        status: STATUS_UPDATE[3], // Only approved team members
       };
 
       if (teamId) {
@@ -1000,7 +1000,7 @@ export class TeamGameService {
               {
                 $match: {
                   user: { $in: validObjectIds },
-                  status: 'approved',
+                  status: STATUS_UPDATE[3],
                 },
               },
               {

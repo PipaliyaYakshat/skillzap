@@ -42,7 +42,7 @@ import {
 } from '../content/schemas/topic-progress.schema';
 import { Game, GameDocument } from '../content/schemas/game.schema';
 import { TeamMemberDocument } from './entities/team-member.entity';
-import { USER_ROLE, USER_TYPE } from 'src/common/enum';
+import { USER_ROLE, USER_TYPE, STATUS_UPDATE } from 'src/common/enum';
 
 // Type interfaces for proper typing (using type aliases to avoid conflicts)
 type UserWithTeamPlan = UserDocument & {
@@ -778,7 +778,7 @@ export class TeamService {
       const existingInvitation = await this.adminCreationModel.findOne({
         email: email,
         organization: effectiveOrganizationId,
-        status: 'pending',
+        status: STATUS_UPDATE[0],
       });
 
       if (existingInvitation) {
@@ -793,7 +793,7 @@ export class TeamService {
           await this.adminCreationModel.countDocuments({
             creator: adminCreatorId,
             organization: effectiveOrganizationId,
-            status: 'pending',
+            status: STATUS_UPDATE[0],
           });
 
         if (pendingInvitationCount >= 3) {
@@ -823,7 +823,7 @@ export class TeamService {
         email: email,
         name: name || undefined,
         organization: effectiveOrganizationId,
-        status: 'pending',
+        status: STATUS_UPDATE[0],
       });
 
       // Send email with verification link
@@ -1435,7 +1435,7 @@ export class TeamService {
       const isAdminInOrg = await this.adminCreationModel.findOne({
         createdAdmin: existingUser._id,
         organization: organizationId,
-        status: 'approved',
+        status: STATUS_UPDATE[3],
       });
 
       if (isAdminInOrg) {
@@ -1494,7 +1494,7 @@ export class TeamService {
         organization: organizationId,
         user: existingUser._id,
         isAdmin: false,
-        status: 'approved',
+        status: STATUS_UPDATE[3],
         creator: adminUser._id,
       });
 
@@ -1506,7 +1506,7 @@ export class TeamService {
       return {
         email: memberEmail,
         message: 'Member added successfully',
-        status: 'approved',
+        status: STATUS_UPDATE[3],
         user: {
           id: existingUser._id,
           email: existingUser.email,
@@ -1518,7 +1518,7 @@ export class TeamService {
       const existingInvitation = await this.teamMemberModel.findOne({
         team: teamId,
         email: memberEmail,
-        status: 'pending',
+        status: STATUS_UPDATE[0],
       });
 
       if (existingInvitation) {
@@ -1556,7 +1556,7 @@ export class TeamService {
             : 'another organization';
 
         const statusMessage =
-          existingMemberInAnyTeam.status === 'pending'
+          existingMemberInAnyTeam.status === STATUS_UPDATE[0]
             ? 'has a pending invitation'
             : 'is already a member';
 
@@ -1571,7 +1571,7 @@ export class TeamService {
         organization: organizationId,
         email: memberEmail,
         isAdmin: false,
-        status: 'pending',
+        status: STATUS_UPDATE[0],
         creator: adminUser._id,
       });
 
@@ -1763,7 +1763,7 @@ export class TeamService {
       return {
         email: memberEmail,
         message: `Invitation email sent to ${memberEmail}`,
-        status: 'pending',
+        status: STATUS_UPDATE[0],
       };
     }
   }
@@ -2002,7 +2002,7 @@ export class TeamService {
 
       // Step 8: Count successful additions
       const successCount = memberResults.filter(
-        (r) => r.status === 'approved' || r.status === 'pending',
+        (r) => r.status === STATUS_UPDATE[3] || r.status === STATUS_UPDATE[0],
       ).length;
       const failedCount = memberResults.filter(
         (r) => r.status === 'failed',
@@ -2634,7 +2634,7 @@ export class TeamService {
         approvedAdminCreation = await this.adminCreationModel.findOne({
           createdAdmin: trimmedAdminUserId,
           organization: effectiveOrganizationId,
-          status: 'approved',
+          status: STATUS_UPDATE[3],
         });
       }
 
@@ -2648,7 +2648,7 @@ export class TeamService {
           // Verify it's a pending admin for this organization
           if (
             pendingAdminCreation &&
-            pendingAdminCreation.status === 'pending' &&
+            pendingAdminCreation.status === STATUS_UPDATE[0] &&
             pendingAdminCreation.organization?.toString() ===
               effectiveOrganizationId
           ) {
@@ -2663,7 +2663,7 @@ export class TeamService {
           pendingAdminCreation = await this.adminCreationModel.findOne({
             _id: trimmedAdminUserId,
             organization: effectiveOrganizationId,
-            status: 'pending',
+            status: STATUS_UPDATE[0],
           });
 
           if (pendingAdminCreation) {
@@ -2701,7 +2701,7 @@ export class TeamService {
         const remainingPendingAdmins = await this.adminCreationModel
           .find({
             organization: effectiveOrganizationId,
-            status: 'pending',
+            status: STATUS_UPDATE[0],
           })
           .select('name email _id')
           .exec();
@@ -2715,7 +2715,7 @@ export class TeamService {
               id: pendingAdminCreation._id,
               email: pendingAdminCreation.email || null,
               name: pendingAdminCreation.name || null,
-              status: 'pending',
+              status: STATUS_UPDATE[0],
             },
             organization: {
               id: organization._id,
@@ -2726,13 +2726,13 @@ export class TeamService {
                 id: admin._id,
                 email: admin.email,
                 name: admin.name,
-                status: 'approved',
+                status: STATUS_UPDATE[3],
               })),
               ...remainingPendingAdmins.map((admin) => ({
                 id: admin._id,
                 email: admin.email,
                 name: admin.name || null,
-                status: 'pending',
+                status: STATUS_UPDATE[0],
               })),
             ],
             totalRemainingAdmins:
@@ -2789,7 +2789,7 @@ export class TeamService {
       const remainingPendingAdmins = await this.adminCreationModel
         .find({
           organization: effectiveOrganizationId,
-          status: 'pending',
+          status: STATUS_UPDATE[0],
         })
         .select('name email _id')
         .exec();
@@ -2802,7 +2802,7 @@ export class TeamService {
             id: adminUser._id,
             email: adminUser.email,
             name: adminUser.name,
-            status: 'approved',
+            status: STATUS_UPDATE[3],
           },
           organization: {
             id: organization._id,
@@ -2813,13 +2813,13 @@ export class TeamService {
               id: admin._id,
               email: admin.email,
               name: admin.name,
-              status: 'approved',
+              status: STATUS_UPDATE[3],
             })),
             ...remainingPendingAdmins.map((admin) => ({
               id: admin._id,
               email: admin.email,
               name: admin.name || null,
-              status: 'pending',
+              status: STATUS_UPDATE[0],
             })),
           ],
           totalRemainingAdmins:
@@ -2937,7 +2937,7 @@ export class TeamService {
       // Apply status filter to AdminCreation query if provided
       if (status && status.trim()) {
         const statusLower = status.trim().toLowerCase();
-        if (statusLower === 'pending' || statusLower === 'approved') {
+        if (statusLower === STATUS_UPDATE[0] || statusLower === STATUS_UPDATE[3]) {
           adminCreationQuery.status = statusLower;
         }
       }
@@ -2953,13 +2953,13 @@ export class TeamService {
       // Pending: status is 'pending' and createdAdmin is null (not registered yet)
       const pendingAdminCreations = allAdminCreations.filter((ac) => {
         const acTyped = ac as unknown as AdminCreationLean;
-        return acTyped.status === 'pending' && !acTyped.createdAdmin;
+        return acTyped.status === STATUS_UPDATE[0] && !acTyped.createdAdmin;
       });
       // Approved: status is 'approved' and has createdAdmin (registered user)
       const approvedAdminCreationIds = allAdminCreations
         .filter((ac) => {
           const acTyped = ac as unknown as AdminCreationLean;
-          return acTyped.createdAdmin && acTyped.status === 'approved';
+          return acTyped.createdAdmin && acTyped.status === STATUS_UPDATE[3];
         })
         .map((ac) => {
           const acTyped = ac as unknown as AdminCreationLean;
@@ -2974,7 +2974,7 @@ export class TeamService {
       };
 
       // Apply status filter logic
-      if (status && status.trim().toLowerCase() === 'approved') {
+      if (status && status.trim().toLowerCase() === STATUS_UPDATE[3]) {
         // If filtering for approved, only get admins with approved AdminCreation records
         if (approvedAdminCreationIds.length > 0) {
           adminQuery._id = { $in: approvedAdminCreationIds };
@@ -2982,7 +2982,7 @@ export class TeamService {
           // No approved AdminCreations exist, return empty
           adminQuery._id = { $in: [] };
         }
-      } else if (status && status.trim().toLowerCase() === 'pending') {
+      } else if (status && status.trim().toLowerCase() === STATUS_UPDATE[0]) {
         // If filtering for pending, don't query User table at all (pending admins aren't in User table yet)
         adminQuery._id = { $in: [] };
       }
@@ -3034,7 +3034,7 @@ export class TeamService {
           email: adminTyped.email || null,
           name: adminTyped.name || null,
           profileImage: adminTyped.profileImage || null,
-          invitationStatus: adminCreation?.status || 'approved',
+          invitationStatus: adminCreation?.status || STATUS_UPDATE[3],
           createdAt: adminTyped.createdAt || new Date(),
         };
       });
@@ -3069,7 +3069,7 @@ export class TeamService {
               email: acTyped.email,
               name: acTyped.name || null,
               profileImage: null, // Pending admins don't have profileImage yet
-              invitationStatus: acTyped.status || 'pending',
+              invitationStatus: acTyped.status || STATUS_UPDATE[0],
               createdAt: acTyped.createdAt,
             };
           }
@@ -3171,7 +3171,7 @@ export class TeamService {
       const teamMemberships = await this.teamMemberModel
         .find({
           user: userId,
-          status: 'approved',
+          status: STATUS_UPDATE[3],
         })
         .select('organization')
         .lean()
@@ -3826,7 +3826,7 @@ export class TeamService {
       }
 
       const teamMemberships = await this.teamMemberModel
-        .find({ user: effectiveUserId, status: 'approved' })
+        .find({ user: effectiveUserId, status: STATUS_UPDATE[3] })
         .select('organization')
         .lean()
         .exec();
@@ -3916,7 +3916,7 @@ export class TeamService {
             const teamMember = await this.teamMemberModel
               .findOne({
                 user: effectiveUserId,
-                status: 'approved',
+                status: STATUS_UPDATE[3],
               })
               .lean()
               .exec();
@@ -3937,7 +3937,7 @@ export class TeamService {
                 const allTeamMembers = await this.teamMemberModel
                   .find({
                     team: teamId,
-                    status: 'approved',
+                    status: STATUS_UPDATE[3],
                   })
                   .populate('user', '_id')
                   .lean()
@@ -4214,7 +4214,7 @@ export class TeamService {
           const teamMember = await this.teamMemberModel
             .findOne({
               user: effectiveUserId,
-              status: 'approved',
+              status: STATUS_UPDATE[3],
             })
             .lean()
             .exec();
@@ -4238,7 +4238,7 @@ export class TeamService {
               const allTeamMembers = await this.teamMemberModel
                 .find({
                   team: teamId,
-                  status: 'approved',
+                  status: STATUS_UPDATE[3],
                 })
                 .populate('user', '_id')
                 .lean()
@@ -4545,10 +4545,10 @@ export class TeamService {
       }
 
       // Validate status parameter if provided
-      let statusFilter: string[] = ['approved', 'pending']; // Default: show both
+      let statusFilter: string[] = [STATUS_UPDATE[3], STATUS_UPDATE[0]]; // Default: show both
       if (status && status.trim()) {
         const statusLower = status.trim().toLowerCase();
-        if (statusLower === 'approved' || statusLower === 'pending') {
+        if (statusLower === STATUS_UPDATE[3] || statusLower === STATUS_UPDATE[0]) {
           statusFilter = [statusLower];
         } else {
           throw new BadRequestException(
@@ -4590,7 +4590,7 @@ export class TeamService {
       const teamMemberships = await this.teamMemberModel
         .find({
           user: userId,
-          status: 'approved',
+          status: STATUS_UPDATE[3],
         })
         .select('organization')
         .exec();
@@ -4716,7 +4716,7 @@ export class TeamService {
             mTyped.user &&
             typeof mTyped.user === 'object' &&
             '_id' in mTyped.user &&
-            mTyped.status === 'approved'
+            mTyped.status === STATUS_UPDATE[3]
           );
         })
         .map((m) => {
@@ -4802,7 +4802,7 @@ export class TeamService {
             memberTyped.user &&
             typeof memberTyped.user === 'object' &&
             '_id' in memberTyped.user &&
-            memberTyped.status === 'approved'
+            memberTyped.status === STATUS_UPDATE[3]
           ) {
             const userTyped = memberTyped.user as PopulatedUserInfo;
             userId = userTyped._id;
@@ -4836,8 +4836,8 @@ export class TeamService {
         // Sort members: approved first (by points desc), then pending
         const sortedMembers = membersWithPoints.sort((a, b) => {
           // First, sort by status: approved comes before pending
-          if (a.status === 'approved' && b.status === 'pending') return -1;
-          if (a.status === 'pending' && b.status === 'approved') return 1;
+          if (a.status === STATUS_UPDATE[3] && b.status === STATUS_UPDATE[0]) return -1;
+          if (a.status === STATUS_UPDATE[0] && b.status === STATUS_UPDATE[3]) return 1;
           // If same status, sort by points (highest first)
           return b.points - a.points;
         });
@@ -4975,7 +4975,7 @@ export class TeamService {
       const teamMemberships = await this.teamMemberModel
         .find({
           user: userId,
-          status: 'approved',
+          status: STATUS_UPDATE[3],
         })
         .select('organization')
         .exec();
@@ -5017,7 +5017,7 @@ export class TeamService {
       const allMembers = await this.teamMemberModel
         .find({
           team: { $in: teamIds },
-          status: 'approved',
+          status: STATUS_UPDATE[3],
         })
         .populate('user', 'name email profileImage')
         .lean()
@@ -5413,7 +5413,7 @@ export class TeamService {
               this.normalizeId(memberTyped.organization) || organizationId,
             email: memberTyped.email || userInfo?.email || null,
             isAdmin: memberTyped.isAdmin || false,
-            status: memberTyped.status || 'approved',
+            status: memberTyped.status || STATUS_UPDATE[3],
             joinedAt: memberTyped.joinedAt || new Date(),
             __v: (memberTyped as { __v?: number }).__v || 0,
             user: userInfo
@@ -5694,7 +5694,7 @@ export class TeamService {
       const allTeamMembers = await this.teamMemberModel
         .find({
           user: { $in: memberUserIds },
-          status: 'approved', // Only approved members
+          status: STATUS_UPDATE[3], // Only approved members
         })
         .populate('team', 'teamName _id')
         .lean()

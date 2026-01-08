@@ -10,19 +10,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-
-export const CONTENT_TYPES = [
-  'pdf',
-  'ppt',
-  'audio',
-  'image',
-  'youtube',
-  'note',
-  'powerpoint',
-  'manual',
-] as const;
-
-type ContentType = (typeof CONTENT_TYPES)[number];
+import { ContentType, CONTENT_TYPES, ProcessingStatus } from 'src/common/enum';
 
 class QuestionDto {
   @IsString()
@@ -75,7 +63,7 @@ export class CreateContentDto {
   @IsString()
   deviceId?: string;
 
-  @IsEnum(CONTENT_TYPES)
+  @IsEnum(ContentType)
   contentType: ContentType;
 
   @IsOptional()
@@ -111,8 +99,8 @@ export class CreateContentDto {
   isProcessing?: boolean;
 
   @IsOptional()
-  @IsEnum(['pending', 'processing', 'completed', 'failed', 'cancelled'])
-  processingStatus?: string;
+  @IsEnum(ProcessingStatus)
+  processingStatus?: ProcessingStatus;
 
   @IsOptional()
   @IsNumber()

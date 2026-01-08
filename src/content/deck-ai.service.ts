@@ -15,6 +15,7 @@ import { Question } from './interfaces/question.interface';
 import { FileTextExtractionService } from './file-text-extraction.service';
 import { promises as fsPromises } from 'fs';
 import { extname, isAbsolute } from 'path';
+import { STATUS_UPDATE } from 'src/common/enum';
 
 type GeneratedSubTopic = {
   title?: string;
@@ -252,7 +253,7 @@ CATEGORY: "${category}"
         name: data.deckName || 'Untitled Deck',
         description: data.description || '',
         category,
-        status: 'pending',
+        status: STATUS_UPDATE[0],
         contentIds: [],
       });
     }

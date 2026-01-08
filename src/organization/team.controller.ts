@@ -46,7 +46,7 @@ import { RolesGuard } from '../auth/lib/roles.guard';
 import { Roles } from '../auth/lib/roles.decorator';
 import { multerOrganizationLogoOptions } from '../common/multer.service';
 import { type Request } from 'express';
-import { USER_ROLE, USER_TYPE } from 'src/common/enum';
+import { USER_ROLE, USER_TYPE, STATUS_UPDATE } from 'src/common/enum';
 
 // Type for authenticated user object
 type AuthUser = {
@@ -252,7 +252,7 @@ export class TeamController {
                       email: 'member@example.com',
                       profileImage: null,
                       isAdmin: false,
-                      status: 'approved',
+                      status: STATUS_UPDATE[3],
                       joinedAt: '2024-01-01T00:00:00.000Z',
                       points: 100,
                       rank: 1,
@@ -701,7 +701,7 @@ export class TeamController {
               name: 'Sample Deck',
               description: 'Deck description',
               category: 'Technology',
-              status: 'pending',
+              status: STATUS_UPDATE[0],
               isDefault: false,
               isPublic: false,
               contentIds: [],
